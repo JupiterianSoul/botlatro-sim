@@ -107,4 +107,9 @@ jobs:
           GH_REPO: ${{ github.repository }}
           CHAIN: ${{ inputs.chain }}
           DIR: ${{ inputs.dir }}
-        run: gh workflow run botsim-autopilot.yml --ref "$CHAIN" -f command=tick -f dir="$DIR"
+        run: |
+          for i in 1 2 3 4 5; do
+            gh workflow run botsim-autopilot.yml --ref "$CHAIN" -f command=tick -f dir="$DIR" && exit 0
+            sleep $((i * 20))
+          done
+          exit 1
