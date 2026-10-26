@@ -1,0 +1,449 @@
+#!/usr/bin/env python3
+import json
+import math
+import os
+import random
+import re
+import subprocess
+import threading
+import time
+
+RUN_DIR = os.environ.get("BOTSIM_RUN_DIR", "run")
+METRICS = os.environ.get("BOTSIM_METRICS", os.path.join(RUN_DIR, "metrics.jsonl"))
+CKPT = os.environ.get("BOTSIM_CHECKPOINTS", os.path.join(RUN_DIR, "checkpoints"))
+STOP = os.environ.get("BOTSIM_STOP_FILE", os.path.join(RUN_DIR, "STOP"))
+BOX = os.environ.get("BOTSIM_BOX", "local")
+ROLE = os.environ.get("BOTSIM_ROLE", "head")
+WORKERS = int(os.environ.get("BOTSIM_WORKERS", "1"))
+MINUTES = float(os.environ.get("FAKE_MINUTES") or os.environ.get("BOTSIM_FAKE_MINUTES") or "10")
+BENCH_N = int(os.environ.get("BOTSIM_FAKE_BENCH_N", "40"))
+REPORT = float(os.environ.get("BOTSIM_FAKE_REPORT", "5"))
+USE_BENCH = os.environ.get("BOTSIM_FAKE_BENCH", "1") != "0"
+RATE = float(os.environ.get("BOTSIM_FAKE_RATE", "4"))
+HISTORY = float(os.environ.get("BOTSIM_FAKE_HISTORY", "0"))
+HISTORY_RATE = float(os.environ.get("BOTSIM_FAKE_HISTORY_RATE", "5"))
+GEN_SECONDS = float(os.environ.get("BOTSIM_FAKE_GEN_SECONDS", "0") or 0)
+RECORD_EVERY = int(os.environ.get("BOTSIM_FAKE_RECORD_EVERY", "400"))
+EVAL_PER_CELL = int(os.environ.get("BOTSIM_FAKE_EVAL_N", "8"))
+
+DECKS = ["b_red", "b_blue", "b_yellow", "b_green", "b_black", "b_magic", "b_nebula", "b_ghost",
+         "b_abandoned", "b_checkered", "b_zodiac", "b_painted", "b_anaglyph", "b_plasma", "b_erratic"]
+DECK_BONUS = {"b_red": 0.1, "b_blue": 0.15, "b_yellow": 0.1, "b_green": 0.0, "b_black": 0.2, "b_magic": 0.05, "b_nebula": -0.05,
+              "b_ghost": 0.0, "b_abandoned": 0.05, "b_checkered": 0.12, "b_zodiac": 0.05, "b_painted": 0.08, "b_anaglyph": 0.1,
+              "b_plasma": 0.25, "b_erratic": -0.15}
+CHALLENGES = ["c_omelette_1", "c_city_1", "c_rich_1", "c_knife_1", "c_jokerless_1", "c_fragile_1"]
+BOSSES = {"bl_hook": 1.0, "bl_ox": 1.2, "bl_house": 1.1, "bl_wall": 1.6, "bl_wheel": 1.2, "bl_arm": 1.3, "bl_club": 0.8,
+          "bl_fish": 0.9, "bl_psychic": 1.5, "bl_goad": 0.8, "bl_water": 1.4, "bl_window": 0.8, "bl_manacle": 1.2,
+          "bl_eye": 1.3, "bl_mouth": 1.4, "bl_plant": 1.1, "bl_serpent": 0.9, "bl_pillar": 1.0, "bl_needle": 1.7,
+          "bl_head": 0.8, "bl_tooth": 1.0, "bl_flint": 1.5, "bl_mark": 1.0}
+FINALS = {"bl_final_acorn": 1.3, "bl_final_leaf": 1.2, "bl_final_vessel": 1.8, "bl_final_heart": 1.4, "bl_final_bell": 1.1}
+STRONG = ["j_blueprint", "j_brainstorm", "j_baron", "j_mime", "j_triboulet", "j_cavendish", "j_bloodstone", "j_stencil",
+          "j_campfire", "j_hologram", "j_lucky_cat", "j_ancient", "j_card_sharp", "j_obelisk", "j_vampire", "j_hiker"]
+COMMON = ["j_joker", "j_greedy_joker", "j_lusty_joker", "j_wrathful_joker", "j_gluttenous_joker", "j_jolly", "j_zany", "j_mad",
+          "j_crazy", "j_droll", "j_sly", "j_wily", "j_clever", "j_devious", "j_crafty", "j_half", "j_banner", "j_mystic_summit",
+          "j_misprint", "j_raised_fist", "j_fibonacci", "j_scary_face", "j_abstract", "j_delayed_grat", "j_gros_michel",
+          "j_even_steven", "j_odd_todd", "j_scholar", "j_business", "j_supernova", "j_ride_the_bus", "j_egg", "j_burglar",
+          "j_blackboard", "j_runner", "j_ice_cream", "j_dna", "j_splash", "j_blue_joker", "j_green_joker", "j_square",
+          "j_smiley", "j_golden", "j_rocket", "j_bull", "j_cloud_9", "j_todo_list", "j_photograph", "j_walkie_talkie"]
+CONSUMABLES = ["c_pluto", "c_mercury", "c_venus", "c_earth", "c_mars", "c_jupiter", "c_saturn", "c_uranus", "c_neptune",
+               "c_fool", "c_hex", "c_trick"]
+RANKS = "23456789TJQKA"
+SUITS = "SHDC"
+BASE = [300, 800, 2000, 5000, 11000, 20000, 35000, 50000]
+GREEDY = re.compile(r"greedy policy runs: (\d+) runs in ([\d.]+)s, ([\d.]+) runs/s, ([\d.]+) actions/s")
+RAW = re.compile(r"raw sim replay: .*?, ([\d.]+) actions/s, ([\d.]+) scored hands/s")
+
+lock = threading.Lock()
+state = {"games": 0, "pending": 0, "bench": None}
+stop_evt = threading.Event()
+out_lock = threading.Lock()
+
+
+def emit(**kw):
+    kw.setdefault("t", time.time())
+    kw.setdefault("box", BOX)
+    line = json.dumps(kw, separators=(",", ":")) + "\n"
+    with out_lock, open(METRICS, "a") as f:
+        f.write(line)
+
+
+def worker():
+    while not stop_evt.is_set():
+        out = subprocess.run(["luajit", "tools/botsim/bench.lua", str(BENCH_N)], capture_output=True, text=True)
+        g = GREEDY.search(out.stdout)
+        if out.returncode != 0 or not g:
+            emit(type="log", level="error", msg="bench failed: " + (out.stderr or out.stdout)[-300:])
+            stop_evt.wait(5)
+            continue
+        r = RAW.search(out.stdout)
+        with lock:
+            state["games"] += int(g.group(1))
+            state["pending"] += int(g.group(1))
+            if state["bench"] is None:
+                state["bench"] = {"runs_per_s": float(g.group(3)), "actions_per_s": float(g.group(4)),
+                                  "raw_actions_per_s": float(r.group(1)) if r else None,
+                                  "scored_hands_per_s": float(r.group(2)) if r else None}
+
+
+def sig(x):
+    return 1.0 / (1.0 + math.exp(-x))
+
+
+def skill(gen):
+    return 1.0 - math.exp(-gen / 11.0)
+
+
+def name_of(key):
+    s = key.split("_", 1)[1] if "_" in key else key
+    return " ".join(w.capitalize() for w in s.split("_"))
+
+
+class Model:
+    def __init__(self, rng):
+        self.rng = rng
+
+    def survive(self, sk, deck, stake, ante, chal):
+        x = 2.3 + 3.4 * sk - 0.42 * (stake - 1) - 0.34 * ante + DECK_BONUS.get(deck, 0) - (0.6 if chal else 0)
+        return sig(x)
+
+    def boss_for(self, ante):
+        pool = FINALS if ante == 8 else BOSSES
+        return self.rng.choice(sorted(pool))
+
+    def play(self, gen, deck, stake, chal, record=False):
+        rng = self.rng
+        sk = max(0.0, min(1.0, skill(gen) + rng.gauss(0, 0.04)))
+        ante, won, death, blind_i = 1, False, None, 0
+        bosses = [self.boss_for(a) for a in range(1, 9)]
+        while True:
+            p = self.survive(sk, deck, stake, ante, chal)
+            boss = bosses[ante - 1]
+            weights = [0.07, 0.15, 0.78 * (FINALS.get(boss) or BOSSES.get(boss, 1.0))]
+            if rng.random() > p:
+                r = rng.random() * sum(weights)
+                blind_i = 0 if r < weights[0] else 1 if r < weights[0] + weights[1] else 2
+                death = ["bl_small", "bl_big", boss][blind_i]
+                break
+            if ante == 8:
+                won = True
+                break
+            ante += 1
+        final_ante = 9 if won else ante
+        rounds = 24 if won else (ante - 1) * 3 + blind_i + 1
+        mpa, money = [], 4
+        for a in range(1, min(final_ante, 8) + 1):
+            money = max(0, int(money + 3 + 4 * sk * a ** 0.6 + rng.gauss(0, 3) - (a > 3) * rng.random() * 6))
+            mpa.append(money)
+        nj = max(0, min(5, int(round(0.6 + final_ante * 0.55 + rng.gauss(0, 0.7)))))
+        jokers = []
+        for _ in range(nj):
+            pool = STRONG if rng.random() < (0.12 + 0.35 * sk + (0.25 if won else 0)) else COMMON
+            j = rng.choices(pool, weights=[1.0 / (1 + 0.25 * i) for i in range(len(pool))])[0]
+            if j not in jokers:
+                jokers.append(j)
+        dec = int(rounds * (3.6 + rng.random() * 1.4) + rounds * 0.8)
+        sims = int(320 + 160 * sk + rng.gauss(0, 20))
+        g = {"type": "game", "gen": gen, "deck": deck, "stake": stake, "seed": self.seed(), "won": 1 if won else 0,
+             "ante": final_ante, "round": rounds, "money": mpa[-1] if mpa else 0, "jokers": jokers, "mpa": mpa,
+             "hands": int(rounds * (2.4 - 0.6 * sk) + rng.random() * 3), "discards": int(rounds * (1.6 - 0.3 * sk) + rng.random() * 3),
+             "dec": dec, "sims": sims, "dur": round(dec * sims * 0.00012 * (0.8 + 0.4 * rng.random()), 2)}
+        if chal:
+            g["chal"] = chal
+        if not won:
+            g["death"] = death
+        rec = self.record(g, bosses, sk, blind_i) if record else None
+        return g, rec
+
+    def seed(self):
+        return "".join(self.rng.choice("ABCDEFGHIJKLMNPQRSTUVWXYZ123456789") for _ in range(8))
+
+    def card(self):
+        return self.rng.choice(RANKS) + self.rng.choice(SUITS)
+
+    def best_hands(self, hand):
+        by_rank, by_suit = {}, {}
+        for i, c in enumerate(hand):
+            by_rank.setdefault(c[0], []).append(i)
+            by_suit.setdefault(c[1], []).append(i)
+        opts = []
+        for s, idx in by_suit.items():
+            if len(idx) >= 5:
+                idx = sorted(idx, key=lambda i: -RANKS.index(hand[i][0]))[:5]
+                opts.append(("Flush", idx, 35 + 4 * 5))
+        groups = sorted(by_rank.items(), key=lambda kv: (-len(kv[1]), -RANKS.index(kv[0])))
+        ranks_present = sorted({RANKS.index(c[0]) for c in hand})
+        for lo in range(len(RANKS) - 4):
+            if all(r in ranks_present for r in range(lo, lo + 5)):
+                idx = [by_rank[RANKS[r]][0] for r in range(lo, lo + 5)]
+                opts.append(("Straight", idx, 30 + 4 * 5))
+        if groups and len(groups[0][1]) >= 4:
+            opts.append(("Four of a Kind", groups[0][1][:4], 60 + 7 * 4))
+        if len(groups) > 1 and len(groups[0][1]) >= 3 and len(groups[1][1]) >= 2:
+            opts.append(("Full House", groups[0][1][:3] + groups[1][1][:2], 40 + 4 * 5))
+        if groups and len(groups[0][1]) >= 3:
+            opts.append(("Three of a Kind", groups[0][1][:3], 30 + 3 * 3))
+        if len(groups) > 1 and len(groups[0][1]) >= 2 and len(groups[1][1]) >= 2:
+            opts.append(("Two Pair", groups[0][1][:2] + groups[1][1][:2], 20 + 2 * 4))
+        if groups and len(groups[0][1]) >= 2:
+            opts.append(("Pair", groups[0][1][:2], 10 + 2 * 2))
+        hi = max(range(len(hand)), key=lambda i: RANKS.index(hand[i][0]))
+        opts.append(("High Card", [hi], 5))
+        opts.sort(key=lambda o: -o[2])
+        return opts
+
+    def shares(self, k):
+        raw = sorted((self.rng.random() ** 2.2 for _ in range(k)), reverse=True)
+        raw[0] += 0.6
+        s = sum(raw)
+        return [round(x / s, 3) for x in raw]
+
+    def record(self, g, bosses, sk, death_blind):
+        rng = self.rng
+        moves = []
+        money, jokers, cons = 4, [], []
+        final = g["ante"]
+        v = 0.15 + 0.5 * sk if g["won"] else 0.1 + 0.35 * sk
+        for ante in range(1, min(final, 8) + 1):
+            for bi, blind in enumerate(["bl_small", "bl_big", bosses[ante - 1]]):
+                last_blind = not g["won"] and ante == final and bi == death_blind
+                need = int(BASE[ante - 1] * (1, 1.5, 2)[bi] * (1 + 0.25 * (g["stake"] >= 2)))
+                if bi < 2:
+                    top = [{"a": "Select " + ("Small" if bi == 0 else "Big") + " Blind", "visits": 0, "prior": 0},
+                           {"a": "Skip for " + rng.choice(["Double Tag", "Economy Tag", "Rare Tag", "Charm Tag"]), "visits": 0, "prior": 0}]
+                    sh = self.shares(2)
+                    for t, s in zip(top, sh):
+                        t["visits"], t["prior"] = s, round(min(0.95, max(0.05, s + rng.gauss(0, 0.1))), 3)
+                    moves.append({"phase": "blind", "ante": ante, "blind": blind, "need": need, "score": 0, "money": money,
+                                  "jokers": list(jokers), "cons": list(cons), "hands": 4, "discards": 3, "hand": [],
+                                  "act": top[0]["a"], "v": round(v, 3), "ante_hat": round(1 + 7 * v + rng.random(), 2),
+                                  "sims": g["sims"], "top": top})
+                score, hands, discards = 0, 4, 3
+                pile = [r + su for r in RANKS for su in SUITS]
+                rng.shuffle(pile)
+                hand = [pile.pop() for _ in range(8)]
+                deck_left = len(pile)
+                while hands > 0 and score < need:
+                    opts = self.best_hands(hand)
+                    discard_idx = sorted(range(8), key=lambda i: RANKS.index(hand[i][0]))[:rng.randint(2, 4)]
+                    cand = [("Play " + o[0], o[1]) for o in opts[:3]]
+                    if discards > 0:
+                        cand.append(("Discard " + str(len(discard_idx)), discard_idx))
+                    rng.shuffle(cand)
+                    sh = self.shares(len(cand))
+                    want_discard = discards > 0 and opts[0][2] < 25 and rng.random() < 0.6
+                    order = sorted(range(len(cand)), key=lambda i: (0 if cand[i][0].startswith("Discard") == want_discard else 1, -RANKS.index(hand[cand[i][1][0]][0])))
+                    cand = [cand[i] for i in order]
+                    top = [{"a": a, "cards": idx, "visits": s, "prior": round(min(0.95, max(0.02, s + rng.gauss(0, 0.12))), 3),
+                            "q": round(min(0.99, max(0.0, v + rng.gauss(0, 0.05))), 3)} for (a, idx), s in zip(cand, sh)]
+                    act, idx = cand[0]
+                    gain = 0
+                    if act.startswith("Play"):
+                        gain = int(need * rng.uniform(0.18, 0.5) * (0.6 if last_blind else 1.0 + sk * 0.4))
+                    moves.append({"phase": "play", "ante": ante, "blind": blind, "need": need, "score": score, "money": money,
+                                  "hands": hands, "discards": discards, "deck": deck_left, "hand": list(hand), "jokers": list(jokers),
+                                  "cons": list(cons), "act": act + (" (+%s)" % format(gain, ",") if gain else ""), "cards": idx,
+                                  "v": round(v, 3), "ante_hat": round(1 + 7 * v + rng.random() * 0.5, 2), "sims": g["sims"], "top": top})
+                    if act.startswith("Play"):
+                        hands -= 1
+                        score += gain
+                    else:
+                        discards -= 1
+                    for i in idx:
+                        hand[i] = pile.pop() if pile else hand[i]
+                    deck_left = len(pile)
+                    v = min(0.98, max(0.01, v + (rng.gauss(0.01, 0.03) if not last_blind else -rng.uniform(0.02, 0.1))))
+                if last_blind:
+                    return {"type": "record", "id": None, "gen": g["gen"], "deck": g["deck"], "stake": g["stake"], "chal": g.get("chal"),
+                            "seed": g["seed"], "won": 0, "ante": final, "death": g.get("death"), "moves": moves}
+                money += 3 + bi + hands + min(5, money // 5)
+                items = [rng.choice(STRONG + COMMON) for _ in range(2)] + [rng.choice(CONSUMABLES)]
+                cand = ["Buy %s ($%d)" % (name_of(it), 4 + rng.randint(0, 6)) for it in items] + ["Reroll ($5)", "Next round"]
+                sh = self.shares(len(cand))
+                pick = 0 if money >= 6 and len(jokers) < 5 else len(cand) - 1
+                cand.insert(0, cand.pop(pick))
+                top = [{"a": a, "visits": s, "prior": round(min(0.95, max(0.02, s + rng.gauss(0, 0.12))), 3)} for a, s in zip(cand, sh)]
+                moves.append({"phase": "shop", "ante": ante, "blind": blind, "need": need, "score": score, "money": money, "hand": [],
+                              "jokers": list(jokers), "cons": list(cons), "act": cand[0], "v": round(v, 3),
+                              "ante_hat": round(1 + 7 * v, 2), "sims": g["sims"], "top": top})
+                if cand[0].startswith("Buy"):
+                    it = items[0]
+                    money = max(0, money - 6)
+                    if it.startswith("c_"):
+                        cons = (cons + [it])[-2:]
+                    elif it not in jokers:
+                        jokers.append(it)
+        return {"type": "record", "id": None, "gen": g["gen"], "deck": g["deck"], "stake": g["stake"], "chal": g.get("chal"),
+                "seed": g["seed"], "won": g["won"], "ante": final, "death": g.get("death"), "moves": moves}
+
+
+class Job:
+    def __init__(self, t_start):
+        self.rng = random.Random(BOX + str(int(t_start)))
+        self.model = Model(self.rng)
+        self.gen = 0
+        self.games = 0
+        self.decisions = 0
+        self.sims = 0
+        self.samples = 0
+        self.rec_n = 0
+        self.best = -1.0
+        self.evaluated_refs = False
+
+    def play_games(self, n, t):
+        for _ in range(n):
+            chal = self.rng.choice(CHALLENGES) if self.rng.random() < 0.03 else None
+            deck = self.rng.choice(DECKS)
+            stake = 1 if chal else self.rng.choice([1, 1, 2, 2, 3, 4, 5, 6, 7, 8])
+            self.rec_n += 1
+            record = RECORD_EVERY > 0 and self.rec_n % RECORD_EVERY == 0
+            g, rec = self.model.play(self.gen, deck, stake, chal, record)
+            g["t"] = round(t + self.rng.random() * REPORT - REPORT, 2)
+            emit(**g)
+            self.games += 1
+            self.decisions += g["dec"]
+            self.sims += g["dec"] * g["sims"]
+            self.samples += g["dec"]
+            if rec:
+                rec["id"] = "%s-%d" % (BOX, self.games)
+                rec["t"] = g["t"]
+                emit(**rec)
+
+    def eval_refs(self, t):
+        rng = self.rng
+        for who, sk_fn in (("rules", lambda: 0.22), ("seer", lambda: 0.995)):
+            for deck in DECKS:
+                for stake in range(1, 9):
+                    w, ante_sum = 0, 0
+                    for _ in range(EVAL_PER_CELL):
+                        p = 1.0
+                        a = 1
+                        while a <= 8:
+                            s = sig(2.3 + 3.4 * sk_fn() + (1.8 if who == "seer" else 0) - 0.42 * (stake - 1) - 0.34 * a + DECK_BONUS[deck])
+                            if rng.random() > s:
+                                break
+                            a += 1
+                        won = a > 8
+                        w += won
+                        ante_sum += 9 if won else a
+                    emit(type="eval", t=t, set="fixed-960", who=who, deck=deck, stake=stake, n=EVAL_PER_CELL, wins=w,
+                         ante=round(ante_sum / EVAL_PER_CELL, 3))
+
+    def eval_gen(self, t):
+        if ROLE != "head":
+            return
+        if not self.evaluated_refs:
+            self.eval_refs(t)
+            self.evaluated_refs = True
+        rows, tw, tn = [], 0, 0
+        for deck in DECKS:
+            for stake in range(1, 9):
+                w, ante_sum = 0, 0
+                for _ in range(EVAL_PER_CELL):
+                    g, _ = self.model.play(self.gen, deck, stake, None)
+                    w += g["won"]
+                    ante_sum += g["ante"]
+                rows.append(dict(type="eval", t=t, set="fixed-960", who="gen", gen=self.gen, deck=deck, stake=stake,
+                                 n=EVAL_PER_CELL, wins=w, ante=round(ante_sum / EVAL_PER_CELL, 3)))
+                tw += w
+                tn += EVAL_PER_CELL
+        promoted = tw / tn > self.best
+        if promoted:
+            self.best = tw / tn
+            rows[-1]["promoted"] = True
+        for r in rows:
+            emit(**r)
+
+    def new_gen(self, t):
+        self.gen += 1
+        g, rng = self.gen, self.rng
+        lp = 2.1 * math.exp(-g / 9) + 0.62 + rng.gauss(0, 0.02)
+        lv = 0.66 * math.exp(-g / 11) + 0.16 + rng.gauss(0, 0.01)
+        la = 0.48 * math.exp(-g / 8) + 0.07 + rng.gauss(0, 0.008)
+        lr = 1e-5 + 0.5 * (3e-4 - 1e-5) * (1 + math.cos(math.pi * min(1.0, g / 40)))
+        emit(type="gen", t=t, gen=g, loss=round(lp + lv + la, 4), loss_policy=round(lp, 4), loss_value=round(lv, 4),
+             loss_ante=round(la, 4), lr=round(lr, 7), samples=self.samples, buffer=min(self.samples, 2000000),
+             train_s=round(40 + rng.random() * 50, 1), steps=2000)
+        self.eval_gen(t)
+
+    def checkpoint(self, t, final=False):
+        os.makedirs(CKPT, exist_ok=True)
+        path = os.path.join(CKPT, "gen_%04d.json" % self.gen)
+        with open(path, "w") as f:
+            json.dump({"fake": True, "gen": self.gen, "games": self.games, "final": final}, f)
+        emit(type="checkpoint", t=t, gen=self.gen, path=os.path.relpath(path, RUN_DIR))
+
+    def progress(self, t, done, target, load):
+        emit(type="progress", t=t, gen=self.gen, games=self.games, decisions=self.decisions, sims=self.sims, workers=WORKERS,
+             work_done=done, work_total=target, load1=load)
+
+
+def main():
+    t0 = time.time()
+    job = Job(t0)
+    end = t0 + MINUTES * 60
+    gen_len = GEN_SECONDS or max(20.0, MINUTES * 60 / 6)
+    emit(type="state", state="running", workers=WORKERS, demo=True, job="fake",
+         msg="fake job, %.1f min, %s" % (MINUTES, "real bench, made-up games" if USE_BENCH else "made-up games"))
+    emit(type="gen", gen=0, t=t0 - HISTORY * 60 if HISTORY else t0)
+    if HISTORY > 0:
+        th = t0 - HISTORY * 60
+        hist_gen = max(60.0, HISTORY * 60 / 24)
+        next_gen = th + hist_gen
+        job.eval_gen(th)
+        while th < t0 - REPORT:
+            th += REPORT * 4
+            job.play_games(int(HISTORY_RATE * REPORT * 4 * (0.85 + 0.3 * job.rng.random())), th)
+            job.progress(th, 0, None, WORKERS * 0.95)
+            if th >= next_gen:
+                job.checkpoint(th)
+                job.new_gen(th)
+                next_gen = th + hist_gen
+    else:
+        job.eval_gen(t0)
+    threads = []
+    if USE_BENCH:
+        threads = [threading.Thread(target=worker, daemon=True) for _ in range(WORKERS)]
+        for th in threads:
+            th.start()
+    reason = "done"
+    target = None
+    base_games = job.games
+    next_gen = time.time() + gen_len
+    synth = 0.0
+    while True:
+        time.sleep(REPORT)
+        now = time.time()
+        if USE_BENCH:
+            with lock:
+                n, state["pending"] = state["pending"], 0
+                bench = state["bench"]
+            if bench is not None and target is None:
+                emit(type="bench", name="greedy bench.lua %d" % BENCH_N, gen=job.gen, **bench)
+        else:
+            synth += RATE * WORKERS * REPORT * (0.9 + 0.2 * job.rng.random())
+            n = int(synth)
+            synth -= n
+            bench = {"runs_per_s": RATE}
+        job.play_games(n, now)
+        if bench is not None and target is None:
+            target = int(job.games - base_games + bench["runs_per_s"] * WORKERS * 0.8 * max(0.0, end - now))
+        load = os.getloadavg()[0] if hasattr(os, "getloadavg") else None
+        job.progress(now, job.games - base_games, target, load)
+        if now >= next_gen:
+            job.checkpoint(now)
+            job.new_gen(now)
+            next_gen = now + gen_len
+        if os.path.exists(STOP):
+            reason = "saved"
+            break
+        if now >= end or (target is not None and job.games - base_games >= target):
+            break
+    stop_evt.set()
+    for th in threads:
+        th.join(timeout=30)
+    job.checkpoint(time.time(), final=True)
+    emit(type="state", state=reason, gen=job.gen, games=job.games, demo=True, job="fake")
+
+
+if __name__ == "__main__":
+    main()

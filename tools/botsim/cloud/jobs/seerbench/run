@@ -1,0 +1,72 @@
+#!/usr/bin/env python3
+import glob
+import json
+import os
+import shlex
+import shutil
+import subprocess
+import time
+
+RUN_DIR = os.environ.get("BOTSIM_RUN_DIR", "run")
+METRICS = os.environ.get("BOTSIM_METRICS", os.path.join(RUN_DIR, "metrics.jsonl"))
+STOP = os.environ.get("BOTSIM_STOP_FILE", os.path.join(RUN_DIR, "STOP"))
+WORKERS = int(os.environ.get("BOTSIM_WORKERS") or os.cpu_count() or 1)
+ROLE = os.environ.get("BOTSIM_ROLE", "head")
+BENCHES = [b.strip() for b in os.environ.get("SEER_BENCH", "").split(";") if b.strip()]
+OUT = os.path.join(RUN_DIR, "seer")
+RESULTS = "tools/botsim/results"
+
+
+def emit(**kw):
+    kw["t"] = time.time()
+    with open(METRICS, "a") as f:
+        f.write(json.dumps(kw) + "\n")
+
+
+def collect(since):
+    os.makedirs(OUT, exist_ok=True)
+    for p in glob.glob(os.path.join(RESULTS, "seer*")):
+        if os.path.isfile(p) and os.path.getmtime(p) >= since:
+            shutil.copy(p, OUT)
+
+
+def main():
+    os.makedirs(OUT, exist_ok=True)
+    if ROLE != "head" and os.environ.get("SEER_ALL_BOXES") != "1":
+        emit(type="state", state="done", msg="seer bench runs on the head box only")
+        return 0
+    if not BENCHES:
+        emit(type="state", state="failed", msg="SEER_BENCH is empty")
+        return 1
+    emit(type="state", state="running", msg="seer bench, %d command(s), %d workers" % (len(BENCHES), WORKERS))
+    for i, b in enumerate(BENCHES, 1):
+        args = shlex.split(b)
+        if not any(a.startswith("--jobs") for a in args):
+            args += ["--jobs=%d" % WORKERS]
+        if not any(a.startswith("--out_dir") for a in args):
+            args += ["--out_dir=%s" % OUT]
+        cmd = ["luajit", "tools/botsim/seer/bench.lua"] + args
+        emit(type="log", level="info", msg="bench %d/%d: %s" % (i, len(BENCHES), " ".join(args)))
+        t0 = time.time()
+        with open(os.path.join(OUT, "bench_%d.log" % i), "w") as log:
+            p = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+            while p.poll() is None:
+                if os.path.exists(STOP):
+                    os.killpg(p.pid, 15)
+                    p.wait()
+                    collect(t0)
+                    emit(type="state", state="saved", msg="stopped during bench %d, partial results kept" % i)
+                    return 0
+                time.sleep(1)
+        collect(t0)
+        if p.returncode != 0:
+            emit(type="log", level="error", msg="bench %d exited %d, see seer/bench_%d.log" % (i, p.returncode, i))
+            emit(type="state", state="failed", msg="bench %d failed" % i)
+            return 1
+        emit(type="log", level="info", msg="bench %d done in %.0f s" % (i, time.time() - t0))
+    emit(type="state", state="done", msg="all seer benches done, results in seer/")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

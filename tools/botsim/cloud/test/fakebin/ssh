@@ -1,0 +1,86 @@
+#!/usr/bin/env python3
+import base64
+import json
+import os
+import sys
+import time
+
+WITH_VALUE = set("bcDEeFIiJLlmOoPpQRSWw")
+argv = sys.argv[1:]
+opts, i = {}, 0
+while i < len(argv) and argv[i].startswith("-"):
+    flag = argv[i][1:]
+    if flag[:1] in WITH_VALUE:
+        val = flag[1:] or argv[i + 1]
+        i += 1 if flag[1:] else 2
+        if flag[0] == "o":
+            k, _, v = val.partition("=")
+            opts[k] = v
+        else:
+            opts["-" + flag[0]] = val
+    else:
+        i += 1
+dest = argv[i]
+command = " ".join(argv[i + 1:])
+host = dest.split("@")[-1]
+alias = opts.get("HostKeyAlias", host)
+stdin = sys.stdin.read() if not sys.stdin.isatty() and ("cat >" in command) else ""
+with open(os.environ["FAKE_SSH_LOG"], "a") as f:
+    f.write(json.dumps({"alias": alias, "host": host, "command": command, "opts": opts, "stdin": len(stdin), "t": time.time()}) + "\n")
+plan = {}
+if os.environ.get("FAKE_SSH_PLAN") and os.path.exists(os.environ["FAKE_SSH_PLAN"]):
+    plan = json.load(open(os.environ["FAKE_SSH_PLAN"])).get(alias, {})
+cnt_file = os.path.join(os.path.dirname(os.environ["FAKE_SSH_LOG"]), "count-" + alias)
+n = int(open(cnt_file).read()) if os.path.exists(cnt_file) else 0
+open(cnt_file, "w").write(str(n + 1))
+kind = plan["fail"][n] if n < len(plan.get("fail", [])) else plan.get("always")
+ERR = {
+    "refused": "ssh: connect to host %s port 22: Connection refused" % host,
+    "timeout": "ssh: connect to host %s port 22: Connection timed out" % host,
+    "auth": "root@%s: Permission denied (publickey)." % host,
+    "hostkey": "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n@    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @\n"
+               "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\nHost key for %s has changed and you have requested strict checking.\nHost key verification failed." % alias,
+}
+if kind in ERR:
+    sys.stderr.write(ERR[kind] + "\n")
+    sys.exit(255)
+job_file = os.path.join(os.path.dirname(os.environ["FAKE_SSH_LOG"]), "job-" + alias + ".json")
+job = json.load(open(job_file)) if os.path.exists(job_file) else {"state": plan.get("job_state", "inactive"), "start": plan.get("job_start"), "env": plan.get("job_env", "")}
+
+
+def probe(j):
+    print("STATE=%s" % j["state"])
+    print("START=%s" % (int(j["start"]) if j.get("start") else ""))
+    print("ENV=%s" % base64.b64encode(j.get("env", "").encode()).decode())
+
+
+if "BEFORE=$(date" in command:
+    before = time.time()
+    how = plan.get("restart", "ok")
+    job = {"state": "failed" if how == "inactive" else "active", "start": before - 30 if how == "old_start" else before + 0.5,
+           "env": stdin + ("X=1\n" if how == "bad_env" else "")}
+    json.dump(job, open(job_file, "w"))
+    print("BEFORE=%.6f" % before)
+    probe(job)
+elif "STATE=$(systemctl is-active botsim-job)" in command:
+    probe(job)
+elif "cloud-init status" in command:
+    print("status: %s" % plan.get("cloud_init", "done"))
+elif "luajit-src" in command:
+    print("LuaJIT 2.1.1791988261 -- Copyright (C) 2005-2026 Mike Pall. https://luajit.org/")
+elif "tools/botsim/test/run.lua" in command:
+    if plan.get("golden") == "fail":
+        print("FAIL [econ] starting deck: expected S_A, got H_2\n496 passed, 1 failed")
+        sys.exit(1)
+    print("497 passed, 0 failed")
+elif "tail -n 25" in command:
+    print("E: Unable to locate package luajit")
+elif "cat /etc/botsim/box.json" in command:
+    print(json.dumps(plan.get("box_json", {})))
+elif "bench_mcts" in command:
+    time.sleep(float(os.environ.get("FAKE_SSH_BENCH_SLEEP", "0")))
+    print("== cpu\nAMD EPYC-Genoa Processor (fake %s)\n2\n== bench_mcts\nsims  decisions/s  sims/s  nodes/decision\n  64       120.0     7680     60.1\nexit 0" % alias)
+    print("== bench 40\ngreedy policy runs: 40 runs in 2.00s, 20.0 runs/s, 900.0 actions/s, avg ante 3.10\nexit %d" % plan.get("bench_exit", 0))
+elif "systemctl" in command:
+    print("active\nactive\nactive")
+sys.exit(0)

@@ -1,0 +1,31 @@
+name: game files
+description: Fetch the Balatro game files the sim needs from the private repo. They are never committed here.
+inputs:
+  key:
+    description: read-only deploy key for JupiterianSoul/Balatro-Overhaul
+    required: true
+  ref:
+    description: branch of the private repo
+    default: botsim
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        KEY: ${{ inputs.key }}
+        REF: ${{ inputs.ref }}
+      run: |
+        set -euo pipefail
+        if [ -z "$KEY" ]; then echo "::error::BOTSIM_GAME_KEY is not set"; exit 1; fi
+        umask 077
+        d="$(mktemp -d)"
+        printf '%s\n' "$KEY" > "$d/key"
+        export GIT_SSH_COMMAND="ssh -i $d/key -o IdentitiesOnly=yes -o UserKnownHostsFile=$PWD/tools/botsim/cloud/github_known_hosts -o StrictHostKeyChecking=yes"
+        git clone -q --depth 1 --filter=blob:none --sparse --branch "$REF" git@github.com:JupiterianSoul/Balatro-Overhaul.git "$d/g"
+        git -C "$d/g" sparse-checkout set --no-cone /assets/game.lua /assets/challenges.lua /assets/functions/ /assets/bot/sim/data_centers.lua /assets/bot/sim/data_challenges.lua /assets/bot/sim/data_jokers.lua
+        mkdir -p assets/bot/sim
+        cp "$d/g/assets/game.lua" "$d/g/assets/challenges.lua" assets/
+        cp -r "$d/g/assets/functions" assets/
+        cp "$d/g"/assets/bot/sim/data_*.lua assets/bot/sim/
+        rm -rf "$d"
+        ls assets/functions | wc -l

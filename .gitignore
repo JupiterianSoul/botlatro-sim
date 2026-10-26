@@ -1,0 +1,11 @@
+assets/game.lua
+assets/challenges.lua
+assets/functions/
+assets/bot/sim/data_centers.lua
+assets/bot/sim/data_challenges.lua
+assets/bot/sim/data_jokers.lua
+tools/botsim/results/
+tools/botsim/train/out/
+__pycache__/
+.venv/
+*.tmp

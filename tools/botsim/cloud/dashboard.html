@@ -1,0 +1,1207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#121211">
+<title>Bot-latro Training</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #121211;
+  --surface: #1a1a19;
+  --surface-2: #232321;
+  --surface-3: #2c2c29;
+  --border: #2f2f2c;
+  --text: #f0efec;
+  --text-2: #c3c2b7;
+  --muted: #8f8e86;
+  --accent: #3987e5;
+  --good: #3fb950;
+  --warn: #c98500;
+  --bad: #e66767;
+  --stop: #c62f2f;
+  --stop-press: #a32626;
+  --grid: #2a2a27;
+  --c1: #3987e5; --c2: #d95926; --c3: #199e70; --c4: #c98500;
+  --c5: #d55181; --c6: #008300; --c7: #9085e9; --c8: #e66767;
+  --s1: #e4e3dc; --s2: #e66767; --s3: #199e70; --s4: #8f8e86;
+  --s5: #3987e5; --s6: #9085e9; --s7: #d95926; --s8: #c98500;
+  --won: #3987e5; --lost: #d95926;
+  --gut: 16px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); }
+body { font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-text-size-adjust: 100%; font-variant-numeric: tabular-nums; }
+button, select, input { font: inherit; color: inherit; }
+button { -webkit-tap-highlight-color: transparent; }
+[hidden] { display: none !important; }
+.wrap { max-width: 1240px; margin: 0 auto; padding: 0 var(--gut); }
+.top { position: sticky; top: 0; z-index: 20; background: rgba(18,18,17,0.94); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border-bottom: 1px solid var(--border); }
+.top .wrap { padding-top: 10px; padding-bottom: 10px; }
+.t1 { display: flex; align-items: center; gap: 8px; min-height: 28px; }
+h1 { font-size: 18px; line-height: 24px; margin: 0; font-weight: 650; letter-spacing: 0.01em; white-space: nowrap; }
+.t1 .sp { flex: 1; }
+@media (max-width: 400px) { .t1 { gap: 6px; } h1 { font-size: 16px; } .t1 .pill { padding: 0 8px; gap: 5px; } }
+.pill { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border); font-size: 12px; line-height: 1; color: var(--text); white-space: nowrap; }
+.pill.demo { background: #3a2c08; border-color: #6b520f; color: #f2c25b; font-weight: 600; letter-spacing: 0.02em; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+.dot.good { background: var(--good); } .dot.warn { background: var(--warn); } .dot.bad { background: var(--bad); }
+.t2 { display: flex; flex-wrap: wrap; gap: 2px 10px; margin-top: 2px; color: var(--muted); font-size: 12px; line-height: 18px; }
+.t2 .err { color: var(--bad); }
+.t3 { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.tabs { display: flex; flex: 1; min-width: 0; max-width: 440px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 3px; gap: 3px; }
+.tabs button { flex: 1; height: 38px; border: 0; border-radius: 7px; background: transparent; color: var(--text-2); font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; white-space: nowrap; }
+@media (max-width: 400px) { .tabs button { font-size: 13px; } }
+.tabs button[aria-selected="true"] { background: #3d3d39; color: var(--text); }
+.fbtn { flex: none; margin-left: auto; height: 46px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; }
+.fbtn[aria-expanded="true"] { background: var(--surface-3); }
+.fbtn .n { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--accent); color: #fff; font-size: 12px; line-height: 20px; text-align: center; }
+.fbtn svg { display: block; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 6px 0 11px; border-radius: 15px; background: var(--surface-2); border: 1px solid var(--border); font-size: 13px; line-height: 1; color: var(--text); cursor: pointer; }
+.chip .x { width: 18px; height: 18px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); }
+.chip.reset { padding: 0 11px; color: var(--text-2); background: transparent; }
+.sheet { margin-top: 10px; padding: 14px 12px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); max-height: calc(100vh - 150px); overflow-y: auto; }
+.fg { margin-bottom: 14px; }
+.fg > .lab { font-size: 12px; line-height: 16px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; display: flex; justify-content: space-between; }
+.fg > .lab button { border: 0; background: none; color: var(--accent); font-size: 12px; padding: 0; cursor: pointer; text-transform: none; letter-spacing: 0; }
+.tg { display: flex; flex-wrap: wrap; gap: 6px; }
+.tg button { height: 40px; min-width: 44px; padding: 0 12px; border-radius: 9px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text-2); font-size: 14px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; cursor: pointer; }
+.tg button[aria-pressed="true"] { background: #17345a; border-color: var(--accent); color: var(--text); }
+.tg button i { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.decks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+@media (min-width: 560px) { .decks { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+.decks button { width: 100%; padding: 0 6px; }
+.stakes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+@media (min-width: 560px) { .stakes { grid-template-columns: repeat(8, minmax(0, 1fr)); } }
+.stakes button { width: 100%; padding: 0 6px; }
+.seg { display: inline-flex; background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px; padding: 2px; gap: 2px; max-width: 100%; }
+.seg button { height: 34px; min-width: 40px; padding: 0 11px; border: 0; border-radius: 7px; background: transparent; color: var(--text-2); font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; white-space: nowrap; }
+.seg button[aria-pressed="true"] { background: #3d3d39; color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,0.3); }
+.seg.full { display: flex; width: 100%; } .seg.full button { flex: 1; padding: 0 4px; }
+.range { display: grid; grid-template-columns: minmax(0, 1fr) 20px minmax(0, 1fr); align-items: center; gap: 8px; }
+.range span { text-align: center; color: var(--muted); }
+select { appearance: none; -webkit-appearance: none; height: 40px; width: 100%; min-width: 0; padding: 0 30px 0 12px; border-radius: 9px; border: 1px solid var(--border); background: var(--surface-2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23c3c2b7' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 11px center; color: var(--text); font-size: 14px; cursor: pointer; }
+select.sm { height: 40px; width: auto; font-size: 13px; }
+.sheet-f { display: flex; gap: 8px; margin-top: 4px; }
+.sheet-f button { flex: 1; height: 46px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); font-size: 15px; font-weight: 600; cursor: pointer; }
+.sheet-f button.pri { background: var(--accent); border-color: var(--accent); color: #fff; }
+main { padding-top: 14px; padding-bottom: 110px; }
+.notice { margin-bottom: 12px; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text-2); font-size: 13px; line-height: 18px; }
+.tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
+@media (min-width: 720px) { .tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (min-width: 1100px) { .tiles { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+.tile { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px; min-height: 96px; display: flex; flex-direction: column; min-width: 0; }
+.tile .k { font-size: 11px; line-height: 16px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile .v { font-size: 22px; line-height: 28px; font-weight: 650; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile .v small { font-size: 13px; font-weight: 500; color: var(--text-2); }
+.tile .s { font-size: 12px; line-height: 16px; color: var(--text-2); margin-top: auto; padding-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar { height: 6px; border-radius: 3px; background: var(--surface-3); overflow: hidden; margin-top: 6px; }
+.bar > i { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 3px; }
+.bar.hot > i { background: var(--warn); } .bar.over > i { background: var(--bad); }
+.grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+@media (min-width: 1000px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .grid .wide { grid-column: 1 / -1; } }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px; min-width: 0; }
+.card-h { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 10px; min-height: 36px; margin-bottom: 10px; }
+.card-h h2 { font-size: 15px; line-height: 20px; margin: 0; font-weight: 650; }
+.card-h .hn:empty { display: none; }
+.card-h .hn { display: block; font-size: 12px; line-height: 16px; color: var(--muted); font-weight: 400; margin-top: 2px; }
+.ctl { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.chart { position: relative; width: 100%; touch-action: pan-y; }
+.chart svg { display: block; width: 100%; overflow: visible; }
+.chart text { fill: var(--muted); font-size: 11px; }
+.chart text.dl { fill: var(--text-2); font-size: 11px; font-weight: 600; }
+.empty { color: var(--muted); font-size: 13px; line-height: 18px; margin: 0; padding: 28px 8px; text-align: center; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: 12px; line-height: 18px; color: var(--text-2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 14px; height: 0; border-top: 2px solid; display: inline-block; }
+.legend i.sq { width: 10px; height: 10px; border: 0; border-radius: 2px; }
+.tip { position: absolute; pointer-events: none; background: #2b2b28; border: 1px solid #3a3a36; border-radius: 8px; padding: 6px 8px; font-size: 12px; line-height: 17px; color: var(--text); white-space: nowrap; display: none; z-index: 5; box-shadow: 0 4px 14px rgba(0,0,0,0.35); }
+.tip .h { color: var(--text-2); margin-bottom: 2px; }
+.tip .row { display: flex; align-items: center; gap: 6px; }
+.tip .row b { font-weight: 650; }
+.tip .row i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; }
+.tip .row span { color: var(--text-2); }
+table.t { width: 100%; border-collapse: collapse; font-size: 13px; line-height: 18px; margin-top: 10px; }
+table.t th { color: var(--muted); font-weight: 500; font-size: 12px; text-align: right; padding: 6px 4px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+table.t td { padding: 7px 4px; text-align: right; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+table.t th:first-child, table.t td:first-child { text-align: left; padding-left: 0; }
+table.t th:last-child, table.t td:last-child { padding-right: 0; }
+table.t td .sw { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 7px; vertical-align: -1px; }
+table.t td small { color: var(--muted); font-size: 11px; }
+.verdict { margin-top: 10px; padding: 9px 11px; border-radius: 9px; background: var(--surface-2); font-size: 13px; line-height: 18px; color: var(--text-2); }
+.verdict b { color: var(--text); font-weight: 650; }
+.heat { width: 100%; border-collapse: separate; border-spacing: 2px; table-layout: fixed; font-size: 11px; }
+.heat th { color: var(--muted); font-weight: 500; height: 20px; padding: 0; text-align: center; font-size: 11px; }
+.heat th.rl { text-align: left; width: 72px; padding-left: 2px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.heat td { height: 34px; padding: 0; text-align: center; vertical-align: middle; border-radius: 4px; background: var(--surface-2); color: var(--text); line-height: 13px; }
+.heat td b { display: block; font-size: 12px; font-weight: 650; }
+.heat td small { display: block; font-size: 9px; opacity: 0.75; }
+.heat td.lite { color: #0d1a2b; }
+.heat td.na { color: var(--muted); }
+.hb { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.hb .r { display: grid; grid-template-columns: minmax(84px, 38%) minmax(0, 1fr) 52px; align-items: center; gap: 10px; font-size: 13px; line-height: 18px; min-height: 22px; }
+.hb .r .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+.hb .r .val { text-align: right; color: var(--text-2); }
+.hb .trk { position: relative; height: 10px; border-radius: 3px; background: var(--surface-2); }
+.hb .trk i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; }
+.hb .pair { display: grid; gap: 3px; }
+.hb .pair .trk { height: 8px; }
+.hb .r.two { grid-template-columns: minmax(84px, 38%) minmax(0, 1fr) 40px; grid-template-rows: 14px 14px; row-gap: 2px; }
+.hb .r.two .nm { grid-row: 1 / 3; }
+.hb .r.two .bw { display: flex; align-items: center; height: 14px; }
+.hb .r.two .bw .trk { flex: 1; height: 8px; }
+.hb .r.two .val { font-size: 12px; line-height: 14px; }
+.sub-h { font-size: 12px; line-height: 16px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin: 16px 0 6px; }
+.boxes { display: grid; gap: 6px; }
+.box { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px 12px; padding: 10px; border-radius: 10px; background: var(--surface-2); }
+.box .n { font-weight: 600; display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 14px; line-height: 20px; }
+.box .n span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.box .r { font-size: 13px; line-height: 20px; color: var(--text-2); text-align: right; white-space: nowrap; }
+.box .d { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: 12px; line-height: 16px; color: var(--text-2); }
+.box .ld { grid-column: 1 / -1; display: grid; grid-template-columns: 40px minmax(0, 1fr) 44px; align-items: center; gap: 8px; font-size: 12px; line-height: 16px; color: var(--muted); }
+.box .ld .bar { margin: 0; }
+.box .ld b { color: var(--text-2); font-weight: 600; text-align: right; }
+.money-bar { position: relative; height: 22px; border-radius: 6px; background: var(--surface-2); overflow: hidden; margin: 6px 0 8px; }
+.money-bar i { position: absolute; top: 0; bottom: 0; }
+.money-bar .b0 { background: #5d5c56; }
+.money-bar .b1 { background: var(--accent); }
+.money-bar .b2 { background: repeating-linear-gradient(135deg, rgba(57,135,229,0.55) 0 4px, rgba(57,135,229,0.18) 4px 8px); }
+.kv { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; font-size: 13px; line-height: 18px; margin: 0; }
+.kv dt { color: var(--text-2); margin: 0; display: flex; align-items: center; gap: 7px; }
+.kv dt i { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+.kv dd { margin: 0; text-align: right; font-weight: 600; }
+.events { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; max-height: 280px; overflow-y: auto; }
+.events li { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 8px; font-size: 12px; line-height: 17px; padding: 6px 0; border-bottom: 1px solid var(--grid); color: var(--text-2); }
+.events li time { color: var(--muted); }
+.events li.warn span, .events li.error span { color: var(--bad); }
+.stopbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 15; padding: 12px var(--gut) calc(12px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--bg) 70%, rgba(18,18,17,0)); }
+.stopbar button { display: flex; align-items: center; justify-content: center; width: 100%; max-width: 1208px; margin: 0 auto; height: 56px; border: 0; border-radius: 12px; background: var(--stop); color: #fff; font-size: 17px; font-weight: 650; letter-spacing: 0.02em; cursor: pointer; }
+.stopbar button:active { background: var(--stop-press); }
+.stopbar button:disabled { background: var(--surface-2); color: var(--muted); cursor: default; }
+.wgrid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+@media (min-width: 1000px) { .wgrid { grid-template-columns: 380px minmax(0, 1fr); align-items: start; } .wgrid .list { position: sticky; top: 150px; max-height: calc(100vh - 170px); overflow-y: auto; } .wgrid .back { display: none; } }
+.rlist { display: grid; gap: 6px; }
+.ritem { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 10px; width: 100%; min-height: 56px; padding: 9px 12px; border-radius: 10px; border: 1px solid transparent; background: var(--surface-2); text-align: left; cursor: pointer; }
+.ritem[aria-current="true"] { border-color: var(--accent); background: #17283f; }
+.ritem .a { font-size: 14px; line-height: 19px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ritem .b { grid-column: 1 / 2; font-size: 12px; line-height: 16px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ritem .res { grid-row: 1 / 3; grid-column: 2; font-size: 12px; font-weight: 650; height: 24px; padding: 0 9px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; }
+.res.w { background: #15304f; color: #8fc0f5; } .res.l { background: #3d2214; color: #f0a07c; }
+.back { height: 40px; padding: 0 12px; border-radius: 9px; border: 1px solid var(--border); background: var(--surface-2); font-size: 14px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+.ghead { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-bottom: 12px; }
+.ghead h2 { font-size: 16px; line-height: 22px; margin: 0; font-weight: 650; flex-basis: 100%; }
+.ghead .pill { font-size: 12px; }
+.ctrls { display: grid; grid-template-columns: 44px 44px minmax(0, 1fr) 44px 44px; gap: 6px; align-items: center; }
+.ib { width: 44px; height: 44px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; color: var(--text); }
+.ib:disabled { opacity: 0.4; cursor: default; }
+.ib svg { display: block; }
+.ib.play { background: var(--accent); border-color: var(--accent); color: #fff; }
+input[type=range] { width: 100%; height: 44px; margin: 0; accent-color: var(--accent); background: transparent; cursor: pointer; }
+.ctrls2 { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; font-size: 13px; color: var(--text-2); line-height: 18px; }
+.panel { margin-top: 12px; padding: 12px; border-radius: 10px; background: var(--surface-2); }
+.st { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.st div { min-width: 0; }
+.st .k { font-size: 11px; line-height: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.st .v { font-size: 15px; line-height: 20px; font-weight: 650; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.blind { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: 14px; line-height: 20px; margin-bottom: 6px; }
+.blind b { font-weight: 650; }
+.blind span { color: var(--text-2); font-size: 13px; white-space: nowrap; }
+.prog { height: 8px; border-radius: 4px; background: var(--surface-3); overflow: hidden; margin-bottom: 12px; }
+.prog i { display: block; height: 100%; background: var(--c3); border-radius: 4px; }
+.lbl { font-size: 11px; line-height: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin: 12px 0 6px; }
+.hand { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; padding-top: 8px; max-width: 420px; }
+.pc { height: 50px; border-radius: 6px; background: #f0efec; color: #1a1a19; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; font-weight: 700; transition: transform 0.15s ease; border: 2px solid transparent; }
+.pc .rk { font-size: 16px; line-height: 18px; }
+.pc .su { font-size: 15px; line-height: 16px; }
+.pc.h, .pc.d { color: #c4302b; } .pc.c { color: #1f5fae; } .pc.s { color: #1a1a19; }
+.pc.sel { transform: translateY(-8px); border-color: var(--accent); box-shadow: 0 4px 10px rgba(57,135,229,0.35); }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.tagc { display: inline-flex; align-items: center; height: 28px; padding: 0 10px; border-radius: 7px; background: var(--surface-3); border: 1px solid var(--border); font-size: 13px; line-height: 1; white-space: nowrap; }
+.tagc.j { border-color: #4b3f78; background: #26213b; }
+.tagc.c { border-color: #22543f; background: #17302a; }
+.none { color: var(--muted); font-size: 13px; line-height: 28px; }
+.act { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.act .what { font-size: 17px; line-height: 24px; font-weight: 650; }
+.act .val { display: flex; gap: 14px; font-size: 13px; color: var(--text-2); line-height: 18px; }
+.act .val b { color: var(--text); font-weight: 650; }
+.cand { width: 100%; border-collapse: collapse; font-size: 13px; line-height: 18px; margin-top: 4px; table-layout: fixed; }
+.cand th { color: var(--muted); font-weight: 500; font-size: 12px; text-align: left; padding: 4px 0; }
+.cand th:nth-child(2), .cand th:nth-child(3) { text-align: right; }
+.cand td { padding: 6px 0; border-top: 1px solid var(--grid); vertical-align: middle; }
+.cand td.a { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 8px; }
+.cand tr.ch td.a { font-weight: 650; color: var(--text); }
+.cand td.vis { width: 42%; }
+.cand td.vis div { display: grid; grid-template-columns: minmax(0, 1fr) 38px; align-items: center; gap: 6px; }
+.cand td.vis .trk { height: 8px; border-radius: 3px; background: var(--surface-3); position: relative; overflow: hidden; }
+.cand td.vis .trk i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); border-radius: 3px; }
+.cand td.vis span, .cand td.pr { text-align: right; color: var(--text-2); }
+.cand td.pr { width: 52px; }
+.cand col.c1 { width: auto; } .cand col.c2 { width: 44%; } .cand col.c3 { width: 52px; }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <div class="t1"><h1>Bot-latro training</h1><span class="pill demo" id="demo" title="made-up numbers from the fake job" hidden>DEMO DATA</span><span class="sp"></span><span class="pill" id="state"><i class="dot"></i><span>loading</span></span></div>
+    <div class="t2"><span id="run">run</span><span id="updated"></span></div>
+    <div class="t3">
+      <div class="tabs" role="tablist"><button role="tab" id="tab-dash" aria-selected="true">Dashboard</button><button role="tab" id="tab-watch" aria-selected="false">Watch a game</button></div>
+      <button class="fbtn" id="fbtn" aria-expanded="false" aria-controls="sheet"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h12M4.5 8h7M7 12h2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span>Filters</span><span class="n" id="fcount" hidden>0</span></button>
+    </div>
+    <div class="chips" id="chips" hidden></div>
+    <div class="sheet" id="sheet" hidden>
+      <div class="fg"><div class="lab"><span>Generations</span></div><div class="range"><select id="f-g0" aria-label="From generation"></select><span>to</span><select id="f-g1" aria-label="To generation"></select></div></div>
+      <div class="fg"><div class="lab"><span>Decks</span><button type="button" id="f-dall">All decks</button></div><div class="tg decks" id="f-decks"></div></div>
+      <div class="fg"><div class="lab"><span>Stakes</span><button type="button" id="f-sall">All stakes</button></div><div class="tg stakes" id="f-stakes"></div></div>
+      <div class="fg"><div class="lab"><span>Result</span></div><div class="seg full" id="f-res"></div></div>
+      <div class="fg"><div class="lab"><span>Ante reached</span></div><div class="range"><select id="f-a0" aria-label="From ante"></select><span>to</span><select id="f-a1" aria-label="To ante"></select></div></div>
+      <div class="fg"><div class="lab"><span>Challenge</span></div><select id="f-chal" aria-label="Challenge"></select></div>
+      <div class="fg"><div class="lab"><span>Time window</span></div><div class="seg full" id="f-win"></div></div>
+      <div class="sheet-f"><button type="button" id="f-reset">Reset</button><button type="button" class="pri" id="f-done">Done</button></div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap" id="v-dash">
+  <div class="notice" id="notice" hidden></div>
+  <section class="tiles">
+    <div class="tile"><div class="k">Games</div><div class="v" id="t-games">0</div><div class="s" id="t-games-s"></div></div>
+    <div class="tile"><div class="k">Win rate</div><div class="v" id="t-win">none</div><div class="s" id="t-win-s"></div></div>
+    <div class="tile"><div class="k">Avg ante reached</div><div class="v" id="t-ante">none</div><div class="s" id="t-ante-s"></div></div>
+    <div class="tile"><div class="k">Generation</div><div class="v" id="t-gen">none</div><div class="s" id="t-gen-s"></div></div>
+    <div class="tile"><div class="k">Games/s</div><div class="v" id="t-gps">0</div><div class="s" id="t-gps-s"></div></div>
+    <div class="tile"><div class="k">Decisions/s</div><div class="v" id="t-dps">none</div><div class="s" id="t-dps-s"></div></div>
+    <div class="tile"><div class="k">Spent</div><div class="v" id="t-money">0</div><div class="bar" id="t-money-bar"><i></i></div><div class="s" id="t-money-s"></div></div>
+    <div class="tile"><div class="k">Time left</div><div class="v" id="t-left">unknown</div><div class="s" id="t-left-s"></div></div>
+    <div class="tile"><div class="k">Boxes delete at</div><div class="v" id="t-dead">none</div><div class="s" id="t-dead-s"></div></div>
+    <div class="tile"><div class="k">Recorded games</div><div class="v" id="t-rec">0</div><div class="s" id="t-rec-s"></div></div>
+  </section>
+  <div class="grid">
+    <section class="card wide">
+      <div class="card-h"><h2>Strength vs references<span class="hn" id="ev-note">fixed seed set, 95% intervals</span></h2>
+        <div class="ctl"><div class="seg" id="ev-y"></div></div></div>
+      <div class="chart" id="c-ev"></div>
+      <div class="legend" id="l-ev"></div>
+      <div id="ev-table"></div>
+    </section>
+    <section class="card wide">
+      <div class="card-h"><h2>Win rate<span class="hn" id="win-note">self-play games</span></h2>
+        <div class="ctl"><div class="seg" id="win-x"></div><select class="sm" id="win-split" aria-label="Split by"><option value="stake">By stake</option><option value="deck">By deck</option><option value="chal">By challenge</option><option value="none">All together</option></select></div></div>
+      <div class="chart" id="c-win"></div>
+      <div class="legend" id="l-win"></div>
+    </section>
+    <section class="card">
+      <div class="card-h"><h2>Training curves<span class="hn" id="tr-note">loss per generation</span></h2></div>
+      <div class="chart" id="c-loss"></div>
+      <div class="legend" id="l-loss"></div>
+      <div class="sub-h">Learning rate</div>
+      <div class="chart" id="c-lr"></div>
+    </section>
+    <section class="card">
+      <div class="card-h"><h2>Ante reached<span class="hn" id="ante-note">where runs end</span></h2></div>
+      <div class="chart" id="c-ante"></div>
+      <div class="legend" id="l-ante"></div>
+    </section>
+    <section class="card">
+      <div class="card-h"><h2>Death causes<span class="hn" id="death-note">which blind ends lost runs</span></h2></div>
+      <div id="death"></div>
+    </section>
+    <section class="card">
+      <div class="card-h"><h2>Win % by deck and stake<span class="hn" id="heat-note"></span></h2><div class="seg" id="heat-mode"></div></div>
+      <div id="heat"></div>
+    </section>
+    <section class="card">
+      <div class="card-h"><h2>Final jokers<span class="hn" id="jok-note">share of runs holding each joker at the end</span></h2></div>
+      <div id="jokers"></div>
+    </section>
+    <section class="card">
+      <div class="card-h"><h2>Economy<span class="hn">average money after each ante</span></h2></div>
+      <div class="chart" id="c-econ"></div>
+      <div class="legend" id="l-econ"></div>
+    </section>
+    <section class="card wide">
+      <div class="card-h"><h2>Throughput<span class="hn">per box, all games</span></h2><div class="seg" id="thr-m"></div></div>
+      <div class="chart" id="c-thr"></div>
+      <div class="legend" id="l-thr"></div>
+    </section>
+    <section class="card">
+      <div class="card-h"><h2>Boxes<span class="hn" id="box-note"></span></h2></div>
+      <div class="boxes" id="boxes"></div>
+    </section>
+    <section class="card">
+      <div class="card-h"><h2>Money<span class="hn" id="money-note"></span></h2></div>
+      <div id="money"></div>
+    </section>
+    <section class="card">
+      <div class="card-h"><h2>Latest benchmark<span class="hn" id="bench-note"></span></h2></div>
+      <dl class="kv" id="bench"></dl>
+    </section>
+    <section class="card">
+      <div class="card-h"><h2>Events<span class="hn">job states, logs, alerts</span></h2></div>
+      <ul class="events" id="events"></ul>
+    </section>
+  </div>
+</main>
+
+<main class="wrap" id="v-watch" hidden>
+  <div class="wgrid">
+    <section class="card list" id="w-list">
+      <div class="card-h"><h2>Recorded games<span class="hn" id="w-note">matching the filters</span></h2></div>
+      <div class="rlist" id="w-items"></div>
+    </section>
+    <section class="card" id="w-player">
+      <button class="back" id="w-back" type="button"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M9 2L4 7l5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>All games</button>
+      <div id="w-body"><p class="empty">Pick a recorded game to step through it.</p></div>
+    </section>
+  </div>
+</main>
+
+<div class="stopbar" id="stopbar" hidden><button id="stop" type="button">Emergency stop</button></div>
+
+<script>
+"use strict";
+const STAKES = ["White", "Red", "Green", "Black", "Blue", "Purple", "Orange", "Gold"];
+const SHORT = ["Wh", "Rd", "Gr", "Bk", "Bl", "Pu", "Or", "Go"];
+const DECKS = ["b_red","b_blue","b_yellow","b_green","b_black","b_magic","b_nebula","b_ghost","b_abandoned","b_checkered","b_zodiac","b_painted","b_anaglyph","b_plasma","b_erratic","b_challenge"];
+const FINALS = { bl_final_acorn: "Amber Acorn", bl_final_leaf: "Verdant Leaf", bl_final_vessel: "Violet Vessel", bl_final_heart: "Crimson Heart", bl_final_bell: "Cerulean Bell", bl_small: "Small Blind", bl_big: "Big Blind" };
+const JFIX = { j_gluttenous_joker: "Gluttonous Joker", j_8_ball: "8 Ball", j_mr_bones: "Mr. Bones", j_todo_list: "To Do List", j_dna: "DNA", j_selzer: "Seltzer", j_ring_master: "Showman", j_caino: "Canio", j_drivers_license: "Driver's License", j_sock_and_buskin: "Sock and Buskin", j_hit_the_road: "Hit the Road", j_to_the_moon: "To the Moon", j_oops: "Oops! All 6s", j_trading: "Trading Card", j_ticket: "Golden Ticket", j_idol: "The Idol", j_duo: "The Duo", j_trio: "The Trio", j_family: "The Family", j_order: "The Order", j_tribe: "The Tribe", j_stone: "Stone Joker", j_glass: "Glass Joker", j_golden: "Golden Joker", j_egg: "Egg", j_space: "Space Joker", j_mail: "Mail-In Rebate", j_half: "Half Joker", j_delayed_grat: "Delayed Gratification", j_flash: "Flash Card", j_wee: "Wee Joker", j_cloud_9: "Cloud 9" };
+const css = getComputedStyle(document.documentElement);
+const V = n => css.getPropertyValue("--" + n).trim();
+const CAT = [1,2,3,4,5,6,7,8].map(i => V("c" + i));
+const STAKE_COLOR = STAKES.map((_, i) => V("s" + (i + 1)));
+const $ = id => document.getElementById(id);
+const SVGNS = "http://www.w3.org/2000/svg";
+
+const DEF = { g0: null, g1: null, d: [], s: [], r: "any", a0: null, a1: null, c: "any", w: 0 };
+let F = Object.assign({}, DEF);
+let UI = { tab: "dash", x: "gen", ev: "ante", sp: "stake", hm: "latest", tm: "gps", rec: null };
+let S = null, P = null, ver = null, fkey = null, evSeq = 0, events = [], dims = null;
+let sigs = {}, reqSeq = 0, timer = null, sheetOpen = false;
+
+function deckRank(d) { const i = DECKS.indexOf(d); return i < 0 ? 100 : i; }
+function deckSort(a, b) { return deckRank(a) - deckRank(b) || (a < b ? -1 : 1); }
+function deckName(k) { const s = String(k).replace(/^b_/, ""); return s.charAt(0).toUpperCase() + s.slice(1); }
+function title(s) { return s.split("_").filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" "); }
+function blindName(k) { if (!k || k === "?") return "Unknown"; if (FINALS[k]) return FINALS[k]; return "The " + title(String(k).replace(/^bl_/, "")); }
+function jokerName(k) { return JFIX[k] || title(String(k).replace(/^j_/, "")); }
+function consName(k) { return k === "c_planet_x" ? "Planet X" : title(String(k).replace(/^c_/, "")); }
+function chalName(k) { return k === "standard" ? "Standard runs" : title(String(k).replace(/^c_/, "").replace(/_\d+$/, "")); }
+function num(n) { return n == null ? "0" : Math.round(n).toLocaleString("en-US"); }
+function short(n) { if (n == null) return "0"; const a = Math.abs(n); if (a >= 1e6) return (n / 1e6).toFixed(a >= 1e7 ? 0 : 1) + "M"; if (a >= 1e4) return Math.round(n / 1e3) + "k"; if (a >= 1e3) return (n / 1e3).toFixed(1) + "k"; return String(Math.round(n)); }
+function pct(v, d) { return v == null ? "none" : (v * 100).toFixed(d == null ? 1 : d) + "%"; }
+function eur(n) { return "€" + (n || 0).toFixed(2); }
+function hm(t) { const d = new Date(t * 1000); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); }
+function hms(t) { const d = new Date(t * 1000); return hm(t) + ":" + String(d.getSeconds()).padStart(2, "0"); }
+function dur(s) {
+  if (s == null) return null;
+  s = Math.max(0, Math.round(s));
+  if (s < 90) return s + " s";
+  const m = Math.round(s / 60);
+  if (m < 90) return m + " min";
+  const h = Math.floor(m / 60);
+  return h + " h " + String(m % 60).padStart(2, "0") + " min";
+}
+function h(tag, attrs, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in attrs || {}) {
+    if (k === "class") e.className = attrs[k];
+    else if (k === "style") e.style.cssText = attrs[k];
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), attrs[k]);
+    else if (k.startsWith("aria-")) e.setAttribute(k, String(attrs[k]));
+    else if (attrs[k] != null && attrs[k] !== false) e.setAttribute(k, attrs[k] === true ? "" : attrs[k]);
+  }
+  for (const c of kids.flat()) if (c != null && c !== false) e.append(c instanceof Node ? c : String(c));
+  return e;
+}
+function s(tag, attrs, text) {
+  const e = document.createElementNS(SVGNS, tag);
+  for (const k in attrs || {}) if (attrs[k] != null) e.setAttribute(k, attrs[k]);
+  if (text != null) e.textContent = text;
+  return e;
+}
+function setText(id, v) { const e = $(id); if (e.textContent !== v) e.textContent = v; }
+function empty(host, msg) { host.replaceChildren(h("p", { class: "empty" }, msg)); }
+function wilson(w, n) {
+  if (!n) return [null, null];
+  const z = 1.96, p = w / n, d = 1 + z * z / n, c = (p + z * z / (2 * n)) / d, hw = z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / d;
+  return [Math.max(0, c - hw), Math.min(1, c + hw)];
+}
+function niceMax(v) {
+  if (!(v > 0)) return 1;
+  const p = Math.pow(10, Math.floor(Math.log10(v)));
+  for (const m of [1, 1.2, 1.6, 2, 2.4, 3.2, 4, 6, 8, 10]) if (m * p >= v * 1.0001) return m * p;
+  return 10 * p;
+}
+function fmtY(v, max) { if (max <= 0.05) return v.toFixed(3); if (max < 1) return v.toFixed(2); if (max < 100) return String(Math.round(v * 10) / 10); return short(v); }
+
+function seg(host, opts, value, onPick) {
+  host.replaceChildren(...opts.map(([v, label]) => h("button", { type: "button", "aria-pressed": String(v) === String(value), onclick: () => onPick(v) }, label)));
+}
+
+function lineChart(host, o) {
+  const W = Math.max(260, Math.floor(host.clientWidth || 300)), H = o.h || 200;
+  const series = (o.series || []).filter(x => x.points && x.points.length);
+  const bands = (o.bands || []).filter(b => b.points && b.points.length);
+  const refs = o.refs || [];
+  if (!series.length && !refs.length) { empty(host, o.empty || "No data yet"); return; }
+  const xs = [], ys = [];
+  for (const x of series) for (const p of x.points) { xs.push(p[0]); if (p[1] != null) ys.push(p[1]); }
+  for (const b of bands) for (const p of b.points) { xs.push(p[0]); ys.push(p[2]); }
+  for (const r of refs) ys.push(r.hi != null ? r.hi : r.y);
+  let x0 = xs.length ? Math.min(...xs) : 0, x1 = xs.length ? Math.max(...xs) : 1;
+  if (o.xType === "time" && x1 - x0 < 60) { x0 -= 30; x1 += 30; }
+  if (o.xType !== "time" && x1 - x0 < 1) { x0 -= 0.5; x1 += 0.5; }
+  const yMax = o.yMax != null ? o.yMax : niceMax(Math.max(0, ...ys));
+  const yMin = 0;
+  const yl = o.yFmt || (v => fmtY(v, yMax));
+  const ml = Math.max(30, 8 + 6.4 * Math.max(yl(yMax).length, yl(yMax / 2).length));
+  const m = { l: ml, r: o.mr || 10, t: 10, b: 24 };
+  const X = x => m.l + (x - x0) / (x1 - x0) * (W - m.l - m.r);
+  const Y = v => m.t + (1 - (v - yMin) / (yMax - yMin)) * (H - m.t - m.b);
+  const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, height: H, role: "img", "aria-label": o.label || "chart" });
+  for (let i = 0; i <= 4; i++) {
+    const v = yMin + (yMax - yMin) * i / 4, y = Math.round(Y(v)) + 0.5;
+    svg.appendChild(s("line", { x1: m.l, x2: W - m.r, y1: y, y2: y, stroke: V("grid"), "stroke-width": 1 }));
+    svg.appendChild(s("text", { x: m.l - 7, y: y, "text-anchor": "end", "dominant-baseline": "central" }, yl(v)));
+  }
+  if (o.xType === "time") {
+    const n = W < 420 ? 3 : 5;
+    for (let i = 0; i < n; i++) { const t = x0 + (x1 - x0) * (i + 0.5) / n; svg.appendChild(s("text", { x: X(t), y: H - 6, "text-anchor": "middle" }, hm(t))); }
+  } else {
+    const span = x1 - x0, want = W < 420 ? 4 : 8;
+    let step = o.xStep || 1; if (!o.xStep) for (const c of [1, 2, 5, 10, 20, 25, 50, 100, 200, 500, 1000]) { step = c; if (span / c <= want) break; }
+    for (let v = Math.ceil(x0 / step) * step; v <= x1 + 1e-9; v += step) svg.appendChild(s("text", { x: X(v), y: H - 6, "text-anchor": "middle" }, (o.xFmt || String)(v)));
+  }
+  for (const b of bands) {
+    const up = b.points.map((p, i) => (i ? "L" : "M") + X(p[0]).toFixed(1) + " " + Y(p[2]).toFixed(1)).join(" ");
+    const dn = b.points.slice().reverse().map(p => "L" + X(p[0]).toFixed(1) + " " + Y(p[1]).toFixed(1)).join(" ");
+    svg.appendChild(s("path", { d: up + " " + dn + " Z", fill: b.color, "fill-opacity": b.opacity || 0.18, stroke: "none" }));
+  }
+  for (const r of refs) {
+    if (r.lo != null && r.hi != null) svg.appendChild(s("rect", { x: m.l, width: W - m.l - m.r, y: Y(r.hi), height: Math.max(1, Y(r.lo) - Y(r.hi)), fill: r.color, "fill-opacity": 0.1 }));
+    const y = Math.round(Y(r.y)) + 0.5;
+    svg.appendChild(s("line", { x1: m.l, x2: W - m.r, y1: y, y2: y, stroke: r.color, "stroke-width": 1.5, "stroke-dasharray": "6 4" }));
+    const above = Y(r.y) - 6 > m.t + 8;
+    let right = true;
+    const main = series[0] && series[0].points.filter(p => p[1] != null);
+    if (main && main.length) { const a = main[0][1], b = main[main.length - 1][1]; right = Math.abs(b - r.y) >= Math.abs(a - r.y); }
+    svg.appendChild(s("text", { class: "dl", x: right ? W - m.r - 4 : m.l + 6, y: above ? y - 6 : y + 13, "text-anchor": right ? "end" : "start" }, r.label));
+  }
+  for (const x of series) {
+    const pts = x.points.filter(p => p[1] != null);
+    if (!pts.length) continue;
+    const d = pts.map((p, i) => (i ? "L" : "M") + X(p[0]).toFixed(1) + " " + Y(p[1]).toFixed(1)).join(" ");
+    svg.appendChild(s("path", { d, fill: "none", stroke: x.color, "stroke-width": x.width || 2, "stroke-linejoin": "round", "stroke-linecap": "round", "stroke-dasharray": x.dash || null }));
+    if (pts.length === 1 || x.dots) for (const p of pts) svg.appendChild(s("circle", { cx: X(p[0]), cy: Y(p[1]), r: 3.5, fill: x.color, stroke: V("surface"), "stroke-width": 1.5 }));
+  }
+  for (const mk of o.marks || []) {
+    svg.appendChild(s("circle", { cx: X(mk.x), cy: Y(mk.y), r: 6, fill: "none", stroke: mk.color, "stroke-width": 2 }));
+  }
+  const cross = s("line", { y1: m.t, y2: H - m.b, stroke: V("text-2"), "stroke-width": 1, visibility: "hidden" });
+  svg.appendChild(cross);
+  const dots = s("g", {});
+  svg.appendChild(dots);
+  const hit = s("rect", { x: m.l, y: 0, width: Math.max(1, W - m.l - m.r), height: H, fill: "transparent" });
+  svg.appendChild(hit);
+  const tip = h("div", { class: "tip" });
+  host.replaceChildren(svg, tip);
+  const ts = [...new Set(xs)].sort((a, b) => a - b);
+  function show(bx) {
+    const cx = X(bx);
+    cross.setAttribute("x1", cx); cross.setAttribute("x2", cx); cross.setAttribute("visibility", "visible");
+    dots.replaceChildren();
+    const rows = [];
+    for (const x of series) {
+      const p = x.points.find(q => q[0] === bx);
+      if (!p || p[1] == null) continue;
+      dots.appendChild(s("circle", { cx, cy: Y(p[1]), r: 4, fill: x.color, stroke: V("surface"), "stroke-width": 2 }));
+      rows.push(h("div", { class: "row" }, h("i", { style: "background:" + x.color }), h("b", {}, o.tipFmt ? o.tipFmt(p, x) : yl(p[1])), h("span", {}, x.name)));
+    }
+    tip.replaceChildren(h("div", { class: "h" }, o.xType === "time" ? hm(bx) : (o.xTip || (v => "Generation " + v))(bx)), ...rows);
+    tip.style.display = "block";
+    const r = svg.getBoundingClientRect(), tw = tip.offsetWidth, px = cx * r.width / W;
+    tip.style.left = Math.round(Math.min(Math.max(0, px + 12 + tw > r.width ? px - 12 - tw : px + 12), r.width - tw)) + "px";
+    tip.style.top = "2px";
+  }
+  function move(ev) {
+    const r = svg.getBoundingClientRect(), x = (ev.clientX - r.left) * W / r.width;
+    let best = ts[0];
+    for (const t of ts) if (Math.abs(X(t) - x) < Math.abs(X(best) - x)) best = t;
+    if (best == null) return;
+    host._hx = best; show(best);
+  }
+  function leave() { host._hx = null; cross.setAttribute("visibility", "hidden"); dots.replaceChildren(); tip.style.display = "none"; }
+  hit.addEventListener("pointermove", move);
+  hit.addEventListener("pointerdown", move);
+  hit.addEventListener("pointerleave", leave);
+  if (host._hx != null && ts.includes(host._hx)) show(host._hx);
+}
+
+function legend(host, items) {
+  host.replaceChildren(...items.map(it => h("span", {}, h("i", { class: it.sq ? "sq" : "", style: (it.sq ? "background:" : "border-top-color:") + it.color + (it.dash ? ";border-top-style:dashed" : "") }), it.name)));
+}
+
+function barChart(host, o) {
+  const bars = o.bars;
+  if (!bars.length || !bars.some(b => b.v > 0)) { empty(host, o.empty || "No data yet"); return; }
+  const W = Math.max(260, Math.floor(host.clientWidth || 300)), H = o.h || 190;
+  const yMax = Math.min(o.cap || Infinity, niceMax(Math.max(...bars.map(b => b.v))));
+  const ml = 38, m = { l: ml, r: 6, t: 18, b: 24 };
+  const bw = (W - m.l - m.r) / bars.length;
+  const Y = v => m.t + (1 - v / yMax) * (H - m.t - m.b);
+  const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, height: H, role: "img", "aria-label": o.label || "bar chart" });
+  for (let i = 0; i <= 4; i++) {
+    const v = yMax * i / 4, y = Math.round(Y(v)) + 0.5;
+    svg.appendChild(s("line", { x1: m.l, x2: W - m.r, y1: y, y2: y, stroke: V("grid"), "stroke-width": 1 }));
+    svg.appendChild(s("text", { x: m.l - 7, y, "text-anchor": "end", "dominant-baseline": "central" }, o.yFmt(v)));
+  }
+  const tip = h("div", { class: "tip" });
+  bars.forEach((b, i) => {
+    const w = Math.max(4, Math.min(44, bw * 0.66)), cx = m.l + bw * (i + 0.5), x = cx - w / 2, y = Y(b.v), yb = Y(0);
+    const r = Math.min(4, w / 2, yb - y);
+    const d = b.v > 0 ? `M${x} ${yb} L${x} ${y + r} Q${x} ${y} ${x + r} ${y} L${x + w - r} ${y} Q${x + w} ${y} ${x + w} ${y + r} L${x + w} ${yb} Z` : "";
+    if (d) svg.appendChild(s("path", { d, fill: b.color }));
+    if (b.v > 0 && b.label) svg.appendChild(s("text", { class: "dl", x: cx, y: y - 5, "text-anchor": "middle" }, b.label));
+    svg.appendChild(s("text", { x: cx, y: H - 6, "text-anchor": "middle" }, b.x));
+    const hitr = s("rect", { x: m.l + bw * i, y: m.t, width: bw, height: H - m.t - m.b, fill: "transparent" });
+    const showTip = () => {
+      tip.replaceChildren(h("div", { class: "h" }, b.tipH), ...b.tip.map(t => h("div", { class: "row" }, h("b", {}, t[0]), h("span", {}, t[1]))));
+      tip.style.display = "block";
+      const rr = svg.getBoundingClientRect(), px = cx * rr.width / W, tw = tip.offsetWidth;
+      tip.style.left = Math.round(Math.min(Math.max(0, px - tw / 2), rr.width - tw)) + "px"; tip.style.top = "0px";
+    };
+    hitr.addEventListener("pointerenter", showTip); hitr.addEventListener("pointerdown", showTip);
+    hitr.addEventListener("pointerleave", () => { tip.style.display = "none"; });
+    svg.appendChild(hitr);
+  });
+  host.replaceChildren(svg, tip);
+}
+
+function heatColor(r) {
+  const a = [0x1d, 0x33, 0x52], b = [0x86, 0xb6, 0xef];
+  return "rgb(" + a.map((x, i) => Math.round(x + (b[i] - x) * r)).join(",") + ")";
+}
+
+function readHash() {
+  const src = location.hash.length > 1 ? location.hash.slice(1) : (() => { try { return localStorage.getItem("botsim-view") || ""; } catch (e) { return ""; } })();
+  const q = new URLSearchParams(src);
+  const rng = v => { if (!v || !v.includes("-")) return [null, null]; const [a, b] = v.split("-"); return [a === "" ? null : +a, b === "" ? null : +b]; };
+  [F.g0, F.g1] = rng(q.get("g")); [F.a0, F.a1] = rng(q.get("a"));
+  F.d = (q.get("d") || "").split(",").filter(Boolean);
+  F.s = (q.get("s") || "").split(",").filter(Boolean).map(Number).filter(n => n >= 1 && n <= 8);
+  F.r = ["won", "lost"].includes(q.get("r")) ? q.get("r") : "any";
+  F.c = q.get("c") || "any";
+  F.w = +(q.get("w") || 0) || 0;
+  UI.tab = q.get("tab") === "watch" ? "watch" : "dash";
+  UI.x = q.get("x") === "time" ? "time" : "gen";
+  UI.ev = q.get("ev") === "win" ? "win" : "ante";
+  UI.sp = ["deck", "chal", "none"].includes(q.get("sp")) ? q.get("sp") : "stake";
+  UI.hm = q.get("hm") === "all" ? "all" : "latest";
+  UI.tm = ["dps", "spd"].includes(q.get("tm")) ? q.get("tm") : "gps";
+  UI.rec = q.get("rec") || null;
+}
+function filterQS() {
+  const q = new URLSearchParams();
+  if (F.g0 != null || F.g1 != null) q.set("g", (F.g0 ?? "") + "-" + (F.g1 ?? ""));
+  if (F.d.length) q.set("d", F.d.join(","));
+  if (F.s.length) q.set("s", F.s.join(","));
+  if (F.r !== "any") q.set("r", F.r);
+  if (F.a0 != null || F.a1 != null) q.set("a", (F.a0 ?? "") + "-" + (F.a1 ?? ""));
+  if (F.c !== "any") q.set("c", F.c);
+  if (F.w) q.set("w", F.w);
+  return q;
+}
+function writeHash() {
+  const q = filterQS();
+  if (UI.tab !== "dash") q.set("tab", UI.tab);
+  if (UI.x !== "gen") q.set("x", UI.x);
+  if (UI.ev !== "ante") q.set("ev", UI.ev);
+  if (UI.sp !== "stake") q.set("sp", UI.sp);
+  if (UI.hm !== "latest") q.set("hm", UI.hm);
+  if (UI.tm !== "gps") q.set("tm", UI.tm);
+  if (UI.rec && UI.tab === "watch") q.set("rec", UI.rec);
+  const str = q.toString().replace(/%2C/g, ",");
+  history.replaceState(null, "", str ? "#" + str : location.pathname + location.search);
+  try { localStorage.setItem("botsim-view", str); } catch (e) {}
+}
+function activeCount() {
+  return (F.g0 != null || F.g1 != null ? 1 : 0) + (F.d.length ? 1 : 0) + (F.s.length ? 1 : 0) + (F.r !== "any" ? 1 : 0) + (F.a0 != null || F.a1 != null ? 1 : 0) + (F.c !== "any" ? 1 : 0) + (F.w ? 1 : 0);
+}
+const WINS = [[0, "All"], [900, "15 min"], [3600, "1 h"], [21600, "6 h"], [86400, "24 h"]];
+function anteLabel(a) { return a === 9 ? "Won (9)" : "Ante " + a; }
+function rangeText(a, b, f) { return a != null && b != null ? (a === b ? f(a) : f(a) + " to " + f(b)) : a != null ? f(a) + " and up" : "up to " + f(b); }
+function renderChips() {
+  const host = $("chips"), list = [];
+  const x = (label, clear) => { const xs = h("span", { class: "x", "aria-hidden": "true" }); xs.innerHTML = '<svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 2l6 6M8 2l-6 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>'; list.push(h("button", { class: "chip", type: "button", onclick: () => { clear(); changed(); } }, label, xs)); };
+  if (F.g0 != null || F.g1 != null) x("Gen " + rangeText(F.g0, F.g1, String), () => { F.g0 = F.g1 = null; });
+  if (F.d.length) x(F.d.length <= 2 ? F.d.map(deckName).join(", ") : F.d.length + " decks", () => { F.d = []; });
+  if (F.s.length) x(F.s.length <= 2 ? F.s.map(i => STAKES[i - 1]).join(", ") : F.s.length + " stakes", () => { F.s = []; });
+  if (F.r !== "any") x(F.r === "won" ? "Won" : "Lost", () => { F.r = "any"; });
+  if (F.a0 != null || F.a1 != null) x(rangeText(F.a0, F.a1, a => a === 9 ? "won" : "ante " + a).replace(/^./, c => c.toUpperCase()), () => { F.a0 = F.a1 = null; });
+  if (F.c !== "any") x(F.c === "none" ? "Standard runs" : chalName(F.c), () => { F.c = "any"; });
+  if (F.w) x("Last " + (WINS.find(w => w[0] === F.w) || [0, F.w + " s"])[1], () => { F.w = 0; });
+  if (list.length) list.push(h("button", { class: "chip reset", type: "button", onclick: () => { F = Object.assign({}, DEF, { d: [], s: [] }); changed(); } }, "Reset all"));
+  host.replaceChildren(...list);
+  host.hidden = !list.length;
+  const n = activeCount();
+  $("fcount").hidden = !n; $("fcount").textContent = n;
+}
+function fillSelect(sel, opts, value) {
+  const want = opts.map(o => o[0] + "|" + o[1]).join(";");
+  if (sel._opts !== want) { sel.replaceChildren(...opts.map(([v, l]) => new Option(l, v))); sel._opts = want; }
+  sel.value = value == null ? "" : String(value);
+}
+function renderSheet() {
+  const d = dims || { decks: [], stakes: [], chals: [], gmin: 0, gmax: 0 };
+  const gens = []; if (d.gmin != null) for (let g = d.gmin; g <= d.gmax; g++) gens.push(g);
+  fillSelect($("f-g0"), [["", "First"]].concat(gens.map(g => [g, "Gen " + g])), F.g0);
+  fillSelect($("f-g1"), [["", "Latest"]].concat(gens.map(g => [g, "Gen " + g])), F.g1);
+  const antes = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+  fillSelect($("f-a0"), [["", "Any"]].concat(antes.map(a => [a, anteLabel(a)])), F.a0);
+  fillSelect($("f-a1"), [["", "Any"]].concat(antes.map(a => [a, anteLabel(a)])), F.a1);
+  const decks = [...new Set(DECKS.slice(0, 15).concat(d.decks || []))].sort(deckSort);
+  $("f-decks").replaceChildren(...decks.map(k => h("button", { type: "button", "aria-pressed": String(F.d.includes(k)), onclick: () => { F.d = F.d.includes(k) ? F.d.filter(x => x !== k) : F.d.concat([k]).sort(deckSort); changed(true); } }, deckName(k))));
+  $("f-stakes").replaceChildren(...STAKES.map((n, i) => h("button", { type: "button", title: n + " stake", "aria-pressed": String(F.s.includes(i + 1)), onclick: () => { const v = i + 1; F.s = F.s.includes(v) ? F.s.filter(x => x !== v) : F.s.concat([v]).sort((a, b) => a - b); changed(true); } }, h("i", { style: "background:" + STAKE_COLOR[i] }), SHORT[i])));
+  seg($("f-res"), [["any", "Any"], ["won", "Won"], ["lost", "Lost"]], F.r, v => { F.r = v; changed(true); });
+  fillSelect($("f-chal"), [["any", "Any run"], ["none", "Standard runs only"]].concat((d.chals || []).map(c => [c, chalName(c)])), F.c);
+  seg($("f-win"), WINS, F.w, v => { F.w = v; changed(true); });
+}
+function changed(keepSheet) {
+  ver = null; fkey = null; sigs = {};
+  writeHash(); renderChips();
+  if (keepSheet) renderSheet();
+  if (UI.tab === "watch") loadRecords();
+  poll();
+}
+
+function sig(key, data) { const j = JSON.stringify(data); if (sigs[key] === j) return false; sigs[key] = j; return true; }
+
+function renderState(st) {
+  S = st; dims = st.dims;
+  setText("run", st.run ? "run " + st.run + (st.mode === "local" ? " (pulled)" : "") : "no run");
+  const cs = (st.control && st.control.state) || (st.boxes.some(b => b.alive) ? "running" : "idle");
+  const label = { history: "History", stopping: "Stopping", stopped: "Stopped", running: "Running", idle: "Idle" }[cs] || cs;
+  const pill = $("state"); pill.querySelector("span").textContent = label;
+  pill.querySelector(".dot").className = "dot " + (cs === "running" ? "good" : cs === "stopping" ? "warn" : cs === "stopped" ? "bad" : "");
+  $("demo").hidden = !st.demo;
+  setText("updated", "updated " + hms(st.now));
+  $("updated").className = "";
+  const notice = $("notice");
+  if (cs === "stopped" || cs === "stopping") {
+    notice.hidden = false;
+    notice.textContent = cs === "stopping" ? "Stopping (" + (st.control.reason || "") + "): saving checkpoints and collecting results." :
+      "Stopped (" + (st.control.reason || "") + "). Results are on the head box" + (st.control.keep_until ? " until " + hm(st.control.keep_until) + ", then it deletes itself" : "") + ". Run hz.py pull to fetch them.";
+  } else notice.hidden = true;
+  setText("t-gps", st.gps != null ? (st.gps >= 100 ? num(st.gps) : st.gps.toFixed(1)) : "0");
+  const cores = st.boxes.reduce((a, b) => a + (b.cores || 0), 0);
+  setText("t-gps-s", (st.mode === "local" ? "last measured" : st.boxes.length + (st.boxes.length === 1 ? " box" : " boxes")) + (cores ? ", " + cores + " cores" : ""));
+  setText("t-dps", st.dps != null ? short(st.dps) : "none");
+  const m = st.money || {};
+  const tm = $("t-money"); tm.replaceChildren(eur(m.spent), h("small", {}, " of " + eur(m.cap)));
+  const frac = m.cap ? m.spent / m.cap : 0;
+  const bar = $("t-money-bar"); bar.className = "bar" + (frac >= 0.95 ? " over" : frac >= 0.8 ? " hot" : "");
+  bar.firstElementChild.style.width = Math.min(100, frac * 100).toFixed(1) + "%";
+  setText("t-money-s", "this run " + eur(m.run_spent) + (m.per_hour ? ", " + eur(m.per_hour) + "/h" : ""));
+  const left = dur(st.time_left);
+  setText("t-left", left || "unknown");
+  setText("t-left-s", left ? (st.time_left_capped ? "work outlasts the boxes, they save and stop then" : "measured over " + dur(st.time_left_basis)) : (st.mode === "local" ? "no box running" : "job reports no total yet"));
+  setText("t-gen", st.gen != null ? String(st.gen) : "none");
+  setText("t-gen-s", st.phase && !st.games ? st.phase : st.best ? "best " + st.best.gen + ", ante " + (st.best.ante != null ? st.best.ante.toFixed(2) : "?") + ", " + pct(st.best.rate) + " wins" : (st.checkpoint ? "checkpoint " + hm(st.checkpoint.t) : "no evaluation yet"));
+  setText("t-dead", st.deadline ? hm(st.deadline) : "none");
+  setText("t-dead-s", st.deadline ? "in " + dur(st.deadline - st.now) : (st.mode === "local" ? "no box running" : ""));
+  const bs = $("stopbar"); bs.hidden = !st.can_stop;
+  const btn = $("stop"); btn.disabled = cs === "stopping" || cs === "stopped";
+  btn.textContent = cs === "stopping" ? "Stopping" : cs === "stopped" ? "Stopped" : "Emergency stop";
+  if (sig("boxes", [st.boxes, st.mode])) renderBoxes(st);
+  if (sig("money", [m, st.deadline])) renderMoney(st);
+  if (sig("bench", st.bench)) renderBench(st);
+  if (sheetOpen && sig("dims", dims)) renderSheet();
+}
+
+function renderTiles(p) {
+  const t = p.tiles;
+  setText("t-games", num(t.games));
+  setText("t-games-s", activeCount() ? "of " + short(S ? S.games : 0) + " total" : (S && S.games > t.games ? short(S.games) + " played, " + short(t.games) + " logged" : "all logged games"));
+  setText("t-win", t.rate != null ? pct(t.rate) : "none");
+  setText("t-win-s", t.lo != null ? "95% CI " + pct(t.lo) + " to " + pct(t.hi) : "no games");
+  setText("t-ante", t.ante != null ? t.ante.toFixed(2) : "none");
+  setText("t-ante-s", t.round != null ? "round " + t.round.toFixed(1) + " · $" + Math.round(t.money || 0) + " at end" : "");
+  setText("t-dps-s", t.spd != null ? Math.round(t.spd) + " sims per decision" : (t.dec ? Math.round(t.dec) + " decisions per game" : "job reports none"));
+  setText("t-rec", num(p.records));
+  setText("t-rec-s", p.records ? "open Watch a game" : "none match the filters");
+}
+
+function renderEval(p) {
+  const e = p.eval, host = $("c-ev"), tbl = $("ev-table");
+  if (!e || (!e.gens.length && !e.refs.length)) { empty(host, "No evaluations yet. The trainer writes eval lines on a fixed seed set."); $("l-ev").replaceChildren(); tbl.replaceChildren(); setText("ev-note", "fixed seed set, 95% intervals"); return; }
+  setText("ev-note", "set " + e.set + ", " + (e.gens.length ? num(e.gens[e.gens.length - 1].n) + " games per generation" : "") + ", 95% intervals");
+  const refColor = { rules: V("c4"), seer: V("c7"), best: V("c3") };
+  const refName = w => ({ rules: "Rules bot", seer: "Seer" }[w] || title(w));
+  const A = UI.ev === "ante";
+  const yv = r => A ? r.ante : r.rate, ylo = r => A ? (r.ante_lo ?? r.ante) : r.lo, yhi = r => A ? (r.ante_hi ?? r.ante) : r.hi;
+  const fmt = v => v == null ? "none" : A ? v.toFixed(2) : pct(v);
+  const refs = e.refs.filter(r => r.n && yv(r) != null).map((r, i) => ({ y: yv(r), lo: ylo(r), hi: yhi(r), color: refColor[r.who] || CAT[(i + 3) % 8], label: refName(r.who) + " " + fmt(yv(r)), name: refName(r.who) }));
+  const gs = e.gens.filter(g => g.n && yv(g) != null);
+  const gpts = gs.map(g => [g.gen, yv(g), g]);
+  const best = e.gens.find(g => g.gen === e.best);
+  const top = Math.max(...refs.map(r => r.hi || 0), ...gs.map(g => yhi(g) || 0));
+  lineChart(host, {
+    series: [{ name: "Fair", color: V("c1"), points: gpts, dots: gpts.length < 30 }],
+    bands: [{ color: V("c1"), points: gs.map(g => [g.gen, ylo(g), yhi(g)]) }],
+    refs, marks: best && yv(best) != null ? [{ x: best.gen, y: yv(best), color: V("c3") }] : [],
+    yMax: A ? niceMax(Math.max(3, top)) : Math.min(1, niceMax(Math.max(0.05, top))),
+    yFmt: A ? (v => v.toFixed(1)) : (v => Math.round(v * 100) + "%"), h: 230, label: (A ? "average ante" : "win rate") + " on the fixed seeds by generation",
+    tipFmt: pnt => fmt(pnt[1]) + " (" + fmt(ylo(pnt[2])) + " to " + fmt(yhi(pnt[2])) + ")" + (A ? ", " + pnt[2].wins + " wins" : ", ante " + fmt(pnt[2].ante))
+  });
+  legend($("l-ev"), [{ name: "Fair by generation", color: V("c1") }].concat(best ? [{ name: "best: gen " + best.gen, color: V("c3"), sq: true }] : []).concat(refs.map(r => ({ name: r.name, color: r.color, dash: true }))));
+  const last = e.gens[e.gens.length - 1];
+  const rows = [];
+  const fmtRow = (label, color, r) => h("tr", {}, h("td", {}, h("span", { class: "sw", style: "background:" + color }), label),
+    h("td", {}, r.rate != null ? pct(r.rate) : "none"), h("td", {}, r.lo != null ? h("small", {}, pct(r.lo, 0) + " to " + pct(r.hi, 0)) : ""),
+    h("td", {}, r.ante != null ? r.ante.toFixed(2) : ""), h("td", {}, short(r.n)));
+  if (last) rows.push(fmtRow("Gen " + last.gen + " (latest)", V("c1"), last));
+  if (best && best !== last) rows.push(fmtRow("Gen " + best.gen + " (best)", V("c3"), best));
+  for (const r of e.refs) rows.push(fmtRow(refName(r.who), refColor[r.who] || V("muted"), r));
+  const table = h("table", { class: "t" }, h("thead", {}, h("tr", {}, h("th", {}, "Player"), h("th", {}, "Win"), h("th", {}, "95% CI"), h("th", {}, "Ante"), h("th", {}, "Games"))), h("tbody", {}, rows));
+  const vs = [];
+  if (last) {
+    const pg = last.best_before != null && last.best_before !== last.gen ? last.best_before : e.best !== last.gen ? e.best : null;
+    const prev = pg != null ? e.gens.find(g => g.gen === pg && g.n) : null;
+    if (prev && yv(prev) != null && yv(last) != null) {
+      const sigUp = ylo(last) > yhi(prev), sigDown = yhi(last) < ylo(prev);
+      const word = last.gen === e.best ? "previous best" : "best";
+      vs.push(h("div", {}, "Gen ", h("b", {}, String(last.gen)), sigUp ? " is clearly better than the " + word + ", gen " : sigDown ? " is clearly worse than the " + word + ", gen " : " is not clearly different from the " + word + ", gen ", h("b", {}, String(prev.gen)), " (" + (A ? "ante " : "") + fmt(yv(last)) + " vs " + fmt(yv(prev)) + (sigUp || sigDown ? ", intervals apart)." : ", intervals overlap).")));
+    }
+    for (const r of e.refs) {
+      if (!r.n) continue;
+      if (yv(r) == null || yv(last) == null) continue;
+      const d = yv(last) - yv(r);
+      const clear = ylo(last) > yhi(r) ? "clearly above" : yhi(last) < ylo(r) ? "clearly below" : "level with";
+      vs.push(h("div", {}, h("b", {}, (d >= 0 ? "+" : "") + (A ? d.toFixed(2) + " ante" : (d * 100).toFixed(1) + " pts")), " vs " + refName(r.who) + ", " + clear + "."));
+    }
+  }
+  tbl.replaceChildren(table, vs.length ? h("div", { class: "verdict" }, vs) : "");
+}
+
+function splitColor(split, key, keys) {
+  if (split === "stake") return STAKE_COLOR[(+key || 1) - 1];
+  if (key === "other") return V("muted");
+  const i = keys.filter(k => k !== "other").indexOf(key);
+  return CAT[i % 8];
+}
+function splitName(split, key) {
+  if (split === "stake") return STAKES[(+key || 1) - 1] || "Stake " + key;
+  if (split === "deck") return key === "other" ? "Other decks" : deckName(key);
+  if (split === "chal") return chalName(key);
+  return "All runs";
+}
+function renderWin(p) {
+  const data = UI.x === "gen" ? p.win_gen : p.win_tb;
+  const split = p.split;
+  let keys = Object.keys(data || {});
+  if (split === "stake") keys.sort((a, b) => a - b); else if (split === "deck") keys.sort((a, b) => a === "other" ? 1 : b === "other" ? -1 : deckSort(a, b)); else keys.sort();
+  const series = keys.map(k => ({ name: splitName(split, k), color: splitColor(split, k, keys), dash: split === "stake" && k === "4" ? "5 3" : "", points: data[k].filter(q => q[1] > 0).map(q => [q[0], q[2] / q[1], q[1]]) }));
+  setText("win-note", "self-play games, " + (UI.x === "gen" ? "per generation" : "per 5 minutes"));
+  lineChart($("c-win"), { series, yMax: 1, h: 230, xType: UI.x === "gen" ? "num" : "time", label: "win rate", yFmt: v => Math.round(v * 100) + "%", tipFmt: q => pct(q[1]) + " of " + short(q[2]), dots: false });
+  legend($("l-win"), series.length > 1 ? series.map(x => ({ name: x.name, color: x.color, dash: !!x.dash })) : []);
+}
+
+function renderTrain(p) {
+  const g = p.train || [];
+  const keys = [["loss_policy", "Policy"], ["loss_value", "Value"], ["loss_ante", "Ante head"]];
+  let series = keys.map(([k, n], i) => ({ name: n, color: CAT[i], points: g.filter(r => r[k] != null).map(r => [r.gen, r[k], r]) })).filter(x => x.points.length);
+  const vser = keys.map(([k, n], i) => ({ name: n + " (held out)", color: CAT[i], dash: "5 3", points: g.filter(r => r["val_" + k.slice(5)] != null).map(r => [r.gen, r["val_" + k.slice(5)], r]) })).filter(x => x.points.length);
+  if (!series.length) series = [{ name: "Loss", color: CAT[0], points: g.filter(r => r.loss != null).map(r => [r.gen, r.loss, r]) }];
+  series = series.concat(vser);
+  setText("tr-note", g.length ? "loss per generation, " + g.length + " generations" + (vser.length ? ", dashed on held-out runs" : "") : "loss per generation");
+  const cal = r => r.val_win_pred != null ? ", predicted win " + pct(r.val_win_pred) + " vs real " + pct(r.val_win_true) + ", ante off by " + r.val_ante_mae.toFixed(2) : "";
+  lineChart($("c-loss"), { series, h: 190, label: "training losses", empty: "No generation finished yet", dots: false,
+    tipFmt: q => q[1].toFixed(3) + (q[2] && q[2].epochs != null ? ", " + q[2].epochs.toFixed(1) + " passes over the data" : "") + (q[2] ? cal(q[2]) : "") });
+  legend($("l-loss"), series.length > 1 ? series.filter(x => !x.dash).map(x => ({ name: x.name, color: x.color })).concat(vser.length ? [{ name: "held out", color: V("muted"), dash: true }] : []) : []);
+  const lr = g.filter(r => r.lr != null).map(r => [r.gen, r.lr, r]);
+  lineChart($("c-lr"), { series: [{ name: "learning rate", color: CAT[6], points: lr }], h: 110, label: "learning rate", empty: "The trainer reports no learning rate", yFmt: v => v === 0 ? "0" : v.toExponential(1).replace(".0e", "e"),
+    tipFmt: q => q[1].toExponential(2) + (q[2].samples ? ", " + short(q[2].samples) + " samples" : "") + (q[2].train_s ? ", " + Math.round(q[2].train_s) + " s" : "") });
+}
+
+function renderAnte(p) {
+  const rows = p.ante || [];
+  const total = rows.reduce((a, r) => a + r[1] + r[2], 0);
+  const by = {}; for (const r of rows) by[r[0]] = r;
+  const bars = [];
+  for (let a = 1; a <= 9; a++) {
+    const r = by[a] || [a, 0, 0];
+    const n = r[1] + r[2];
+    bars.push({ x: a === 9 ? "Won" : String(a), v: total ? n / total : 0, color: a === 9 ? V("won") : V("lost"), label: total && n / total >= 0.005 ? Math.round(n / total * 100) + "%" : "",
+      tipH: a === 9 ? "Won the run" : "Ended at ante " + a, tip: [[pct(total ? n / total : 0), "of runs"], [num(n), "games"]] });
+  }
+  setText("ante-note", total ? "where " + short(total) + " runs ended" : "where runs end");
+  barChart($("c-ante"), { bars, cap: 1, yFmt: v => Math.round(v * 100) + "%", label: "ante reached distribution", empty: "No games with an ante yet" });
+  const wonN = (by[9] || [9, 0, 0])[1] + (by[9] || [9, 0, 0])[2];
+  legend($("l-ante"), [total > wonN ? { name: "Lost at ante", color: V("lost"), sq: true } : null, wonN ? { name: "Won", color: V("won"), sq: true } : null].filter(Boolean));
+}
+
+function renderDeath(p) {
+  const d = p.death, host = $("death");
+  if (F.r === "won") { empty(host, "Won runs have no death cause. Set Result to Any or Lost."); return; }
+  if (!d || !d.total) { empty(host, "No lost runs with a death cause yet"); return; }
+  setText("death-note", short(d.total) + " lost runs, share of losses");
+  const max = d.top[0].n;
+  const list = h("div", { class: "hb" }, d.top.slice(0, 8).map(b => h("div", { class: "r", title: blindName(b.blind) + ": " + num(b.n) + " losses" },
+    h("span", { class: "nm" }, blindName(b.blind)), h("span", { class: "trk" }, h("i", { style: `width:${(b.n / max * 100).toFixed(1)}%;background:${V("lost")}` })), h("span", { class: "val" }, pct(b.n / d.total)))));
+  const stakes = Object.keys(d.stakes).map(Number).sort((a, b) => a - b);
+  const kids = [list];
+  if (stakes.length > 1) {
+    const t = h("table", { class: "heat" });
+    const hr = t.insertRow(); hr.appendChild(h("th", { class: "rl" }));
+    stakes.forEach(i => hr.appendChild(h("th", { title: STAKES[i - 1] + " stake" }, SHORT[i - 1])));
+    let mx = 0;
+    const top = d.top.slice(0, 6);
+    for (const b of top) for (const st of stakes) mx = Math.max(mx, (b.stakes[st] || 0) / d.stakes[st]);
+    for (const b of top) {
+      const tr = t.insertRow(); tr.appendChild(h("th", { class: "rl", title: blindName(b.blind) }, blindName(b.blind).replace(/^The /, "")));
+      for (const st of stakes) {
+        const v = (b.stakes[st] || 0) / d.stakes[st], td = tr.insertCell();
+        td.style.background = heatColor(mx ? v / mx : 0); if (mx && v / mx > 0.6) td.className = "lite";
+        td.appendChild(h("b", {}, Math.round(v * 100)));
+        td.title = blindName(b.blind) + " at " + STAKES[st - 1] + ": " + pct(v) + " of " + num(d.stakes[st]) + " losses";
+      }
+    }
+    kids.push(h("div", { class: "sub-h" }, "% of each stake's losses"), t);
+  }
+  host.replaceChildren(...kids);
+}
+
+function renderHeat(p) {
+  const host = $("heat");
+  seg($("heat-mode"), [["latest", "Latest gen"], ["all", "Filtered"]], UI.hm, v => { UI.hm = v; writeHash(); sigs.heat = null; renderHeat(P); });
+  const heat = (UI.hm === "latest" ? p.heat.latest : p.heat.all) || {};
+  setText("heat-note", UI.hm === "latest" ? (p.heat.gen != null ? "generation " + p.heat.gen + ", cell = win %, games" : "") : "all games matching the filters");
+  const decks = Object.keys(heat).sort(deckSort);
+  if (!decks.length) { empty(host, "No games yet"); return; }
+  const stakes = [1, 2, 3, 4, 5, 6, 7, 8].filter(i => !F.s.length || F.s.includes(i));
+  const t = h("table", { class: "heat" });
+  const hr = t.insertRow(); hr.appendChild(h("th", { class: "rl" }));
+  stakes.forEach(i => hr.appendChild(h("th", { title: STAKES[i - 1] + " stake" }, SHORT[i - 1])));
+  for (const d of decks) {
+    const tr = t.insertRow(); tr.appendChild(h("th", { class: "rl" }, deckName(d)));
+    for (const i of stakes) {
+      const td = tr.insertCell(), c = heat[d][String(i)];
+      if (c && c[0] > 0) {
+        const r = c[1] / c[0];
+        td.style.background = heatColor(r); if (r > 0.55) td.className = "lite";
+        td.append(h("b", {}, Math.round(r * 100)), h("small", {}, short(c[0])));
+        const [lo, hi] = wilson(c[1], c[0]);
+        td.title = deckName(d) + ", " + STAKES[i - 1] + ": " + pct(r) + " of " + num(c[0]) + " games (" + pct(lo, 0) + " to " + pct(hi, 0) + ")";
+      } else { td.className = "na"; td.textContent = "·"; }
+    }
+  }
+  host.replaceChildren(t);
+}
+
+function renderJokers(p) {
+  const j = p.jokers, host = $("jokers");
+  if (!j || !j.top.length) { empty(host, "No final jokers reported yet"); return; }
+  const both = j.won_games > 0 && j.lost_games > 0;
+  setText("jok-note", "share of " + (both ? "won and lost" : j.won_games ? "won" : "lost") + " runs holding each joker at the end");
+  const max = Math.max(...j.top.map(r => Math.max(r[1], r[2])), 0.01);
+  const bw = v => Math.max(v > 0 ? 0.6 : 0, v / max * 100).toFixed(1) + "%";
+  if (!both) {
+    const k = j.won_games ? 1 : 2, col = V(k === 1 ? "won" : "lost");
+    const one = j.top.slice(0, 12).map(r => h("div", { class: "r", title: jokerName(r[0]) + ": in " + pct(r[k]) + " of " + (k === 1 ? "won" : "lost") + " runs" },
+      h("span", { class: "nm" }, jokerName(r[0])), h("span", { class: "trk" }, h("i", { style: `width:${bw(r[k])};background:${col}` })), h("span", { class: "val" }, pct(r[k], 0))));
+    host.replaceChildren(h("div", { class: "hb" }, one));
+    return;
+  }
+  const rows = j.top.slice(0, 12).map(r => h("div", { class: "r two", title: jokerName(r[0]) + ": in " + pct(r[1]) + " of won and " + pct(r[2]) + " of lost runs" },
+    h("span", { class: "nm" }, jokerName(r[0])),
+    h("span", { class: "bw" }, h("span", { class: "trk" }, h("i", { style: `width:${bw(r[1])};background:${V("won")}` }))), h("span", { class: "val" }, pct(r[1], 0)),
+    h("span", { class: "bw" }, h("span", { class: "trk" }, h("i", { style: `width:${bw(r[2])};background:${V("lost")}` }))), h("span", { class: "val" }, pct(r[2], 0))));
+  const lg = h("div", { class: "legend" }); legend(lg, [{ name: "Won runs (" + short(j.won_games) + ")", color: V("won"), sq: true }, { name: "Lost runs (" + short(j.lost_games) + ")", color: V("lost"), sq: true }]);
+  host.replaceChildren(h("div", { class: "hb" }, rows), lg);
+}
+
+function renderEcon(p) {
+  const e = p.econ || {};
+  const series = [["won", "Won runs", V("won")], ["lost", "Lost runs", V("lost")]].filter(([k]) => e[k] && e[k].length).map(([k, n, c]) => ({ name: n, color: c, points: e[k].map(q => [q[0], q[1], q[2]]), dots: true }));
+  lineChart($("c-econ"), { series, h: 180, xStep: 1, label: "money per ante", xTip: v => "After ante " + v, yFmt: v => "$" + Math.round(v), tipFmt: q => "$" + q[1].toFixed(1) + " (" + short(q[2]) + ")", empty: "The trainer reports no money per ante" });
+  legend($("l-econ"), series.length > 1 ? series.map(x => ({ name: x.name, color: x.color })) : []);
+}
+
+function renderThroughput(p) {
+  const t = p.throughput || {};
+  seg($("thr-m"), [["gps", "Games/s"], ["dps", "Decisions/s"], ["spd", "Sims/dec"]], UI.tm, v => { UI.tm = v; writeHash(); renderThroughput(P); });
+  const idx = { gps: 1, dps: 2, spd: 3 }[UI.tm];
+  const names = Object.keys(t.boxes || {}).sort();
+  const series = names.map((n, i) => ({ name: n, color: CAT[i % 8], points: t.boxes[n].filter(q => q[idx] != null).map(q => [q[0], q[idx]]) })).filter(x => x.points.length);
+  if (series.length > 1 && UI.tm !== "spd") series.unshift({ name: "Total", color: V("text-2"), width: 1.5, dash: "4 3", points: (t.total || []).filter(q => q[idx] != null).map(q => [q[0], q[idx]]) });
+  lineChart($("c-thr"), { series, h: 170, xType: "time", label: "throughput", empty: UI.tm === "gps" ? "No progress lines yet" : "The job reports no decisions or sims yet" });
+  legend($("l-thr"), series.length > 1 ? series.map(x => ({ name: x.name, color: x.color, dash: !!x.dash })) : []);
+}
+
+function renderBoxes(st) {
+  const host = $("boxes");
+  const alive = st.boxes.filter(b => b.alive).length;
+  setText("box-note", st.mode === "local" ? st.boxes.length + " in history" : alive + " of " + st.boxes.length + " up");
+  if (!st.boxes.length) { empty(host, "No boxes"); return; }
+  host.replaceChildren(...st.boxes.map(b => {
+    const parts = [];
+    if (b.type) parts.push(String(b.type).toUpperCase());
+    if (b.cores) parts.push(b.cores + " cores");
+    parts.push(num(b.games) + " games");
+    parts.push(b.deleted ? "deleted" : (b.job_msg || b.job_state || (b.job_active ? "running" : "idle")));
+    const row = h("div", { class: "box" },
+      h("div", { class: "n" }, h("i", { class: "dot " + (b.deleted ? "" : b.alive ? (b.job_active ? "good" : "warn") : st.mode === "local" ? "" : "bad") }), h("span", {}, b.name + (b.role === "head" ? " (head)" : ""))),
+      h("div", { class: "r" }, b.gps != null ? b.gps.toFixed(1) + " games/s" : ""),
+      h("div", { class: "d" }, parts.map(x => h("span", {}, x))));
+    if (b.load1 != null && b.cores && !b.deleted) {
+      const f = b.load1 / b.cores;
+      row.appendChild(h("div", { class: "ld" }, h("span", {}, "CPU"), h("div", { class: "bar" + (f > 1.05 ? " hot" : "") }, h("i", { style: "width:" + Math.min(100, f * 100).toFixed(1) + "%" })), h("b", {}, Math.round(f * 100) + "%")));
+    }
+    return row;
+  }));
+}
+
+function renderMoney(st) {
+  const m = st.money || {}, host = $("money");
+  const cap = m.cap || 100, before = Math.max(0, m.before != null ? m.before : m.spent - m.run_spent), run = m.run_spent || 0, proj = Math.max(m.projected || m.spent, m.spent);
+  const W = v => Math.min(100, Math.max(0, v / cap * 100)).toFixed(2) + "%";
+  setText("money-note", "against the " + eur(cap) + " cap");
+  const kv = h("dl", { class: "kv" });
+  const add = (label, val, color) => { kv.append(h("dt", {}, color ? h("i", { style: "background:" + color }) : "", label), h("dd", {}, val)); };
+  add("Before this run", eur(before), "#5d5c56");
+  add("This run so far", eur(run), V("accent"));
+  if (st.mode !== "local") add("Rest until the deadline", eur(proj - m.spent), "rgba(57,135,229,0.55)");
+  add("Total " + (st.mode !== "local" ? "at the deadline" : "spent"), eur(proj) + " (" + Math.round(proj / cap * 100) + "%)");
+  add("Left under the cap", eur(cap - proj));
+  if (m.per_hour) add("Burn rate", eur(m.per_hour) + " per started hour");
+  host.replaceChildren(h("div", { class: "money-bar", role: "img", "aria-label": "spent " + eur(m.spent) + " of " + eur(cap) },
+    h("i", { class: "b0", style: "left:0;width:" + W(before) }), h("i", { class: "b1", style: "left:" + W(before) + ";width:" + W(run) }),
+    h("i", { class: "b2", style: "left:" + W(before + run) + ";width:" + W(Math.max(0, proj - before - run)) })), kv);
+}
+
+function renderBench(st) {
+  const host = $("bench"), b = st.bench;
+  setText("bench-note", b ? hm(b.t) + (b.box ? " on " + b.box : "") : "");
+  if (!b) { host.replaceChildren(h("p", { class: "empty", style: "grid-column:1/-1" }, "No benchmark yet")); return; }
+  const skip = new Set(["t", "type", "box", "name"]), out = [];
+  const add = (k, v) => out.push(h("dt", {}, k), h("dd", {}, v));
+  if (b.name) add("suite", b.name);
+  for (const k of Object.keys(b)) {
+    if (skip.has(k) || b[k] == null || typeof b[k] === "object") continue;
+    const v = b[k];
+    add(k.replace(/_/g, " "), typeof v === "number" ? (k.includes("winrate") || k.includes("win_rate") ? pct(v) : (Math.abs(v) >= 100 ? num(v) : String(Math.round(v * 100) / 100))) : String(v));
+  }
+  host.replaceChildren(...out);
+}
+
+function renderEvents() {
+  const host = $("events");
+  if (!events.length) { host.replaceChildren(h("li", {}, h("time", {}, ""), h("span", {}, "Nothing yet"))); return; }
+  host.replaceChildren(...events.slice(-40).reverse().map(e => h("li", { class: e[2] }, h("time", {}, hm(e[1])), h("span", {}, e[3]))));
+}
+
+function renderPanels(p, force) {
+  P = p;
+  if (UI.tab !== "dash") return;
+  lastW = Math.round($("v-dash").getBoundingClientRect().width);
+  renderTiles(p);
+  const parts = [["eval", renderEval, [p.eval, UI.ev]], ["win", renderWin, [p.win_gen, p.win_tb, UI.x]], ["train", renderTrain, p.train], ["ante", renderAnte, p.ante],
+    ["death", renderDeath, [p.death, F.r]], ["heat", renderHeat, [p.heat, UI.hm]], ["jok", renderJokers, p.jokers], ["econ", renderEcon, p.econ], ["thr", renderThroughput, [p.throughput, UI.tm]]];
+  for (const [k, fn, data] of parts) if (force || sig(k, data)) fn(p);
+}
+
+async function poll() {
+  clearTimeout(timer);
+  const my = ++reqSeq;
+  const q = filterQS();
+  q.set("sp", UI.sp); q.set("ev", evSeq);
+  if (ver != null) { q.set("v", ver); q.set("fk", fkey); }
+  try {
+    const r = await fetch("api/view?" + q.toString(), { cache: "no-store" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const d = await r.json();
+    if (my !== reqSeq) return;
+    renderState(d.state);
+    if (d.view.events.length) { events = events.concat(d.view.events).slice(-200); evSeq = d.view.ev; renderEvents(); }
+    else if (!events.length) renderEvents();
+    if (d.view.panels) { ver = d.view.version; fkey = d.view.fkey; renderPanels(d.view.panels); }
+  } catch (e) {
+    if (my !== reqSeq) return;
+    setText("updated", "offline since " + (S ? hms(S.now) : "start"));
+    $("updated").className = "err";
+    timer = setTimeout(poll, 10000);
+    return;
+  }
+  timer = setTimeout(poll, S && S.mode === "local" ? 30000 : 4000);
+}
+
+let W = { list: [], rec: null, i: 0, playing: false, speed: 1, t: null, total: 0 };
+async function loadRecords() {
+  try {
+    const r = await fetch("api/records?" + filterQS().toString(), { cache: "no-store" });
+    const d = await r.json();
+    W.list = d.records; W.total = d.total;
+    renderList();
+    if (UI.rec && (!W.rec || W.rec.id !== UI.rec)) openRecord(UI.rec);
+  } catch (e) { empty($("w-items"), "Could not load the list"); }
+}
+function recTitle(m) { return "Gen " + m.gen + " · " + deckName(m.deck) + " · " + (m.chal ? chalName(m.chal) : (STAKES[m.stake - 1] || "?") + " stake"); }
+function recSub(m) { return (m.won ? "Won the run" : m.death ? blindName(m.death) : "Lost") + " · " + m.moves + " moves · " + hm(m.t); }
+function renderList() {
+  setText("w-note", W.total ? (W.total > W.list.length ? "newest " + W.list.length + " of " + num(W.total) : num(W.total)) + " matching the filters" : "matching the filters");
+  if (!W.list.length) { empty($("w-items"), "No recorded games match the filters. The trainer records one game now and then with every move."); return; }
+  $("w-items").replaceChildren(...W.list.map(m => h("button", { class: "ritem", type: "button", "aria-current": String(UI.rec === m.id), onclick: () => { UI.rec = m.id; writeHash(); openRecord(m.id); } },
+    h("span", { class: "a" }, recTitle(m)), h("span", { class: "res " + (m.won ? "w" : "l") }, m.won ? "Won" : "Ante " + m.ante), h("span", { class: "b" }, recSub(m)))));
+}
+function watchLayout() {
+  const wide = matchMedia("(min-width: 1000px)").matches;
+  $("w-list").hidden = !wide && !!W.rec;
+  $("w-player").hidden = !wide && !W.rec;
+  $("w-back").hidden = wide;
+}
+async function openRecord(id) {
+  stopPlay();
+  try {
+    const r = await fetch("api/record?id=" + encodeURIComponent(id), { cache: "no-store" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    W.rec = await r.json(); W.i = 0;
+  } catch (e) { W.rec = null; UI.rec = null; writeHash(); }
+  renderList(); watchLayout(); renderPlayer();
+  if (W.rec) window.scrollTo({ top: 0 });
+}
+const ICON = {
+  first: '<path d="M4 3v10M13 3L7 8l6 5z" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>',
+  prev: '<path d="M11 3L5 8l6 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+  next: '<path d="M5 3l6 5-6 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+  last: '<path d="M12 3v10M3 3l6 5-6 5z" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>',
+  play: '<path d="M5 2.8v10.4L13.2 8z" fill="currentColor"/>',
+  pause: '<path d="M4.5 3h2.6v10H4.5zM8.9 3h2.6v10H8.9z" fill="currentColor"/>'
+};
+function ib(name, label, fn, extra) { const b = h("button", { class: "ib" + (extra ? " " + extra : ""), type: "button", "aria-label": label, title: label, onclick: fn }); b.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">' + ICON[name] + "</svg>"; return b; }
+function cardChip(c, sel) {
+  const str = String(c), rank = str.slice(0, -1).replace("T", "10"), su = str.slice(-1).toUpperCase();
+  const sym = { H: "♥", D: "♦", C: "♣", S: "♠" }[su] || su;
+  return h("div", { class: "pc " + su.toLowerCase() + (sel ? " sel" : ""), title: rank + " of " + ({ H: "Hearts", D: "Diamonds", C: "Clubs", S: "Spades" }[su] || su) }, h("span", { class: "rk" }, rank), h("span", { class: "su" }, sym));
+}
+function stopPlay() { W.playing = false; clearTimeout(W.t); }
+function step(d) { if (!W.rec) return; const n = W.rec.moves.length; W.i = Math.max(0, Math.min(n - 1, W.i + d)); renderMove(); }
+function playLoop() {
+  if (!W.playing || !W.rec) return;
+  if (W.i >= W.rec.moves.length - 1) { stopPlay(); renderMove(); return; }
+  W.i++; renderMove();
+  W.t = setTimeout(playLoop, 900 / W.speed);
+}
+function renderPlayer() {
+  const host = $("w-body");
+  if (!W.rec) { host.replaceChildren(h("p", { class: "empty" }, "Pick a recorded game to step through it.")); return; }
+  const r = W.rec, n = r.moves.length;
+  const head = h("div", { class: "ghead" }, h("h2", {}, recTitle(r)),
+    h("span", { class: "pill" }, r.won ? "Won" : "Lost at ante " + r.ante), r.death ? h("span", { class: "pill" }, blindName(r.death)) : "", r.seed ? h("span", { class: "pill" }, "seed " + r.seed) : "", h("span", { class: "pill" }, n + " moves"));
+  if (!n) { host.replaceChildren(head, h("p", { class: "empty" }, "This record has no moves.")); return; }
+  const slider = h("input", { type: "range", min: 0, max: n - 1, value: W.i, "aria-label": "Move", oninput: e => { stopPlay(); W.i = +e.target.value; renderMove(); } });
+  const playBtn = ib("play", "Play", () => { if (W.playing) { stopPlay(); renderMove(); } else { if (W.i >= n - 1) W.i = 0; W.playing = true; renderMove(); W.t = setTimeout(playLoop, 900 / W.speed); } }, "play");
+  playBtn.id = "w-play";
+  const ctrls = h("div", { class: "ctrls" }, ib("first", "First move", () => { stopPlay(); W.i = 0; renderMove(); }), ib("prev", "Previous move", () => { stopPlay(); step(-1); }), slider, ib("next", "Next move", () => { stopPlay(); step(1); }), ib("last", "Last move", () => { stopPlay(); W.i = n - 1; renderMove(); }));
+  const speed = h("select", { class: "sm", "aria-label": "Autoplay speed", onchange: e => { W.speed = +e.target.value; } }, [0.5, 1, 2, 4].map(v => { const o = new Option(v + "x", v); if (v === W.speed) o.selected = true; return o; }));
+  const ctrls2 = h("div", { class: "ctrls2" }, h("span", { id: "w-pos" }), h("div", { class: "ctl" }, speed, playBtn));
+  host.replaceChildren(head, ctrls, ctrls2, h("div", { id: "w-move" }));
+  W.slider = slider;
+  renderMove();
+}
+function renderMove() {
+  const r = W.rec; if (!r) return;
+  const n = r.moves.length, mv = r.moves[W.i] || {};
+  W.slider.value = W.i;
+  const pb = $("w-play"); pb.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">' + ICON[W.playing ? "pause" : "play"] + "</svg>"; pb.setAttribute("aria-label", W.playing ? "Pause" : "Play"); pb.title = W.playing ? "Pause" : "Play";
+  setText("w-pos", "Move " + (W.i + 1) + " of " + n + (mv.phase ? " · " + mv.phase : ""));
+  const kids = [];
+  const st = h("div", { class: "st" },
+    [["Ante", mv.ante != null ? String(mv.ante) : "?"], ["Money", mv.money != null ? "$" + mv.money : "?"], ["Hands", mv.hands != null ? String(mv.hands) : "·"], ["Discards", mv.discards != null ? String(mv.discards) : "·"]].map(([k, v]) => h("div", {}, h("div", { class: "k" }, k), h("div", { class: "v" }, v))));
+  const need = mv.need || 0, score = mv.score || 0;
+  const blind = h("div", { class: "panel" },
+    h("div", { class: "blind" }, h("b", {}, blindName(mv.blind)), h("span", {}, need ? num(score) + " / " + num(need) : "")),
+    need ? h("div", { class: "prog" }, h("i", { style: "width:" + Math.min(100, score / need * 100).toFixed(1) + "%" })) : "", st);
+  kids.push(blind);
+  const sel = new Set(mv.cards || []);
+  const handBox = h("div", { class: "panel" });
+  if (mv.hand && mv.hand.length) {
+    handBox.append(h("div", { class: "lbl", style: "margin-top:0" }, "Hand" + (mv.deck != null ? " · " + mv.deck + " left in deck" : "")), h("div", { class: "hand" }, mv.hand.map((c, i) => cardChip(c, sel.has(i)))));
+  }
+  handBox.append(h("div", { class: "lbl", style: mv.hand && mv.hand.length ? "" : "margin-top:0" }, "Jokers"), (mv.jokers || []).length ? h("div", { class: "tags" }, mv.jokers.map(j => h("span", { class: "tagc j" }, jokerName(j)))) : h("div", { class: "none" }, "none"));
+  handBox.append(h("div", { class: "lbl" }, "Consumables"), (mv.cons || []).length ? h("div", { class: "tags" }, mv.cons.map(c => h("span", { class: "tagc c" }, consName(c)))) : h("div", { class: "none" }, "none"));
+  kids.push(handBox);
+  const act = h("div", { class: "panel" },
+    h("div", { class: "act" }, h("div", { class: "what" }, mv.act || "?"),
+      h("div", { class: "val" }, mv.v != null ? h("span", {}, "win ", h("b", {}, pct(mv.v, 0))) : "", mv.ante_hat != null ? h("span", {}, "ante ", h("b", {}, Number(mv.ante_hat).toFixed(1))) : "", mv.sims ? h("span", {}, h("b", {}, num(mv.sims)), " sims") : "")));
+  const top = mv.top || [];
+  if (top.length) {
+    const t = h("table", { class: "cand" }, h("colgroup", {}, h("col", { class: "c1" }), h("col", { class: "c2" }), h("col", { class: "c3" })),
+      h("thead", {}, h("tr", {}, h("th", {}, "Candidates"), h("th", {}, "Visits"), h("th", {}, "Prior"))),
+      h("tbody", {}, top.map((c, i) => h("tr", { class: i === 0 || c.a === mv.act ? "ch" : "" },
+        h("td", { class: "a", title: c.a }, c.a),
+        h("td", { class: "vis" }, h("div", {}, h("span", { class: "trk" }, h("i", { style: "width:" + Math.min(100, (c.visits || 0) * 100).toFixed(1) + "%" })), h("span", {}, pct(c.visits || 0, 0)))),
+        h("td", { class: "pr" }, c.prior != null ? pct(c.prior, 0) : "")))));
+    act.append(t);
+  }
+  kids.push(act);
+  $("w-move").replaceChildren(...kids);
+}
+
+function setTab(t) {
+  UI.tab = t;
+  $("tab-dash").setAttribute("aria-selected", String(t === "dash"));
+  $("tab-watch").setAttribute("aria-selected", String(t === "watch"));
+  $("v-dash").hidden = t !== "dash";
+  $("v-watch").hidden = t !== "watch";
+  $("stopbar").style.display = "";
+  writeHash();
+  if (t === "watch") { watchLayout(); loadRecords(); }
+  else { stopPlay(); if (P) { sigs = {}; renderPanels(P, true); } }
+}
+$("tab-dash").addEventListener("click", () => setTab("dash"));
+$("tab-watch").addEventListener("click", () => setTab("watch"));
+$("w-back").addEventListener("click", () => { stopPlay(); W.rec = null; UI.rec = null; writeHash(); watchLayout(); renderList(); });
+$("fbtn").addEventListener("click", () => { sheetOpen = !sheetOpen; $("sheet").hidden = !sheetOpen; $("fbtn").setAttribute("aria-expanded", String(sheetOpen)); if (sheetOpen) renderSheet(); });
+$("f-done").addEventListener("click", () => { sheetOpen = false; $("sheet").hidden = true; $("fbtn").setAttribute("aria-expanded", "false"); });
+$("f-reset").addEventListener("click", () => { F = Object.assign({}, DEF, { d: [], s: [] }); changed(true); });
+$("f-dall").addEventListener("click", () => { F.d = []; changed(true); });
+$("f-sall").addEventListener("click", () => { F.s = []; changed(true); });
+const num0 = v => v === "" ? null : +v;
+$("f-g0").addEventListener("change", e => { F.g0 = num0(e.target.value); if (F.g0 != null && F.g1 != null && F.g1 < F.g0) F.g1 = F.g0; changed(true); });
+$("f-g1").addEventListener("change", e => { F.g1 = num0(e.target.value); if (F.g0 != null && F.g1 != null && F.g0 > F.g1) F.g0 = F.g1; changed(true); });
+$("f-a0").addEventListener("change", e => { F.a0 = num0(e.target.value); if (F.a0 != null && F.a1 != null && F.a1 < F.a0) F.a1 = F.a0; changed(true); });
+$("f-a1").addEventListener("change", e => { F.a1 = num0(e.target.value); if (F.a0 != null && F.a1 != null && F.a0 > F.a1) F.a0 = F.a1; changed(true); });
+$("f-chal").addEventListener("change", e => { F.c = e.target.value; changed(true); });
+$("win-split").addEventListener("change", e => { UI.sp = e.target.value; writeHash(); ver = null; poll(); });
+document.addEventListener("keydown", e => {
+  if (UI.tab !== "watch" || !W.rec || e.target.tagName === "SELECT" || e.target.tagName === "INPUT" && e.target.type !== "range") return;
+  if (e.key === "ArrowLeft") { stopPlay(); step(-1); e.preventDefault(); }
+  if (e.key === "ArrowRight") { stopPlay(); step(1); e.preventDefault(); }
+  if (e.key === " ") { $("w-play").click(); e.preventDefault(); }
+});
+let rz = null, lastW = 0;
+function relayout() { clearTimeout(rz); rz = setTimeout(() => { if (UI.tab === "watch") watchLayout(); else if (P) { sigs = {}; renderPanels(P, true); } }, 120); }
+window.addEventListener("resize", relayout);
+if (window.ResizeObserver) new ResizeObserver(en => { const w = Math.round(en[0].contentRect.width); if (w && lastW && w !== lastW) relayout(); }).observe($("v-dash"));
+window.addEventListener("hashchange", () => { readHash(); renderChips(); $("win-split").value = UI.sp; ver = null; poll(); });
+$("stop").addEventListener("click", async () => {
+  if (!confirm("Stop training now?\n\nThe job saves its latest checkpoint, results are collected on the head box, and every box is deleted.")) return;
+  const btn = $("stop"); btn.disabled = true; btn.textContent = "Stopping";
+  try { await fetch("api/stop", { method: "POST", body: "stop" }); } catch (e) { btn.disabled = false; btn.textContent = "Emergency stop"; alert("Stop request failed: " + e); }
+});
+readHash();
+function setEv(v) { UI.ev = v; writeHash(); seg($("ev-y"), [["ante", "Ante"], ["win", "Win %"]], UI.ev, setEv); if (P) { sigs.eval = null; renderEval(P); } }
+seg($("ev-y"), [["ante", "Ante"], ["win", "Win %"]], UI.ev, setEv);
+function setX(v) { UI.x = v; writeHash(); seg($("win-x"), [["gen", "By gen"], ["time", "By time"]], UI.x, setX); if (P) { sigs.win = null; renderWin(P); } }
+seg($("win-x"), [["gen", "By gen"], ["time", "By time"]], UI.x, setX);
+$("win-split").value = UI.sp;
+renderChips();
+setTab(UI.tab);
+poll();
+</script>
+</body>
+</html>

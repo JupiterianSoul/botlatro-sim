@@ -1,0 +1,60 @@
+#!/bin/bash
+set -u
+
+REPO=$(cd "$(dirname "$(readlink -f "$0")")/../../.." && pwd)
+CONF="$HOME/.config/botsim"
+DEMO="$HOME/.cache/botsim/demo"
+PORT=8765
+UNIT=botlatro-dashboard
+
+live_url=""
+if [ -f "$CONF/current_run.json" ] && [ -f "$CONF/dashboard_url" ]; then
+    url=$(cat "$CONF/dashboard_url")
+    if [ "$(curl -s -m 4 -o /dev/null -w '%{http_code}' "${url}api/state")" = "200" ]; then
+        live_url="$url"
+    fi
+fi
+
+if [ -n "$live_url" ]; then
+    exec omarchy-launch-webapp "$live_url"
+fi
+
+dir=""
+for d in $(ls -1dt "$REPO"/tools/botsim/results/*/ 2>/dev/null); do
+    if [ -n "$(find "$d" -name '*.jsonl' -size +0 -print -quit 2>/dev/null)" ]; then
+        dir="${d%/}"
+        break
+    fi
+done
+
+if [ -z "$dir" ]; then
+    if [ -z "$(find "$DEMO" -name '*.jsonl' -size +0 -print -quit 2>/dev/null)" ]; then
+        mkdir -p "$DEMO/box0"
+        BOTSIM_RUN_DIR="$DEMO/box0" BOTSIM_BOX=box0 BOTSIM_FAKE_BENCH=0 BOTSIM_FAKE_HISTORY=360 \
+            BOTSIM_FAKE_MINUTES=0.1 BOTSIM_WORKERS=4 \
+            nice -n 19 python3 "$REPO/tools/botsim/cloud/jobs/fake/run" >/dev/null 2>&1
+    fi
+    dir="$DEMO"
+fi
+
+mkdir -p "$CONF"
+if [ ! -s "$CONF/local_secret" ]; then
+    (umask 077; python3 -c "import secrets;print(secrets.token_urlsafe(16))" > "$CONF/local_secret")
+fi
+secret=$(cat "$CONF/local_secret")
+url="http://127.0.0.1:$PORT/$secret/"
+
+serving=$(systemctl --user show -p ExecStart --value "$UNIT" 2>/dev/null)
+if ! systemctl --user is-active --quiet "$UNIT" || [[ "$serving" != *"--local $dir "* ]]; then
+    systemctl --user stop "$UNIT" >/dev/null 2>&1
+    systemctl --user reset-failed "$UNIT" >/dev/null 2>&1
+    systemd-run --user --quiet --unit="$UNIT" --nice=19 \
+        python3 "$REPO/tools/botsim/cloud/dashboard.py" --local "$dir" --host 127.0.0.1 --port "$PORT" --secret "$secret"
+fi
+
+for _ in $(seq 1 60); do
+    [ "$(curl -s -m 2 -o /dev/null -w '%{http_code}' "$url")" = "200" ] && break
+    sleep 0.5
+done
+
+exec omarchy-launch-webapp "$url"
