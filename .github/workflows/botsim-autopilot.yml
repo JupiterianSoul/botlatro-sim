@@ -1,0 +1,94 @@
+name: botsim autopilot
+
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+        description: autopilot command
+        default: tick
+      args:
+        description: extra arguments
+        default: ''
+      dir:
+        description: store dir
+        default: autopilot
+      ref:
+        description: ref to run
+        default: main
+  workflow_call:
+    inputs:
+      command:
+        type: string
+        default: tick
+      args:
+        type: string
+        default: ''
+      dir:
+        type: string
+        default: autopilot
+      ref:
+        type: string
+        default: main
+  push:
+    branches: ['ci-ap-*']
+
+concurrency:
+  group: botsim-autopilot
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    if: github.event_name != 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: ./.github/actions/game-files
+        with:
+          key: ${{ secrets.BOTSIM_GAME_KEY }}
+      - name: Secrets
+        env:
+          HETZNER_TOKEN: ${{ secrets.BOTSIM_HETZNER_TOKEN }}
+          SSH_KEY: ${{ secrets.BOTSIM_SSH_KEY }}
+          RESULTS_KEY: ${{ secrets.BOTSIM_RESULTS_KEY }}
+          NTFY_TOPIC: ${{ secrets.BOTSIM_NTFY_TOPIC }}
+        run: |
+          umask 077
+          mkdir -p ~/.config/botsim ~/.ssh
+          if [ -n "$HETZNER_TOKEN" ]; then printf '%s\n' "$HETZNER_TOKEN" > ~/.config/botsim/hetzner_token; fi
+          if [ -n "$SSH_KEY" ]; then
+            printf '%s\n' "$SSH_KEY" > ~/.ssh/botsim_hetzner
+            ssh-keygen -y -f ~/.ssh/botsim_hetzner > ~/.ssh/botsim_hetzner.pub
+          fi
+          if [ -n "$RESULTS_KEY" ]; then printf '%s\n' "$RESULTS_KEY" > ~/.config/botsim/results_deploy_key; fi
+          if [ -n "$NTFY_TOPIC" ]; then printf '%s\n' "$NTFY_TOPIC" > ~/.config/botsim/ntfy_topic; fi
+          cp tools/botsim/cloud/github_known_hosts ~/.config/botsim/github_known_hosts
+          chmod 600 ~/.config/botsim/* ~/.ssh/botsim_hetzner* 2>/dev/null || true
+      - name: Tick
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BOTSIM_AP_REF: ${{ inputs.ref }}
+          COMMAND: ${{ inputs.command }}
+          ARGS: ${{ inputs.args }}
+          DIR: ${{ inputs.dir }}
+        run: python3 tools/botsim/autopilot/autopilot.py --dir "$DIR" $COMMAND $ARGS
+
+  unit:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/game-files
+        with:
+          key: ${{ secrets.BOTSIM_GAME_KEY }}
+      - name: Autopilot tests
+        run: python3 -m unittest discover -s tools/botsim/autopilot/test -v
+      - name: Cloud tests
+        run: |
+          if [ -d tools/botsim/cloud/test ]; then python3 tools/botsim/cloud/test/run_cloud_tests.py; fi

@@ -1,0 +1,242 @@
+{
+ "adjustments": [],
+ "cap_eur": 100.0,
+ "credit_eur": 25.0,
+ "servers": [
+  {
+   "created": 1792933803.0,
+   "deadline": 1792937042.8072188,
+   "deleted": 1792934908.9620974,
+   "id": 172350033,
+   "location": "fsn1",
+   "name": "botsim-r20261025-141002-0",
+   "price_hourly_gross": 0.01152,
+   "run": "r20261025-141002",
+   "type": "cx23"
+  },
+  {
+   "created": 1792935191.0,
+   "deadline": 1792938430.872242,
+   "deleted": 1792935542.5482152,
+   "id": 172352454,
+   "location": "fsn1",
+   "name": "botsim-r20261025-143310-0",
+   "price_hourly_gross": 0.0384,
+   "run": "r20261025-143310",
+   "type": "cpx22"
+  },
+  {
+   "created": 1792935191.0,
+   "deadline": 1792938430.872242,
+   "deleted": 1792935542.5482152,
+   "id": 172352455,
+   "location": "fsn1",
+   "name": "botsim-r20261025-143310-1",
+   "price_hourly_gross": 0.08364,
+   "run": "r20261025-143310",
+   "type": "ccx13"
+  },
+  {
+   "created": 1792935587.0,
+   "deadline": 1792938827.0243278,
+   "deleted": 1792936250.8419697,
+   "id": 172353981,
+   "location": "fsn1",
+   "name": "botsim-r20261025-143947-0",
+   "price_hourly_gross": 0.0384,
+   "run": "r20261025-143947",
+   "type": "cpx22"
+  },
+  {
+   "created": 1792935587.0,
+   "deadline": 1792938827.0243278,
+   "deleted": 1792936250.8419697,
+   "id": 172353982,
+   "location": "fsn1",
+   "name": "botsim-r20261025-143947-1",
+   "price_hourly_gross": 0.08364,
+   "run": "r20261025-143947",
+   "type": "ccx13"
+  },
+  {
+   "created": 1792940361.0,
+   "deadline": 1792943601.6445525,
+   "deleted": 1792940581.5588717,
+   "id": 172367179,
+   "location": "fsn1",
+   "name": "botsim-r20261025-155921-0",
+   "price_hourly_gross": 0.01248,
+   "run": "r20261025-155921",
+   "type": "cpx02"
+  },
+  {
+   "created": 1792940597.0,
+   "deadline": 1792943836.8101926,
+   "deleted": 1792940726.0243123,
+   "id": 172367807,
+   "location": "fsn1",
+   "name": "botsim-r20261025-160316-0",
+   "price_hourly_gross": 0.0384,
+   "run": "r20261025-160316",
+   "type": "cpx22"
+  },
+  {
+   "created": 1792940597.0,
+   "deadline": 1792943836.8101926,
+   "deleted": 1792940726.0243123,
+   "id": 172367812,
+   "location": "fsn1",
+   "name": "botsim-r20261025-160316-1",
+   "price_hourly_gross": 0.08364,
+   "run": "r20261025-160316",
+   "type": "ccx13"
+  },
+  {
+   "created": 1792944916.0,
+   "deadline": 1792948156.4795973,
+   "deleted": 1792945357.551825,
+   "id": 172376026,
+   "location": "fsn1",
+   "name": "botsim-r20261025-171516-0",
+   "price_hourly_gross": 0.0384,
+   "run": "r20261025-171516",
+   "type": "cpx22"
+  },
+  {
+   "created": 1792944916.0,
+   "deadline": 1792948156.4795973,
+   "deleted": 1792945357.551825,
+   "id": 172376028,
+   "location": "fsn1",
+   "name": "botsim-r20261025-171516-1",
+   "price_hourly_gross": 0.0384,
+   "run": "r20261025-171516",
+   "type": "cpx22"
+  },
+  {
+   "created": 1792950601.0,
+   "deadline": 1792953841.145132,
+   "deleted": 1792951856.417931,
+   "id": 172386300,
+   "location": "fsn1",
+   "name": "botsim-r20261025-185001-0",
+   "price_hourly_gross": 0.25092,
+   "run": "r20261025-185001",
+   "type": "cpx62"
+  },
+  {
+   "created": 1792951872.0,
+   "deadline": 1792962492.5684633,
+   "deleted": 1792962697.0094433,
+   "deleted_estimated": true,
+   "id": 172388706,
+   "location": "fsn1",
+   "name": "botsim-r20261025-191112-0",
+   "price_hourly_gross": 0.25092,
+   "run": "r20261025-191112",
+   "type": "cpx62"
+  },
+  {
+   "created": 1792951873.0,
+   "deadline": 1792962492.5684633,
+   "deleted": 1792962697.0094433,
+   "deleted_estimated": true,
+   "id": 172388709,
+   "location": "fsn1",
+   "name": "botsim-r20261025-191112-1",
+   "price_hourly_gross": 0.26724,
+   "run": "r20261025-191112",
+   "type": "ccx33"
+  },
+  {
+   "created": 1792964600.0,
+   "deadline": 1792975220.3651156,
+   "deleted": 1792974789.4587011,
+   "id": 172410219,
+   "location": "fsn1",
+   "name": "botsim-r20261025-224320-0",
+   "price_hourly_gross": 0.25092,
+   "run": "r20261025-224320",
+   "type": "cpx62"
+  },
+  {
+   "created": 1792964600.0,
+   "deadline": 1792975220.3651156,
+   "deleted": 1792974783.1501584,
+   "deleted_estimated": true,
+   "id": 172410220,
+   "location": "fsn1",
+   "name": "botsim-r20261025-224320-1",
+   "price_hourly_gross": 0.26724,
+   "run": "r20261025-224320",
+   "type": "ccx33"
+  },
+  {
+   "created": 1792979442.0,
+   "deadline": 1792982862.4827774,
+   "deleted": 1792979800.1628199,
+   "id": 172436276,
+   "location": "fsn1",
+   "name": "botsim-r20261026-025042-0",
+   "price_hourly_gross": 0.01152,
+   "run": "r20261026-025042",
+   "type": "cx23"
+  },
+  {
+   "created": 1792979808.0,
+   "deadline": 1793026428.351487,
+   "deleted": 1793005324.2872183,
+   "id": 172436742,
+   "location": "fsn1",
+   "name": "botsim-r20261026-025648-0",
+   "price_hourly_gross": 0.25092,
+   "run": "r20261026-025648",
+   "type": "cpx62"
+  },
+  {
+   "created": 1792979808.0,
+   "deadline": 1793026428.351487,
+   "deleted": 1793005324.2896929,
+   "deleted_estimated": true,
+   "id": 172436743,
+   "location": "fsn1",
+   "name": "botsim-r20261026-025648-1",
+   "price_hourly_gross": 0.26724,
+   "run": "r20261026-025648",
+   "type": "ccx33"
+  },
+  {
+   "created": 1793006117.0,
+   "deadline": 1793009536.9049776,
+   "deleted": 1793006315.2897754,
+   "id": 172495680,
+   "location": "fsn1",
+   "name": "botsim-r20261026-101516-0",
+   "price_hourly_gross": 0.01248,
+   "run": "r20261026-101516",
+   "type": "cpx02"
+  },
+  {
+   "created": 1793006317.0,
+   "deadline": 1793052937.0724368,
+   "deleted": 1793010303.4046378,
+   "id": 172496448,
+   "location": "fsn1",
+   "name": "botsim-r20261026-101837-0",
+   "price_hourly_gross": 0.25092,
+   "run": "r20261026-101837",
+   "type": "cpx62"
+  },
+  {
+   "created": 1793006317.0,
+   "deadline": 1793052937.0724368,
+   "deleted": 1793010303.4046378,
+   "id": 172496449,
+   "location": "fsn1",
+   "name": "botsim-r20261026-101837-1",
+   "price_hourly_gross": 0.26724,
+   "run": "r20261026-101837",
+   "type": "ccx33"
+  }
+ ]
+}

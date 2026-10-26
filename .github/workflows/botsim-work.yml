@@ -1,0 +1,110 @@
+name: botsim work
+run-name: botsim work ${{ inputs.tag }}
+
+on:
+  push:
+    branches: ['ci-ap-register']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: work tag
+        required: true
+      jobs:
+        description: JSON list of {label, cmd, torch, timeout}
+        required: true
+      chain:
+        description: ref to tick when done, or empty
+        default: ''
+      dir:
+        description: autopilot store dir
+        default: autopilot
+
+env:
+  LUAJIT_COMMIT: 2a8e017ef1ece6a95b983ffca073d30609dce7c4
+  LUAJIT_SHA256: 54705d4b1de50a9c668539b9cf0dc3170d94ffdad51fafd1cf4477e498be7144
+  LUAJIT_VERSION: 2.1.1791988261
+
+jobs:
+  run:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ matrix.job.timeout || 340 }}
+    permissions:
+      actions: read
+      contents: read
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix:
+        job: ${{ fromJson(inputs.jobs) }}
+    name: ${{ matrix.job.label }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/game-files
+        with:
+          key: ${{ secrets.BOTSIM_GAME_KEY }}
+      - id: lj
+        uses: actions/cache@v4
+        with:
+          path: ~/luajit
+          key: luajit-${{ env.LUAJIT_COMMIT }}
+      - name: Pinned LuaJIT
+        if: steps.lj.outputs.cache-hit != 'true'
+        run: |
+          curl -sSL -o lj.tar.gz "https://github.com/LuaJIT/LuaJIT/archive/$LUAJIT_COMMIT.tar.gz"
+          echo "$LUAJIT_SHA256  lj.tar.gz" | sha256sum -c -
+          mkdir src && tar -xzf lj.tar.gz -C src --strip-components=1
+          make -C src -j"$(nproc)" PREFIX="$HOME/luajit" > /dev/null
+          make -C src install PREFIX="$HOME/luajit" > /dev/null
+      - name: Check LuaJIT
+        run: |
+          echo "$HOME/luajit/bin" >> "$GITHUB_PATH"
+          ln -sf "$HOME/luajit/bin/luajit-2.1."* "$HOME/luajit/bin/luajit" 2>/dev/null || true
+          "$HOME/luajit/bin/luajit" -v | grep -q "$LUAJIT_VERSION"
+          echo "cores: $(nproc)"
+      - name: CPU torch
+        if: matrix.job.torch
+        run: |
+          TORCH_PIN="$(python3 -c 'import json; print([p for p in json.load(open("tools/botsim/cloud/jobs/train/needs.json"))["pip"] if p.startswith("torch")][0])')"
+          TORCH_INDEX="$(python3 -c 'import json; print(json.load(open("tools/botsim/cloud/jobs/train/needs.json"))["index"])')"
+          python3 -m pip install --quiet "$TORCH_PIN" numpy --index-url "$TORCH_INDEX" --extra-index-url https://pypi.org/simple
+          python3 -c "import torch, numpy; print(torch.__version__)"
+      - name: Results repo key
+        env:
+          RESULTS_KEY: ${{ secrets.BOTSIM_RESULTS_KEY }}
+        run: |
+          mkdir -p ~/.config/botsim
+          cp tools/botsim/cloud/github_known_hosts ~/.config/botsim/github_known_hosts
+          if [ -n "$RESULTS_KEY" ]; then
+            printf '%s\n' "$RESULTS_KEY" > ~/.config/botsim/results_deploy_key
+            chmod 600 ~/.config/botsim/results_deploy_key
+          fi
+      - name: Run
+        env:
+          CMD: ${{ matrix.job.cmd }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p out
+          export OUT="$PWD/out" CORES="$(nproc)"
+          bash -c "$CMD" 2>&1 | tee out/output.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ${{ inputs.tag }}-${{ matrix.job.label }}
+          path: out
+          retention-days: 30
+
+  chain:
+    needs: run
+    if: always() && github.event_name == 'workflow_dispatch' && inputs.chain != ''
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Tick
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          CHAIN: ${{ inputs.chain }}
+          DIR: ${{ inputs.dir }}
+        run: gh workflow run botsim-autopilot.yml --ref "$CHAIN" -f command=tick -f dir="$DIR"

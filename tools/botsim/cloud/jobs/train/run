@@ -1,0 +1,879 @@
+#!/usr/bin/env python3
+import glob
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tarfile
+import threading
+import time
+import urllib.parse
+import urllib.request
+
+RUN_DIR = os.environ.get("BOTSIM_RUN_DIR", "run")
+METRICS = os.environ.get("BOTSIM_METRICS", os.path.join(RUN_DIR, "metrics.jsonl"))
+CKPT = os.environ.get("BOTSIM_CHECKPOINTS", os.path.join(RUN_DIR, "checkpoints"))
+STOP = os.environ.get("BOTSIM_STOP_FILE", os.path.join(RUN_DIR, "STOP"))
+BOX = os.environ.get("BOTSIM_BOX", "local")
+ROLE = os.environ.get("BOTSIM_ROLE", "head")
+WORKERS = max(1, int(os.environ.get("BOTSIM_WORKERS") or os.cpu_count() or 1))
+REPO = os.environ.get("BOTSIM_REPO") or os.getcwd()
+ETC = os.environ.get("BOTSIM_ETC", "/etc/botsim")
+BASE = os.path.dirname(os.path.abspath(RUN_DIR))
+WORK = os.environ.get("BOTSIM_WORK") or os.path.join(BASE, "work")
+XFER = os.environ.get("BOTSIM_XFER") or os.path.join(BASE, "xfer")
+POOL = os.path.join(REPO, "tools", "botsim", "train", "selfplay_pool.sh")
+IDLE = ["chrt", "-i", "0"] if shutil.which("chrt") else []
+TRAIN_PY = os.path.join(REPO, "tools", "botsim", "train", "train.py")
+EVAL_LUA = "tools/botsim/train/eval.lua"
+
+
+def envn(name, default, kind=float):
+    v = os.environ.get("TRAIN_" + name)
+    if v is None or v == "":
+        return default
+    return kind(v)
+
+
+GENS = envn("GENS", 12, int)
+GAMES = envn("GAMES", 300, int)
+SIMS = envn("SIMS", 64, int)
+FAST_SIMS = envn("FAST_SIMS", 16, int)
+FULL_FRAC = envn("FULL_FRAC", 0.25)
+STEPS = envn("STEPS", 600, int)
+BATCH = envn("BATCH", 256, int)
+LR0 = envn("LR_TEACHER", 0.001)
+LR = envn("LR", 0.0005)
+WINDOW = envn("WINDOW", 3, int)
+WINDOW_MB = envn("WINDOW_MB", 150, int)
+TEACHER_GAMES = envn("TEACHER_GAMES", 300, int)
+TEACHER_STEPS = envn("TEACHER_STEPS", 1200, int)
+STAKES = [int(x) for x in os.environ.get("TRAIN_STAKES", "1,2").split(",") if x]
+RPF = envn("RUNS_PER_FILE", 5, int)
+EVAL_PER = envn("EVAL_PER", 8, int)
+EVAL_DECKS = os.environ.get("TRAIN_EVAL_DECKS", "all")
+EVAL_STAKES = os.environ.get("TRAIN_EVAL_STAKES") or ",".join(str(x) for x in STAKES)
+ALL_DECKS = 15
+BEST_BY = os.environ.get("TRAIN_BEST_BY", "ante")
+FROM = os.environ.get("TRAIN_FROM", "latest")
+EPOCHS = envn("EPOCHS", 0.0)
+WARMUP = envn("WARMUP", 0, int)
+VAL_EVERY = envn("VAL_EVERY", 20, int)
+EVAL_SIMS = envn("EVAL_SIMS", 32, int)
+START_WEIGHTS = os.environ.get("TRAIN_WEIGHTS", "")
+SEER = os.environ.get("TRAIN_SEER", "0") == "1"
+SEER_EVAL_CMD = os.environ.get("TRAIN_SEER_EVAL_CMD", "")
+SEER_TEACHER_CMD = os.environ.get("TRAIN_SEER_TEACHER_CMD", "")
+SEER_MIX = envn("SEER_MIX", 0.0)
+SEER_GAMES = envn("SEER_GAMES", 0, int)
+SEER_SMOOTH = envn("SEER_SMOOTH", 0.05)
+SEER_POOL_MB = envn("SEER_POOL_MB", 400, int)
+SEER_PRETRAIN = envn("SEER_PRETRAIN", 0, int)
+SEER_PRETRAIN_GAMES = envn("SEER_PRETRAIN_GAMES", 0, int)
+SEER_WAIT_MAX = envn("SEER_WAIT_MAX", 2700)
+PATIENCE = envn("PATIENCE", 4, int)
+SEER_POOL_START = os.environ.get("TRAIN_SEER_POOL", "")
+SEER_POOL_CMD = os.environ.get("TRAIN_SEER_POOL_CMD") or "bash tools/botsim/seer/teacher_pool.sh"
+SEER_POOL_ARGS = os.environ.get("TRAIN_SEER_POOL_ARGS", "--mode=solve --max_lines=4")
+THREADS = envn("THREADS", max(1, min(4, WORKERS // 4)), int)
+os.environ.setdefault("OMP_WAIT_POLICY", "PASSIVE")
+REC_GAP = envn("RECORD_GAP", 90)
+VALUE_MIX = envn("VALUE_MIX", 0.8)
+SCORE_PRIOR = envn("SCORE_PRIOR", 0.3)
+SCORE_TOP = envn("SCORE_TOP", 6, int)
+SKIP_PEN = envn("SKIP_PEN", 0.2)
+SKIP_ANTE = envn("SKIP_ANTE", 1, int)
+START_ANTE = os.environ.get("TRAIN_START_ANTE", "")
+START_FRAC = envn("START_FRAC", 0.5)
+START_WHO = os.environ.get("TRAIN_START_WHO", "greedy")
+SEARCH_ARGS = ["mix=%s" % VALUE_MIX, "score_prior=%s" % SCORE_PRIOR, "score_top=%d" % SCORE_TOP,
+               "skip_pen=%s" % SKIP_PEN, "skip_ante=%d" % SKIP_ANTE]
+CURRIC_ARGS = ["start_ante=" + START_ANTE, "start_frac=%s" % START_FRAC, "start_who=" + START_WHO] if START_ANTE else []
+
+mlock = threading.Lock()
+stop_evt = threading.Event()
+last_rec = [0.0]
+
+
+def emit(**kw):
+    kw.setdefault("t", time.time())
+    kw.setdefault("box", BOX)
+    line = json.dumps(kw, separators=(",", ":")) + "\n"
+    with mlock, open(METRICS, "a") as f:
+        f.write(line)
+
+
+def log(msg, level="info"):
+    emit(type="log", level=level, msg=msg)
+
+
+def state(st, msg=""):
+    emit(type="state", state=st, msg=msg)
+
+
+def stopping():
+    return stop_evt.is_set() or os.path.exists(STOP)
+
+
+def nap(seconds):
+    end = time.time() + seconds
+    while time.time() < end and not stopping():
+        time.sleep(min(0.25, max(0.0, end - time.time())))
+
+
+def find_python():
+    for p in (os.environ.get("TRAIN_PY"), "/opt/botsim/venv/bin/python", os.path.join(REPO, "tools", "botsim", "train", ".venv", "bin", "python")):
+        if p and os.path.isfile(p):
+            return p
+    return None
+
+
+def killgroup(p):
+    for sig in ("TERM", "KILL"):
+        try:
+            os.killpg(p.pid, 15 if sig == "TERM" else 9)
+        except (ProcessLookupError, PermissionError):
+            return
+        try:
+            p.wait(timeout=3)
+            return
+        except subprocess.TimeoutExpired:
+            pass
+
+
+def run_cmd(argv, env=None, out=None):
+    p = subprocess.Popen(argv, cwd=REPO, env=env, stdout=out or subprocess.DEVNULL, stderr=subprocess.STDOUT, start_new_session=True)
+    while True:
+        try:
+            p.wait(timeout=0.4)
+            return p.returncode
+        except subprocess.TimeoutExpired:
+            if stopping():
+                killgroup(p)
+                return None
+
+
+def weights_files(d):
+    out = {}
+    for f in glob.glob(os.path.join(d, "gen_*.bnnw")):
+        m = re.match(r"gen_(\d+)\.bnnw$", os.path.basename(f))
+        if m:
+            out[int(m.group(1))] = f
+    return out
+
+
+def latest_weights(d):
+    w = weights_files(d)
+    if not w:
+        return None, None
+    g = max(w)
+    return g, w[g]
+
+
+class Agent(threading.Thread):
+    def __init__(self, wdir, sink, box_index):
+        super().__init__(daemon=True)
+        self.wdir, self.sink, self.box_index = wdir, sink, box_index
+        self.paused = threading.Event()
+        self.idle = threading.Event()
+        self.idle.set()
+        self.busy_lanes = 0
+        self.busy = 0
+        self.games = self.decisions = self.sims = 0
+        self.gen = None
+        self.seq = 0
+        self.t_play = 0.0
+        self.n_play_dec = 0
+        self.lock = threading.Lock()
+        self.teacher_ok = not START_WEIGHTS
+        self.nboxes = 1
+        self.seer_claims = {}
+
+    def seer_claim(self, gen):
+        key = -1 if gen is None else gen
+        want = SEER_PRETRAIN_GAMES if gen is None else SEER_GAMES
+        if want <= 0 or (gen is not None and SEER_MIX <= 0):
+            return False
+        share = -(-want // max(1, self.nboxes))
+        with self.lock:
+            if self.seer_claims.get(key, 0) >= share:
+                return False
+            self.seer_claims[key] = self.seer_claims.get(key, 0) + 1
+        return True
+
+    def seer_round(self, gen):
+        with self.lock:
+            self.seq += 1
+            seq = self.seq
+        seed = 7000000 + (self.box_index + 1) * 100000 + seq
+        stake = STAKES[seq % len(STAKES)]
+        rdir = os.path.join(WORK, "rounds", "%s_s%d" % (BOX, seq))
+        shutil.rmtree(rdir, ignore_errors=True)
+        os.makedirs(rdir)
+        env = dict(os.environ, OUT_DIR=rdir, GAMES="1", SEED=str(seed), WORKERS="1", STAKE=str(stake), SEER_ARGS=SEER_POOL_ARGS)
+        rc = run_cmd(IDLE + ["sh", "-c", SEER_POOL_CMD], env)
+        files = sorted(glob.glob(os.path.join(rdir, "*.bspr")))
+        if rc == 0 and files:
+            self.sink("s", files, 1, seq)
+        elif rc is not None:
+            log("seer pool game %d produced nothing (exit %s)" % (seq, rc), "error")
+        shutil.rmtree(rdir, ignore_errors=True)
+        return True
+
+    def run(self):
+        lanes = [threading.Thread(target=self.lane, args=(i,), daemon=True) for i in range(1, WORKERS)]
+        for t in lanes:
+            t.start()
+        self.lane(0)
+        for t in lanes:
+            t.join(timeout=10)
+
+    def lane(self, i):
+        active = False
+        while not stopping():
+            if self.paused.is_set():
+                if active:
+                    active = False
+                    with self.lock:
+                        self.busy_lanes -= 1
+                        if self.busy_lanes == 0:
+                            self.idle.set()
+                nap(0.2)
+                continue
+            if not active:
+                active = True
+                with self.lock:
+                    self.busy_lanes += 1
+                    self.idle.clear()
+            try:
+                if not self.one_round(i):
+                    nap(1.0)
+            except Exception as e:
+                log("self-play round failed: %r" % (e,), "error")
+                nap(5.0)
+        if active:
+            with self.lock:
+                self.busy_lanes -= 1
+                if self.busy_lanes == 0:
+                    self.idle.set()
+
+    def one_round(self, lane=0):
+        gen, wpath = latest_weights(self.wdir)
+        if self.seer_claim(gen):
+            return self.seer_round(gen)
+        teacher = gen is None
+        if teacher and not self.teacher_ok:
+            return False
+        if teacher and SEER_TEACHER_CMD and lane != 0:
+            return False
+        self.gen = gen
+        with self.lock:
+            self.seq += 1
+            seq = self.seq
+        busy0 = self.busy
+        seed = (self.box_index + 1) * 100000 + seq
+        stake = STAKES[seq % len(STAKES)]
+        rdir = os.path.join(WORK, "rounds", "%s_%d" % (BOX, seq))
+        shutil.rmtree(rdir, ignore_errors=True)
+        os.makedirs(rdir)
+        t0 = time.time()
+        if teacher and SEER_TEACHER_CMD:
+            env = dict(os.environ, OUT_DIR=rdir, GAMES=str(WORKERS * RPF), SEED=str(seed), WORKERS=str(WORKERS), STAKE=str(stake))
+            rc = run_cmd(["sh", "-c", SEER_TEACHER_CMD], env)
+        else:
+            argv = IDLE + ["bash", POOL, "-w", "1", "-o", rdir, "-r", str(RPF), "-n", "1", "-s", str(seed), "-c", "-1"]
+            if teacher:
+                argv += ["-t", "1", "--", "stake=%d" % stake, "eps=0.1"]
+            else:
+                argv += ["--", "weights=" + wpath, "sims=%d" % SIMS, "stake=%d" % stake, "adaptive=1", "games=" + os.path.join(rdir, "g_{seed}.jsonl"),
+                         "recs=" + os.path.join(rdir, "r_{seed}.jsonl"), "rec_runs=1"] + SEARCH_ARGS + CURRIC_ARGS
+                if FAST_SIMS > 0 and FULL_FRAC < 1:
+                    argv += ["fast_sims=%d" % FAST_SIMS, "full_frac=%s" % FULL_FRAC]
+            rc = run_cmd(argv)
+        if rc is None:
+            shutil.rmtree(rdir, ignore_errors=True)
+            return True
+        files = sorted(glob.glob(os.path.join(rdir, "*.bspr")))
+        if rc != 0 or not files:
+            log("self-play round %d produced nothing (exit %s)" % (seq, rc), "error")
+            shutil.rmtree(rdir, ignore_errors=True)
+            return False
+        dt = time.time() - t0
+        n_games, n_dec = 0, 0
+        for gf in sorted(glob.glob(os.path.join(rdir, "g_*.jsonl"))):
+            for line in open(gf):
+                try:
+                    g = json.loads(line)
+                except ValueError:
+                    continue
+                g["gen"] = gen
+                n_games += 1
+                n_dec += int(g.get("dec", 0))
+                with self.lock:
+                    self.sims += int(g.get("dec", 0)) * int(g.get("sims", 0))
+                emit(**g)
+        if teacher:
+            n_games = len(files) * RPF
+        else:
+            self.maybe_record(rdir, gen, seq)
+        with self.lock:
+            self.games += n_games
+            self.decisions += n_dec
+            if busy0 % 2 == 0 and self.busy == busy0:
+                self.t_play += dt
+                self.n_play_dec += n_dec
+        tag = "t" if teacher else "g%d" % gen
+        self.sink(tag, files, len(files) * RPF, seq)
+        shutil.rmtree(rdir, ignore_errors=True)
+        return True
+
+    def maybe_record(self, rdir, gen, seq):
+        with self.lock:
+            if time.time() - last_rec[0] < REC_GAP:
+                return
+            last_rec[0] = time.time()
+        for rf in sorted(glob.glob(os.path.join(rdir, "r_*.jsonl"))):
+            for line in open(rf):
+                try:
+                    r = json.loads(line)
+                except ValueError:
+                    continue
+                if len(line) > 250000:
+                    continue
+                r["id"] = "%s-%d-%s" % (BOX, seq, r.get("id", ""))
+                r["gen"] = gen
+                emit(**r)
+                last_rec[0] = time.time()
+                return
+
+    def snapshot(self):
+        with self.lock:
+            return self.games, self.decisions, self.sims
+
+
+def progress_loop(agent, extra):
+    while not stopping():
+        g, d, s = agent.snapshot()
+        kw = dict(type="progress", games=g, decisions=d, sims=s, workers=WORKERS)
+        try:
+            kw["load1"] = os.getloadavg()[0]
+        except OSError:
+            pass
+        if agent.gen is not None:
+            kw["gen"] = agent.gen
+        kw.update(extra())
+        emit(**kw)
+        nap(5.0)
+
+
+def http(base, query, data=None, timeout=60):
+    req = urllib.request.Request(base + "?" + query, data=data, method="POST" if data is not None else "GET")
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return r.read()
+
+
+def box_index_of(run, name):
+    names = [b["name"] for b in run.get("boxes", [])]
+    return names.index(name) if name in names else 0
+
+
+def load_json(p):
+    try:
+        with open(p) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def node_main():
+    run = load_json(os.environ.get("BOTSIM_PEERS", os.path.join(ETC, "run.json")))
+    indir, outdir = os.path.join(XFER, "in"), os.path.join(XFER, "out")
+    os.makedirs(indir, exist_ok=True)
+    os.makedirs(outdir, exist_ok=True)
+
+    def sink(tag, files, games, seq):
+        name = "%s_%s_%d_%d.tar" % (tag, BOX, seq, games)
+        tmp = os.path.join(outdir, ".part-" + name)
+        with tarfile.open(tmp, "w") as t:
+            for f in files:
+                t.add(f, arcname=os.path.basename(f))
+        os.replace(tmp, os.path.join(outdir, name))
+
+    agent = Agent(indir, sink, box_index_of(run, BOX))
+    agent.nboxes = max(1, len(run.get("boxes", [])))
+    state("running", "self-play node")
+    agent.start()
+    threading.Thread(target=progress_loop, args=(agent, dict), daemon=True).start()
+    while not stopping() and not os.path.exists(os.path.join(indir, "DONE")):
+        nap(0.5)
+    done = os.path.exists(os.path.join(indir, "DONE"))
+    stop_evt.set()
+    agent.join(timeout=10)
+    if done:
+        state("done", "head finished")
+    else:
+        state("saved", "stopped, records are on the head")
+    return 0
+
+
+class Head:
+    def __init__(self):
+        self.run = load_json(os.environ.get("BOTSIM_PEERS", os.path.join(ETC, "run.json")))
+        self.node = load_json(os.path.join(ETC, "node.json"))
+        self.wdir = os.path.join(WORK, "weights")
+        self.bdir = os.path.join(WORK, "batches")
+        os.makedirs(self.wdir, exist_ok=True)
+        os.makedirs(self.bdir, exist_ok=True)
+        os.makedirs(CKPT, exist_ok=True)
+        self.counts = {}
+        self.clock = threading.Lock()
+        self.pushed = {}
+        self.nodes = [b for b in self.run.get("boxes", []) if b["name"] != BOX]
+        self.agent = Agent(self.wdir, self.sink, box_index_of(self.run, BOX))
+        self.agent.nboxes = max(1, len(self.run.get("boxes", [])))
+        self.pool = os.path.join(WORK, "seerpool")
+        os.makedirs(self.pool, exist_ok=True)
+        self.py = find_python()
+        self.best = None
+        self.best_key = (-1, -1)
+        self.phase = ""
+        self.done_games = 0
+        self.total_games = (0 if START_WEIGHTS else TEACHER_GAMES) + GENS * GAMES
+        self.eval_set = None
+        self.best_path = None
+        nd = ALL_DECKS if EVAL_DECKS == "all" else len([x for x in EVAL_DECKS.split(",") if x])
+        self.n_cells = nd * len([x for x in EVAL_STAKES.split(",") if x])
+
+    def sink(self, tag, files, games, seq):
+        d = self.pool if tag == "s" else os.path.join(self.bdir, tag)
+        os.makedirs(d, exist_ok=True)
+        for f in files:
+            shutil.move(f, os.path.join(d, "%s_%d_%s" % (BOX, seq, os.path.basename(f))))
+        with self.clock:
+            self.counts[tag] = self.counts.get(tag, 0) + games
+
+    def count(self, tag):
+        with self.clock:
+            return self.counts.get(tag, 0)
+
+    def node_base(self, b):
+        return "http://%s:%s/%s/api/xfer" % (b["ip"], self.node.get("port"), self.node.get("secret"))
+
+    def collect_loop(self):
+        while not stopping():
+            for b in self.nodes:
+                base = self.node_base(b)
+                try:
+                    lst = json.loads(http(base, "ls=out", timeout=10))["files"]
+                    for f in lst:
+                        name = f["name"]
+                        m = re.match(r"^(t|s|g\d+)_(.+)_(\d+)_(\d+)\.tar$", name)
+                        if not m:
+                            continue
+                        data = http(base, "get=" + urllib.parse.quote("out/" + name), timeout=120)
+                        tmp = os.path.join(WORK, ".recv-" + name)
+                        with open(tmp, "wb") as fh:
+                            fh.write(data)
+                        d = self.pool if m.group(1) == "s" else os.path.join(self.bdir, m.group(1))
+                        os.makedirs(d, exist_ok=True)
+                        with tarfile.open(tmp) as t:
+                            for mem in t.getmembers():
+                                if mem.isfile() and re.match(r"^[\w.-]+\.bspr$", mem.name):
+                                    with open(os.path.join(d, "%s_%s_%s" % (m.group(2), m.group(3), mem.name)), "wb") as out:
+                                        shutil.copyfileobj(t.extractfile(mem), out)
+                        os.remove(tmp)
+                        with self.clock:
+                            self.counts[m.group(1)] = self.counts.get(m.group(1), 0) + int(m.group(4))
+                        http(base, "rm=1&name=" + urllib.parse.quote("out/" + name), data=b"", timeout=10)
+                except Exception:
+                    pass
+                g, w = latest_weights(self.wdir)
+                if g is not None and self.pushed.get(b["name"]) != g:
+                    try:
+                        http(base, "name=" + urllib.parse.quote("in/gen_%04d.bnnw" % g), data=open(w, "rb").read(), timeout=60)
+                        self.pushed[b["name"]] = g
+                    except Exception:
+                        pass
+            nap(2.0)
+
+    def push_done(self):
+        for b in self.nodes:
+            try:
+                http(self.node_base(b), "name=in/DONE", data=b"done", timeout=10)
+            except Exception:
+                pass
+
+    def extra(self):
+        done = self.done_games
+        return {"work_done": done, "work_total": self.total_games, "phase": self.phase}
+
+    def set_phase(self, text):
+        self.phase = text
+        state("running", text)
+
+    def ckpt(self, gen, path):
+        shutil.copy(path, os.path.join(CKPT, "gen_%04d.bnnw" % gen))
+        shutil.copy(path, os.path.join(CKPT, "latest.bnnw"))
+        emit(type="checkpoint", gen=gen, path="checkpoints/gen_%04d.bnnw" % gen)
+
+    def pause(self):
+        if self.agent.busy % 2 == 0:
+            self.agent.busy += 1
+
+    def resume(self):
+        if self.agent.busy % 2 == 1:
+            self.agent.busy += 1
+
+    def pool_files(self):
+        files = sorted(glob.glob(os.path.join(self.pool, "*.bspr")), key=os.path.getmtime, reverse=True)
+        budget, out = SEER_POOL_MB << 20, []
+        for f in files:
+            budget -= os.path.getsize(f)
+            if out and budget < 0:
+                break
+            out.append(f)
+        return out
+
+    def seed_pool(self):
+        if not SEER_POOL_START:
+            return
+        src = SEER_POOL_START if os.path.isabs(SEER_POOL_START) else os.path.join(REPO, SEER_POOL_START)
+        n = 0
+        for f in sorted(glob.glob(os.path.join(src, "*.bspr")) if os.path.isdir(src) else glob.glob(src)):
+            shutil.copy(f, os.path.join(self.pool, "start_" + os.path.basename(f)))
+            n += 1
+        log("seer pool seeded with %d files from %s" % (n, SEER_POOL_START))
+
+    def fetch_start(self, dst=None):
+        dst = dst or os.path.join(self.wdir, "gen_0000.bnnw")
+        if re.match(r"^https?://", START_WEIGHTS):
+            with urllib.request.urlopen(START_WEIGHTS, timeout=120) as r, open(dst, "wb") as f:
+                shutil.copyfileobj(r, f)
+        else:
+            src = START_WEIGHTS if os.path.isabs(START_WEIGHTS) else os.path.join(REPO, START_WEIGHTS)
+            shutil.copy(src, dst)
+        with open(dst, "rb") as f:
+            if f.read(4) != b"BNNW":
+                raise RuntimeError("starting weights are not a .bnnw file: " + START_WEIGHTS)
+        return dst
+
+    def data_files(self, upto_gen):
+        tags = [t for t in sorted(os.listdir(self.bdir)) if os.listdir(os.path.join(self.bdir, t))]
+        ordered = [t for t in tags if t == "t"] + sorted([t for t in tags if t != "t" and int(t[1:]) < upto_gen], key=lambda t: int(t[1:]))
+        ordered = ordered[-WINDOW:]
+        files = []
+        for t in reversed(ordered):
+            files += sorted(glob.glob(os.path.join(self.bdir, t, "*.bspr")), key=os.path.getmtime, reverse=True)
+        budget, out = WINDOW_MB << 20, []
+        for f in files:
+            sz = os.path.getsize(f)
+            if out and budget - sz < 0:
+                break
+            budget -= sz
+            out.append(f)
+        old = set(ordered)
+        for t in tags:
+            if t not in old and (t == "t" or int(t[1:]) < upto_gen - 1):
+                shutil.rmtree(os.path.join(self.bdir, t), ignore_errors=True)
+        return out
+
+    def train(self, gen, files, init, steps, lr, policy_min, publish=True, pool=None):
+        out = os.path.join(self.wdir, ".new_%04d.bnnw" % gen)
+        if pool is None:
+            pool = self.pool_files() if SEER_MIX > 0 else []
+        mixa = (["--mix-data"] + pool + ["--mix", str(SEER_MIX), "--mix-smooth", str(SEER_SMOOTH)]) if pool else []
+        argv = [self.py, TRAIN_PY] + (["--data"] + files if files else []) + mixa + ["--out", out, "--steps", str(steps), "--batch", str(BATCH), "--lr", str(lr),
+                                                         "--threads", str(THREADS), "--log-every", str(max(1, steps // 20)), "--seed", str(gen),
+                                                         "--val-every", str(VAL_EVERY)]
+        if init:
+            argv += ["--init", init]
+        if policy_min:
+            argv += ["--policy-min-sims", str(policy_min)]
+        if EPOCHS > 0:
+            argv += ["--epochs", str(EPOCHS)]
+        if WARMUP > 0:
+            argv += ["--warmup", str(WARMUP)]
+        logp = os.path.join(WORK, "train_%04d.log" % gen)
+        t0 = time.time()
+        base = self.phase
+        done = threading.Event()
+
+        def watch():
+            seen = None
+            while not done.wait(2.0):
+                try:
+                    text = open(logp).read()
+                except OSError:
+                    continue
+                tot = re.search(r" steps (\d+)", text)
+                st = re.findall(r"^step (\d+) ", text, re.M)
+                if st and st[-1] != seen:
+                    seen = st[-1]
+                    self.set_phase("%s, step %s/%s" % (base, seen, tot.group(1) if tot else steps))
+
+        with open(logp, "w") as lf:
+            th = threading.Thread(target=watch, daemon=True)
+            th.start()
+            rc = run_cmd(argv, out=lf)
+            done.set()
+        if rc is None:
+            return None
+        text = open(logp).read()
+        if rc != 0 or not os.path.exists(out):
+            raise RuntimeError("train.py failed (exit %s): %s" % (rc, text[-400:]))
+        recs = int((re.search(r"records (\d+)", text) or [0, 0])[1])
+        steps_found = re.findall(r"step (\d+) policy ([\d.]+) value ([\d.]+) ante ([\d.]+)", text)
+        s, lp, lv, la = steps_found[-1] if steps_found else (steps, 0, 0, 0)
+        summ = {}
+        for line in text.splitlines():
+            if line.startswith("summary "):
+                try:
+                    summ = json.loads(line[8:])
+                except ValueError:
+                    pass
+        steps = int(summ.get("steps") or steps)
+        extra = {}
+        for pre, d in (("val_", summ.get("val")), ("val0_", summ.get("val0"))):
+            for k, v in (d or {}).items():
+                if isinstance(v, (int, float)):
+                    extra[pre + k] = v
+        if summ.get("epochs") is not None:
+            extra["epochs"] = summ["epochs"]
+        if publish:
+            dst = os.path.join(self.wdir, "gen_%04d.bnnw" % gen)
+        else:
+            dst = os.path.join(WORK, "trained_%04d.bnnw" % gen)
+        os.replace(out, dst)
+        emit(type="gen", gen=gen, loss=round(float(lp) + float(lv) + float(la), 4), loss_policy=float(lp), loss_value=float(lv),
+             loss_ante=float(la), lr=lr, samples=steps * BATCH, buffer=recs, train_s=round(time.time() - t0, 1),
+             steps=steps, **extra)
+        if summ.get("val"):
+            v = summ["val"]
+            log("generation %d held-out: policy %.3f value %.3f ante %.3f (train %.3f %.3f %.3f), win predicted %.3f vs %.3f, ante off by %.2f, %.1f passes"
+                % (gen, v["policy"], v["value"], v["ante"], float(lp), float(lv), float(la), v["win_pred"], v["win_true"], v["ante_mae"],
+                   summ.get("epochs") or 0))
+        return dst
+
+    def evaluate(self, who, gen, wpath):
+        cells = {}
+        procs = []
+        parts = max(1, min(WORKERS, self.n_cells))
+        tmpd = os.path.join(WORK, "eval")
+        os.makedirs(tmpd, exist_ok=True)
+        for i in range(parts):
+            out = os.path.join(tmpd, "%s_%d.jsonl" % (who, i))
+            if os.path.exists(out):
+                os.remove(out)
+            argv = ["luajit", EVAL_LUA, "who=" + ("net" if who == "gen" else "greedy"), "sims=%d" % EVAL_SIMS, "per=%d" % EVAL_PER,
+                    "decks=" + EVAL_DECKS, "stakes=" + EVAL_STAKES, "part=%d" % i, "parts=%d" % parts, "out=" + out]
+            if who == "gen":
+                argv.append("weights=" + wpath)
+                argv += SEARCH_ARGS
+            procs.append((subprocess.Popen(argv, cwd=REPO, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True), out))
+        while any(p.poll() is None for p, _ in procs):
+            if stopping():
+                for p, _ in procs:
+                    killgroup(p)
+                return None
+            time.sleep(0.3)
+        for p, out in procs:
+            if p.returncode != 0:
+                raise RuntimeError("eval.lua failed for %s" % who)
+            for line in open(out):
+                c = json.loads(line)
+                cells[(c["deck"], c["stake"])] = c
+        return list(cells.values())
+
+    def external_eval(self):
+        env = dict(os.environ, EVAL_PER=str(EVAL_PER), EVAL_SIMS=str(EVAL_SIMS), WORKERS=str(WORKERS))
+        r = subprocess.run(["sh", "-c", SEER_EVAL_CMD], cwd=REPO, env=env, capture_output=True, text=True, timeout=3600)
+        if r.returncode != 0:
+            raise RuntimeError("seer eval command failed: " + r.stderr[-300:])
+        return [json.loads(x) for x in r.stdout.splitlines() if x.strip().startswith("{")]
+
+    def emit_eval(self, who, gen, cells, promoted=False):
+        for c in cells:
+            kw = dict(type="eval", set=self.eval_set, who=who, deck=c["deck"], stake=c["stake"], n=c["n"], wins=c["wins"],
+                      ante=round(c["ante_sum"] / max(1, c["n"]), 3))
+            if c.get("ante_sq") is not None:
+                kw["ante_sq"] = c["ante_sq"]
+            if who == "gen":
+                kw["gen"] = gen
+                if promoted:
+                    kw["promoted"] = True
+            emit(**kw)
+
+    def eval_gen(self, gen, wpath):
+        self.set_phase("evaluating generation %d" % gen)
+        cells = self.evaluate("gen", gen, wpath)
+        if cells is None:
+            return
+        wins = sum(c["wins"] for c in cells)
+        antes = sum(c["ante_sum"] for c in cells)
+        n = sum(c["n"] for c in cells)
+        sq = sum(c.get("ante_sq", 0) for c in cells)
+        key = (wins, antes) if BEST_BY == "wins" else (antes, wins)
+        promoted = key > self.best_key
+        if promoted:
+            self.best_key, self.best = key, gen
+            self.best_path = os.path.join(CKPT, "gen_%04d.bnnw" % gen)
+        mean = antes / max(1, n)
+        half = 1.96 * ((max(0.0, sq - n * mean * mean) / (n - 1)) / n) ** 0.5 if n > 1 and sq else 0.0
+        self.emit_eval("gen", gen, cells, promoted)
+        g, d, _ = self.agent.snapshot()
+        rate = self.agent.n_play_dec * WORKERS / self.agent.t_play if self.agent.t_play else 0
+        emit(type="bench", name="selfplay", gen=gen, winrate=wins / max(1, n), avg_ante=mean, ante_ci=round(half, 3), decisions_per_s=round(rate, 1))
+        log("generation %d: %d/%d wins, average ante %.2f +- %.2f%s" % (gen, wins, n, mean, half, " (new best)" if promoted else ""))
+        return promoted
+
+    def main(self):
+        if not self.py:
+            state("failed", "no python with torch")
+            log("no python with torch found. Run: python3 tools/botsim/cloud/hz.py deploy --for-job train", "error")
+            return 1
+        state("running", "starting")
+        stakes = [x for x in EVAL_STAKES.split(",") if x]
+        if EVAL_DECKS == "b_red,b_blue,b_yellow,b_black" and stakes == ["1", "3"]:
+            self.eval_set = "fixed-%d" % (EVAL_PER * 8)
+        else:
+            self.eval_set = "d%d-s%s-%d" % (self.n_cells // len(stakes), "".join(stakes), EVAL_PER * self.n_cells)
+        log("search: value mix %s, score prior %s top %d, skip penalty %s up to ante %d, curriculum %s"
+            % (VALUE_MIX, SCORE_PRIOR, SCORE_TOP, SKIP_PEN, SKIP_ANTE, ("start ante %s for %s of games (%s)" % (START_ANTE, START_FRAC, START_WHO)) if START_ANTE else "off"))
+        log("eval set %s (decks %s, stakes %s, %d seeds per cell, %d sims), best by %s, training from the %s generation"
+            % (self.eval_set, EVAL_DECKS, EVAL_STAKES, EVAL_PER, EVAL_SIMS, BEST_BY, FROM))
+        self.agent.start()
+        threading.Thread(target=progress_loop, args=(self.agent, self.extra), daemon=True).start()
+        threading.Thread(target=self.collect_loop, daemon=True).start()
+        self.pause()
+        self.set_phase("evaluating the greedy reference")
+        ref = self.evaluate("rules", None, None)
+        if ref:
+            self.emit_eval("rules", None, ref)
+        if SEER:
+            if SEER_EVAL_CMD:
+                try:
+                    self.emit_eval("seer", None, self.external_eval())
+                except Exception as e:
+                    log("seer evaluation failed: %s" % e, "error")
+            else:
+                log("TRAIN_SEER=1 but TRAIN_SEER_EVAL_CMD is empty, Seer is not evaluated", "error")
+        self.resume()
+        gen = 0
+        self.seed_pool()
+        if START_WEIGHTS and SEER_PRETRAIN > 0:
+            ws = self.fetch_start(os.path.join(WORK, "start.bnnw"))
+            log("starting from %s, pretraining on the seer pool for %d steps" % (START_WEIGHTS, SEER_PRETRAIN))
+            t_wait = time.time()
+            while not stopping():
+                games = max(self.count("s"), len(self.pool_files()))
+                if games >= max(1, SEER_PRETRAIN_GAMES if not SEER_POOL_START else 1):
+                    break
+                if games and time.time() - t_wait > SEER_WAIT_MAX:
+                    log("seer pool has %d of %d games after %d min, pretraining on what is there" % (games, SEER_PRETRAIN_GAMES, SEER_WAIT_MAX // 60), "warn")
+                    break
+                self.set_phase("seer pool games for the pretrain (%d/%d)" % (games, SEER_PRETRAIN_GAMES))
+                nap(2.0)
+            if stopping():
+                return self.finish("stopped before the seer pretrain")
+            self.pause()
+            self.set_phase("pretraining generation 0 on the seer pool")
+            w0 = self.train(0, [], ws, SEER_PRETRAIN, LR0, 0, pool=self.pool_files())
+            if w0 is None:
+                return self.finish("stopped while pretraining generation 0")
+        elif START_WEIGHTS:
+            w0 = self.fetch_start()
+            log("starting from %s" % START_WEIGHTS)
+        else:
+            while self.count("t") < TEACHER_GAMES and not stopping():
+                self.set_phase("teacher games for generation 0 (%d/%d)" % (self.count("t"), TEACHER_GAMES))
+                self.done_games = min(self.count("t"), TEACHER_GAMES)
+                nap(1.0)
+            if stopping():
+                return self.finish("stopped before generation 0")
+            self.pause()
+            self.set_phase("training generation 0 on teacher records")
+            w0 = self.train(0, self.data_files(0), "", TEACHER_STEPS, LR0, 0)
+            if w0 is None:
+                return self.finish("stopped while training generation 0")
+        self.ckpt(0, w0)
+        self.eval_gen(0, w0)
+        if self.best_path is None:
+            self.best_path = os.path.join(CKPT, "gen_0000.bnnw")
+        self.resume()
+        prev = w0
+        self.done_games = 0 if START_WEIGHTS else TEACHER_GAMES
+        base_done = self.done_games
+        for gen in range(1, GENS + 1):
+            tag = "g%d" % (gen - 1)
+            while self.count(tag) < GAMES and not stopping():
+                self.set_phase("self-play with generation %d (%d/%d games)" % (gen - 1, self.count(tag), GAMES))
+                self.done_games = base_done + (gen - 1) * GAMES + min(GAMES, self.count(tag))
+                nap(1.0)
+            if stopping():
+                return self.finish("stopped during self-play")
+            self.done_games = base_done + gen * GAMES
+            self.pause()
+            self.set_phase("training generation %d" % gen)
+            files = self.data_files(gen)
+            if not files:
+                state("failed", "no records")
+                return 1
+            best_mode = FROM == "best"
+            w = self.train(gen, files, prev, STEPS, LR, SIMS // 2 if FAST_SIMS > 0 and FULL_FRAC < 1 else 0, publish=not best_mode)
+            if w is None:
+                return self.finish("stopped while training generation %d" % gen)
+            self.ckpt(gen, w)
+            if not best_mode:
+                prev = w
+                self.resume()
+                self.pause()
+            promoted = self.eval_gen(gen, w)
+            if best_mode:
+                if promoted is None:
+                    return self.finish("stopped while evaluating generation %d" % gen)
+                keep = w if promoted else self.best_path
+                shutil.copy(keep, os.path.join(self.wdir, "gen_%04d.bnnw" % gen))
+                prev = keep
+                if not promoted:
+                    log("generation %d is not better than gen %s, self-play and training continue from gen %s" % (gen, self.best, self.best))
+            self.stale = 0 if promoted else getattr(self, "stale", 0) + 1
+            if PATIENCE > 0 and self.stale >= PATIENCE:
+                log("%d generations in a row without a new best (best is gen %s), stopping the run and deleting the boxes" % (self.stale, self.best), "warn")
+                with open(os.path.join(RUN_DIR, "STOP_REQUEST"), "w") as f:
+                    f.write("plateau")
+                return self.finish("stopped after %d generations without a new best" % self.stale)
+            self.resume()
+        self.push_done()
+        nap(8.0)
+        stop_evt.set()
+        if self.best_path and os.path.exists(self.best_path):
+            shutil.copy(self.best_path, os.path.join(CKPT, "best.bnnw"))
+        state("done", "%d generations, best %s" % (GENS, self.best))
+        return 0
+
+    def finish(self, msg):
+        stop_evt.set()
+        self.agent.join(timeout=10)
+        g, w = latest_weights(self.wdir)
+        if w:
+            shutil.copy(w, os.path.join(CKPT, "latest.bnnw"))
+            if not os.path.exists(os.path.join(CKPT, "gen_%04d.bnnw" % g)):
+                self.ckpt(g, w)
+        state("saved", "%s, latest generation %s saved" % (msg, g))
+        return 0
+
+
+def main():
+    os.makedirs(RUN_DIR, exist_ok=True)
+    os.makedirs(WORK, exist_ok=True)
+    os.makedirs(CKPT, exist_ok=True)
+    os.makedirs(XFER, exist_ok=True)
+    if ROLE == "head":
+        return Head().main()
+    return node_main()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

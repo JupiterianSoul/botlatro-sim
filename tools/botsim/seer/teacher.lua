@@ -1,0 +1,154 @@
+package.path = "assets/?.lua;tools/?.lua;" .. package.path
+
+local E = require("bot.sim.engine")
+local S = require("bot.seer.seer")
+local FE = require("bot.nn.features")
+local REC = require("botsim.train.records")
+
+local T = {}
+
+local F = FE.new_state_buf(true)
+local AB = FE.new_action_buf(1024, true)
+
+function T.encode(s, a, opts)
+    if not FE.PHASES[s.phase] then return nil, s.phase end
+    FE.state(s, F)
+    local n = FE.list_actions(s, AB, F)
+    if n < 2 then return nil, "forced" end
+    local chosen = FE.find_action(AB, a, s)
+    if not chosen or chosen < 0 then return nil, "unmatched_" .. s.phase end
+    local others = {}
+    for k = 0, n - 1 do if k ~= chosen then others[#others + 1] = k end end
+    table.sort(others, function(x, y)
+        local px, py = AB.type[x] <= 2 and AB.xe[x] or -math.huge, AB.type[y] <= 2 and AB.xe[y] or -math.huge
+        if px ~= py then return px > py end
+        return x < y
+    end)
+    local K = math.min(opts.K or 24, n, 255)
+    local picks = {{k = chosen, visits = 1, prior = 1 / K}}
+    for i = 1, K - 1 do picks[#picks + 1] = {k = others[i], visits = 0, prior = 1 / K} end
+    return REC.encode_choice(F, AB, picks, {chosen = 1, phase = FE.PHASES[s.phase], n_sims = opts.n_sims or 800})
+end
+
+function T.solved(setup, opts, index)
+    local seer = S.new(opts.seer)
+    local r = seer:solve(setup, {max_lines = opts.max_lines, time_limit = opts.time_limit})
+    local s = E.new_run(setup)
+    local recs, skipped = {}, {}
+    for i = 1, #r.line do
+        local a = r.line[i]
+        local rec, why = T.encode(s, a, opts)
+        if rec then recs[#recs + 1] = rec end
+        if why then skipped[why] = (skipped[why] or 0) + 1 end
+        if not E.step(s, a) then
+            skipped.replay_break = (skipped.replay_break or 0) + 1
+            break
+        end
+    end
+    local won = s.won == 1 and 1 or 0
+    local final_ante = won == 1 and s.win_ante + 1 or s.ante
+    local blob = REC.encode_run(recs, won, final_ante, FE.DECK_IDX[setup.deck] or 0, setup.stake or 1, index or 0)
+    return blob, {records = #recs, skipped = skipped, won = won, final_ante = final_ante, line = r.line, state = s, lines = r.lines}
+end
+
+function T.fair(setup, opts, index)
+    local FA = require("bot.seer.fair")
+    local b = FA.BUDGETS[opts.budget or "lite"] or FA.BUDGETS.lite
+    local fo = FA.new({budget = opts.budget or "lite", seer = b.seer})
+    local t0 = os.clock()
+    local line, fs = fo:play(setup)
+    local tm = os.clock() - t0
+    local s = E.new_run(setup)
+    local recs, skipped = {}, {}
+    for i = 1, #line do
+        local a = line[i]
+        local rec, why = T.encode(s, a, opts)
+        if rec then recs[#recs + 1] = rec end
+        if why then skipped[why] = (skipped[why] or 0) + 1 end
+        if not E.step(s, a) then
+            skipped.replay_break = (skipped.replay_break or 0) + 1
+            break
+        end
+    end
+    local won = fs.won == 1 and 1 or 0
+    local final_ante = won == 1 and fs.win_ante + 1 or fs.ante
+    local blob = REC.encode_run(recs, won, final_ante, FE.DECK_IDX[setup.deck] or 0, setup.stake or 1, index or 0)
+    return blob, {records = #recs, skipped = skipped, won = won, final_ante = final_ante, line = line, state = fs, time = tm}
+end
+
+function T.run(setup, opts, index)
+    opts = opts or {}
+    if opts.mode == "solve" then return T.solved(setup, opts, index) end
+    if opts.mode == "fair" then return T.fair(setup, opts, index) end
+    local seer = S.new(opts.seer)
+    local s = E.new_run(setup)
+    local recs, skipped = {}, {}
+    local line = {}
+    for _ = 1, 5000 do
+        if s.won == 1 or s.phase == "game_over" then break end
+        if opts.stop_ante and s.ante > opts.stop_ante then break end
+        local a = seer:choose(s)
+        if not a then break end
+        local r, why = T.encode(s, a, opts)
+        if r then recs[#recs + 1] = r end
+        if why then skipped[why] = (skipped[why] or 0) + 1 end
+        if not E.step(s, a) then
+            seer.plan = nil
+            break
+        end
+        line[#line + 1] = a
+    end
+    local won = s.won == 1 and 1 or 0
+    local final_ante = won == 1 and s.win_ante + 1 or s.ante
+    local blob = REC.encode_run(recs, won, final_ante, FE.DECK_IDX[setup.deck] or 0, setup.stake or 1, index or 0)
+    return blob, {records = #recs, skipped = skipped, won = won, final_ante = final_ante, line = line, state = s}
+end
+
+if arg and arg[0] and arg[0]:match("teacher%.lua$") then
+    local opt = {seeds = 4, decks = "b_red", stakes = "1", out = "tools/botsim/train/out/seer_teacher.bspr", prefix = "TEACH", K = 24, n_sims = 800, stop_ante = 0, start = 1,
+        mode = "play", max_lines = 8, time_limit = 0, wins_only = 0, budget = "lite", jsonl = ""}
+    for _, a in ipairs(arg) do
+        local k, v = a:match("^%-*([%w_]+)=(.*)$")
+        if k then opt[k] = tonumber(v) or v end
+    end
+    local decks, stakes = {}, {}
+    for w in tostring(opt.decks):gmatch("[^,]+") do decks[#decks + 1] = w end
+    for w in tostring(opt.stakes):gmatch("[^,]+") do stakes[#stakes + 1] = tonumber(w) end
+    local fh = assert(io.open(opt.out, "wb"))
+    fh:write(REC.file_header())
+    local jf = opt.jsonl ~= "" and assert(io.open(opt.jsonl, "w")) or nil
+    local t0 = os.clock()
+    local n, tot_rec, tot_skip, wins = 0, 0, {}, 0
+    for _, d in ipairs(decks) do
+        for _, st in ipairs(stakes) do
+            for i = opt.start, opt.start + opt.seeds - 1 do
+                n = n + 1
+                local setup = {seed = string.format("%s%04d", opt.prefix, i), deck = d, stake = st}
+                local blob, info = T.run(setup, {K = opt.K, n_sims = opt.n_sims, stop_ante = opt.stop_ante > 0 and opt.stop_ante or nil,
+                    mode = opt.mode, budget = opt.budget, max_lines = opt.max_lines, time_limit = opt.time_limit}, n)
+                if opt.wins_only == 0 or info.won == 1 then
+                    fh:write(blob)
+                    tot_rec = tot_rec + info.records
+                end
+                if jf then
+                    jf:write(string.format('{"deck":"%s","stake":%d,"seed":"%s","won":%d,"ante":%d,"time":%.2f,"records":%d}\n',
+                        d, st, setup.seed, info.won, info.final_ante, info.time or 0, info.records))
+                    jf:flush()
+                end
+                wins = wins + info.won
+                for k, v in pairs(info.skipped) do tot_skip[k] = (tot_skip[k] or 0) + v end
+                print(string.format("run %d %s stake %d seed %s ante %d won %d records %d", n, d, st, setup.seed, info.final_ante, info.won, info.records))
+            end
+        end
+    end
+    fh:close()
+    if jf then jf:close() end
+    local keys = {}
+    for k in pairs(tot_skip) do keys[#keys + 1] = k end
+    table.sort(keys)
+    local sk = {}
+    for _, k in ipairs(keys) do sk[#sk + 1] = k .. "=" .. tot_skip[k] end
+    print(string.format("runs %d wins %d records %d skipped %s time %.1fs -> %s", n, wins, tot_rec, table.concat(sk, " "), os.clock() - t0, opt.out))
+end
+
+return T
