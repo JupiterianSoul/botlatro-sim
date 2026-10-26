@@ -53,13 +53,20 @@ def restore(ctx, run):
         os.chmod(current_path(), 0o600)
 
 
-def round_args(ctx):
-    p = ctx.prof["paid"]
+def pconf(ctx, step=None):
+    step = step or ctx.st.get("step")
+    if step == "teacher" and (ctx.prof.get("teacher") or {}).get("paid"):
+        return ctx.prof["teacher"]["paid"]
+    return ctx.prof["paid"]
+
+
+def round_args(ctx, step=None):
+    p = pconf(ctx, step)
     return ["--types", p["types"], "--hours", str(p["hours"]), "--spend-cap", str(p["spend_cap"])]
 
 
-def round_cost(ctx):
-    rc, j = hz_json(ctx, "plan", *round_args(ctx))
+def round_cost(ctx, step=None):
+    rc, j = hz_json(ctx, "plan", *round_args(ctx, step))
     if rc == 0 and isinstance(j, dict) and j.get("cost_eur") is not None:
         return float(j["cost_eur"])
     if dry(ctx):
@@ -119,10 +126,23 @@ def down_verify(ctx, run=None):
     return False
 
 
+def teacher_env(ctx):
+    t, tp = ctx.st["teacher"], ctx.prof["teacher"]
+    per = len(tp["decks"].split(",")) * len(str(tp["stakes"]).split(","))
+    left = max(0, tp["games"] - t["games"])
+    seeds = max(1, min(int(tp["paid"]["seeds_per_round"]), -(-left // per)))
+    return {"TEACH_START": str(t.get("next", 1)), "TEACH_SEEDS": str(seeds), "TEACH_DECKS": tp["decks"],
+            "TEACH_STAKES": str(tp["stakes"]), "TEACH_PREFIX": tp["prefix"], "TEACH_BUDGET": tp["budget"],
+            "TEACH_STOP_ANTE": str(tp.get("stop_ante") or 0), "TEACH_LEAK_ARGS": ctx.prof.get("leak_args", "")}
+
+
 def env_for(ctx, step):
-    p = ctx.prof["paid"]
+    p = pconf(ctx, step)
     env = {"BOTSIM_DELETE_WHEN_DONE": "1", "TRAIN_PATIENCE": "4"}
     env.update(p.get("env") or {})
+    if step == "teacher":
+        env.update(teacher_env(ctx))
+        return env
     if ctx.st["best"].get("path") and not dry(ctx):
         env["TRAIN_WEIGHTS"] = START_W
     if step == "ladder":
@@ -131,11 +151,11 @@ def env_for(ctx, step):
 
 
 def start(ctx, step):
-    cost = round_cost(ctx)
+    cost = round_cost(ctx, step)
     why = budget_problem(ctx, cost)
     if why:
         return "waiting", why
-    p = ctx.prof["paid"]
+    p = pconf(ctx, step)
     now = ctx.now()
     before = spent(ctx) if not dry(ctx) else 0.0
     ctx.st["job"] = {"kind": "hetzner", "step": step, "phase": "round", "run": None, "started": now,
@@ -146,14 +166,14 @@ def start(ctx, step):
         if rc != 0:
             ctx.st["job"] = None
             return "failed", "hz.py doctor failed: " + tail(out)
-    rc, out = hz(ctx, "up", *(round_args(ctx) + ["--yes"]))
+    rc, out = hz(ctx, "up", *(round_args(ctx, step) + ["--yes"]))
     run = run_name(ctx)
     ctx.st["job"]["run"] = run
     keep(ctx, run)
     ctx.push("round %s up" % run)
     if not checked(ctx, "up", rc, out):
         return abort(ctx, "hz.py up failed: " + tail(out))
-    if ctx.st["best"].get("path") and not dry(ctx):
+    if ctx.st["best"].get("path") and not dry(ctx) and step != "teacher":
         ctx.store.copy_out(ctx.st["best"]["path"], os.path.join(REPO, START_W))
     rc, out = hz(ctx, "deploy", "--for-job", p["job"])
     keep(ctx, run)
@@ -326,6 +346,8 @@ def finish(ctx, why, lines):
     ctx.event("round %s ended: %s, %.2f EUR, boxes gone" % (run, why, cost))
     if dry(ctx):
         return gates.result(True, "", dry=True, improved=False)
+    if job["step"] == "teacher":
+        return finish_teacher(ctx, run, lines)
     if last_state(lines) in ("failed", "killed"):
         return gates.result(False, "round job %s" % last_state(lines))
     stake = ctx.st["stake"] if job["step"] == "ladder" else None
@@ -343,6 +365,31 @@ def finish(ctx, why, lines):
     elif improved:
         return gates.result(False, "best checkpoint gen %s not found in runs/%s" % (b["gen"], run))
     return gates.result(True, "", improved=improved, best=rec["best"])
+
+
+def finish_teacher(ctx, run, lines):
+    t, tp = ctx.st["teacher"], ctx.prof["teacher"]
+    sums = [m for m in lines if m.get("type") == "teacher"]
+    if not sums:
+        return gates.result(False, "teacher round %s wrote no summary (job %s)" % (run, last_state(lines)))
+    m = sums[-1]
+    t["leak_ok"] = bool(m.get("leak_ok"))
+    games, recs = int(m.get("games") or 0), int(m.get("records") or 0)
+    t["games"] += games
+    t["records"] += recs
+    if m.get("complete"):
+        t["next"] = int(m.get("start") or t.get("next", 1)) + int(m.get("seeds") or 0)
+    if recs and m.get("files"):
+        t.setdefault("artifacts", []).append({"hz_run": run, "games": games, "bytes": m.get("bytes")})
+    if not t["leak_ok"]:
+        return gates.result(False, "leak test failed on the teacher box")
+    if games == 0:
+        return gates.result(False, "teacher round returned no games")
+    if not m.get("complete"):
+        return gates.result(False, "teacher round %s ended early (%s), %d games kept" % (run, last_state(lines), games))
+    if t["games"] < tp["games"]:
+        return gates.result(True, "", more=True, games=t["games"], records=t["records"])
+    return gates.teacher(t["games"], t["records"], tp["games"], t["leak_ok"])
 
 
 def watchdog(ctx):

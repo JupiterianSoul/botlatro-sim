@@ -132,13 +132,16 @@ def open_store(local=None):
 
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
-    if len(argv) != 3 or argv[0] != "fetch":
-        raise SystemExit("usage: store.py fetch REL_PATH DEST")
+    if len(argv) != 3 or argv[0] not in ("fetch", "fetchdir"):
+        raise SystemExit("usage: store.py fetch|fetchdir REL_PATH DEST")
     s = Git(os.environ.get("BOTSIM_AP_CLONE") or os.path.join(os.getcwd(), ".results-repo"))
     s.sync()
     if not s.exists(argv[1]):
         raise SystemExit("not in the results repo: %s" % argv[1])
-    s.copy_out(argv[1], argv[2])
+    if argv[0] == "fetchdir":
+        shutil.copytree(s.path(argv[1]), argv[2], dirs_exist_ok=True)
+    else:
+        s.copy_out(argv[1], argv[2])
     say("fetched %s" % argv[1])
 
 

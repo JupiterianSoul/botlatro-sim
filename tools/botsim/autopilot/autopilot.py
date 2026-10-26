@@ -266,6 +266,8 @@ def start(ctx):
     flag = steps.FLAG_OF.get(step)
     if flag and not st["flags"].get(flag):
         return ctx.wait("flag %s is off (autopilot.py flag %s on)" % (flag, flag))
+    if steps.on_hetzner(ctx.prof, step):
+        return start_round(ctx, step)
     if step in steps.CI_STEPS:
         return dispatch(ctx, step, "main")
     if st.get("candidate"):
@@ -279,7 +281,7 @@ def start(ctx):
 
 def start_round(ctx, step):
     if ctx.dry and not ctx.prof.get("dry_paid"):
-        say("dry run: would start a %s round: %s" % (step, " ".join(paid.round_args(ctx))))
+        say("dry run: would start a %s round: %s" % (step, " ".join(paid.round_args(ctx, step))))
         return
     what, why = paid.start(ctx, step)
     if what == "waiting":
@@ -290,7 +292,7 @@ def start_round(ctx, step):
         return
     ctx.st["status"] = "running"
     ctx.st["reason"] = ""
-    wait_min = float(ctx.prof["paid"].get("wait_minutes") or 0)
+    wait_min = float(paid.pconf(ctx, step).get("wait_minutes") or 0)
     end = ctx.now() + wait_min * 60
     while True:
         res = paid.poll(ctx)

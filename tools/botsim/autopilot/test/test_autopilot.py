@@ -57,6 +57,7 @@ class World:
         self.eval_wins = 7
         self.auto_complete = True
         self.run_n = 0
+        self.teacher = None
 
     def __call__(self, argv, env=None, timeout=None):
         self.calls.append(list(argv))
@@ -151,6 +152,8 @@ class World:
         lines = [{"type": "state", "state": "running"},
                  {"type": "eval", "who": "gen", "gen": 1, "deck": "b_red", "stake": 1, "n": 10, "wins": self.eval_wins, "ante": 6.0, "promoted": True},
                  {"type": "state", "state": self.job_state}]
+        if self.teacher is not None:
+            lines = [{"type": "state", "state": "running"}, dict(type="teacher", **self.teacher), {"type": "state", "state": self.job_state}]
         with open(os.path.join(d, "metrics.jsonl"), "w") as f:
             for m in lines:
                 f.write(json.dumps(m) + "\n")
@@ -176,6 +179,8 @@ class Base(unittest.TestCase):
         for p in self.profiles.values():
             if "paid" in p:
                 p["paid"]["wait_minutes"] = 0
+            if "paid" in p.get("teacher", {}):
+                p["teacher"]["paid"]["wait_minutes"] = 0
 
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
@@ -351,6 +356,47 @@ class TestPaid(Base):
         self.ap("stop", "test")
         self.assertEqual(self.state()["status"], "stopped")
         self.assertEqual(self.world.boxes, [])
+
+
+class TestTeacherPaid(Base):
+    def setUp(self):
+        super().setUp()
+        self.ap("init", "--profile", "tiny-teach")
+        self.world.teacher = {"games": 2, "records": 40, "bytes": 1000, "files": 1, "leak_ok": True, "start": 1, "seeds": 2, "complete": True}
+
+    def test_needs_approval(self):
+        st = self.ticks(4)
+        self.assertEqual(st["status"], "waiting")
+        self.assertFalse([c for c in self.world.hz_calls("up") if "--dry-run" not in c])
+
+    def test_round_counts_games(self):
+        self.ap("approve", "--eur", "5", "--round-cap", "1")
+        st = self.ticks(10)
+        self.assertEqual(st["status"], "done", st.get("reason"))
+        self.assertEqual(st["teacher"]["games"], 2)
+        self.assertEqual(st["teacher"]["next"], 3)
+        self.assertEqual(st["teacher"]["artifacts"][0]["hz_run"], "r1")
+        run = self.world.hz_calls("run")[0]
+        self.assertIn("teacher", run)
+        self.assertIn("TEACH_SEEDS=2", run)
+        self.assertEqual(self.world.boxes, [])
+        self.assertFalse(self.world.dispatches())
+
+    def test_leak_fail_retries_then_stops(self):
+        self.world.teacher["leak_ok"] = False
+        self.ap("approve", "--eur", "5", "--round-cap", "1")
+        st = self.ticks(10)
+        self.assertEqual(st["status"], "stopped")
+        self.assertEqual(self.world.boxes, [])
+
+    def test_imitation_fetches_hetzner_records(self):
+        import steps
+        ctx = type("C", (), {})()
+        ctx.prof = self.profiles["full"]
+        ctx.st = {"teacher": {"artifacts": [{"hz_run": "r9"}]}}
+        cmd = steps.imitation_jobs(ctx)[0]["cmd"]
+        self.assertIn("fetchdir runs/r9/teacher data/r9", cmd)
+        self.assertIn('${f%.gz.000}', cmd)
 
 
 class TestPieces(unittest.TestCase):

@@ -11,6 +11,10 @@ PAID_STEPS = ("expert", "ladder")
 FLAG_OF = {"fair_speed": "fair_speed_ok", "expert": "expert_ok", "ladder": "expert_ok"}
 
 
+def on_hetzner(prof, step):
+    return step == "teacher" and bool((prof.get("teacher") or {}).get("paid"))
+
+
 def job(label, cmd, timeout, torch=False):
     return {"label": label, "cmd": cmd, "torch": torch, "timeout": int(timeout)}
 
@@ -111,7 +115,10 @@ def imitation_jobs(ctx):
     ip, b = ctx.prof["imitation"], ctx.prof["bench"]
     dl = []
     for a in ctx.st["teacher"].get("artifacts", []):
-        dl.append("gh run download %s -p '%s-t*' -D data/%s || true" % (a["run"], a["tag"], a["run"]))
+        if a.get("hz_run"):
+            dl.append("python3 tools/botsim/autopilot/store.py fetchdir runs/%s/teacher data/%s && for f in data/%s/w*.bspr.gz.000; do cat \"${f%%.000}\".* | gunzip > \"${f%%.gz.000}\"; done || true" % (a["hz_run"], a["hz_run"], a["hz_run"]))
+        else:
+            dl.append("gh run download %s -p '%s-t*' -D data/%s || true" % (a["run"], a["tag"], a["run"]))
     w = "$OUT/imitation.bnnw"
     train = quiet("python3 tools/botsim/train/train.py --data $(find data -name '*.bspr' -size +0c) --out %s --steps %d" % (w, ip["steps"]), "train.txt")
     ev = quiet("luajit tools/botsim/train/eval.lua who=net weights=%s prefix=%s first=1 seeds=%d decks=%s stakes=%s jsonl=$OUT/games.jsonl"

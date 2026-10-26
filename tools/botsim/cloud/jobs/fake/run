@@ -2,6 +2,7 @@
 import json
 import math
 import os
+import shutil
 import random
 import re
 import subprocess
@@ -370,6 +371,13 @@ class Job:
         path = os.path.join(CKPT, "gen_%04d.json" % self.gen)
         with open(path, "w") as f:
             json.dump({"fake": True, "gen": self.gen, "games": self.games, "final": final}, f)
+        net = os.path.join(CKPT, "gen_%04d.bnnw" % self.gen)
+        src = os.path.join(os.environ.get("BOTSIM_REPO") or os.getcwd(), "tools", "botsim", "train", "start", "r2_gen_0001.bnnw")
+        if os.path.exists(src):
+            shutil.copyfile(src, net)
+        else:
+            with open(net, "wb") as f:
+                f.write(b"BNNW-FAKE")
         emit(type="checkpoint", t=t, gen=self.gen, path=os.path.relpath(path, RUN_DIR))
 
     def progress(self, t, done, target, load):
