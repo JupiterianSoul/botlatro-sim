@@ -20,6 +20,11 @@ sys.path.insert(0, CLOUD)
 from common import load_json, box_cost, ledger_spent, CAP_EUR, CREDIT_EUR
 import alerts
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "autopilot"))
+import panel as ap_panel
+
+AP_FETCH = ap_panel.Fetcher()
+
 ETC = os.environ.get("BOTSIM_ETC", "/etc/botsim")
 HOME = os.environ.get("BOTSIM_HOME", "/opt/botsim")
 RUN_DIR = os.path.join(HOME, "run")
@@ -1012,6 +1017,8 @@ def make_handler(src, secret):
                     self.end_headers()
                     return
                 return self.send(200, open(PAGE, "rb").read(), "text/html; charset=utf-8")
+            if path == "/autopilot.json":
+                return self.send(200, AP_FETCH.get())
             if path == "/api/state":
                 return self.send(200, build_state(src))
             if path == "/api/view":
