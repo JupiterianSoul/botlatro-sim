@@ -241,6 +241,23 @@ input[type=range] { width: 100%; height: 44px; margin: 0; accent-color: var(--ac
 .cand td.vis span, .cand td.pr { text-align: right; color: var(--text-2); }
 .cand td.pr { width: 52px; }
 .cand col.c1 { width: auto; } .cand col.c2 { width: 44%; } .cand col.c3 { width: 52px; }
+.ap-top { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: baseline; font-size: 13px; line-height: 18px; color: var(--text-2); }
+.ap-top b { color: var(--text); font-size: 15px; }
+.ap-st { padding: 1px 8px; border-radius: 10px; background: var(--surface-3); font-size: 12px; font-weight: 600; }
+.ap-st.running { color: var(--good); } .ap-st.waiting { color: var(--warn); } .ap-st.stopped { color: var(--bad); }
+.ap-live { display: inline-block; margin-top: 8px; font-size: 13px; color: var(--accent); }
+.ap-cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; margin-top: 10px; }
+@media (min-width: 1000px) { .ap-cols { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.ap-gates { display: grid; gap: 4px; font-size: 12px; line-height: 17px; margin-top: 6px; }
+.ap-gates div { display: flex; justify-content: space-between; gap: 10px; color: var(--text-2); }
+.ap-gates .f1 { color: var(--warn); } .ap-gates .f2 { color: var(--bad); }
+.ap-board { overflow-x: auto; margin-top: 6px; }
+.ap-board table { border-collapse: collapse; font-size: 12px; line-height: 16px; }
+.ap-board th, .ap-board td { padding: 3px 8px; text-align: right; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+.ap-board th:first-child, .ap-board td:first-child { text-align: left; color: var(--text-2); }
+.ap-board td.na { color: var(--muted); }
+.ap-log { list-style: none; margin: 6px 0 0; padding: 0; max-height: 200px; overflow-y: auto; font-size: 12px; line-height: 17px; color: var(--text-2); }
+.ap-log li { padding: 3px 0; border-bottom: 1px solid var(--grid); }
 </style>
 </head>
 <body>
@@ -281,6 +298,17 @@ input[type=range] { width: 100%; height: 44px; margin: 0; accent-color: var(--ac
     <div class="tile"><div class="k">Recorded games</div><div class="v" id="t-rec">0</div><div class="s" id="t-rec-s"></div></div>
   </section>
   <div class="grid">
+    <section class="card wide" id="ap" hidden>
+      <div class="card-h"><h2>Autopilot<span class="hn" id="ap-note"></span></h2></div>
+      <div class="ap-top"><b id="ap-step">none</b><span class="ap-st" id="ap-status"></span><span id="ap-reason"></span><span id="ap-flags"></span></div>
+      <a class="ap-live" id="ap-live" target="_blank" rel="noopener" hidden></a>
+      <div class="ap-cols">
+        <div><div class="k" style="color:var(--muted);font-size:12px">Paid spend</div><div id="ap-spend-v" style="font-weight:600"></div><div class="bar" id="ap-spend-bar"><i></i></div><div class="s" id="ap-spend-s" style="color:var(--muted);font-size:12px;margin-top:4px"></div>
+          <div class="ap-gates" id="ap-gates"></div></div>
+        <div><div class="k" style="color:var(--muted);font-size:12px" id="ap-board-t">Decks by stake</div><div class="ap-board" id="ap-board"></div></div>
+      </div>
+      <ul class="ap-log" id="ap-log"></ul>
+    </section>
     <section class="card wide">
       <div class="card-h"><h2>Strength vs references<span class="hn" id="ev-note">fixed seed set, 95% intervals</span></h2>
         <div class="ctl"><div class="seg" id="ev-y"></div></div></div>
@@ -1201,6 +1229,61 @@ seg($("win-x"), [["gen", "By gen"], ["time", "By time"]], UI.x, setX);
 $("win-split").value = UI.sp;
 renderChips();
 setTab(UI.tab);
+function apOpenOnce(live) {
+  if (!live || !live.url) return;
+  const key = "ap-opened-" + live.run;
+  try { if (localStorage.getItem(key)) return; } catch (e) { if (window.__apOpened === live.run) return; }
+  window.__apOpened = live.run;
+  try { localStorage.setItem(key, "1"); } catch (e) {}
+  try { window.open(live.url, "_blank", "noopener"); } catch (e) {}
+}
+function apRender(d) {
+  const card = $("ap");
+  if (!d || !d.ok) {
+    card.hidden = false;
+    $("ap-step").textContent = "no autopilot state";
+    $("ap-status").textContent = "";
+    $("ap-note").textContent = d && d.error ? "results repo: " + d.error : "";
+    return;
+  }
+  card.hidden = false;
+  $("ap-note").textContent = (d.error ? "stale, " + d.error : "") || (d.headline || "");
+  $("ap-step").textContent = "Step " + (d.step || "none") + (d.attempt > 1 ? " (attempt " + d.attempt + ")" : "");
+  const st = $("ap-status"); st.textContent = d.status || ""; st.className = "ap-st " + (d.status || "");
+  $("ap-reason").textContent = d.reason || "";
+  $("ap-flags").textContent = Object.keys(d.flags || {}).map(k => k + " " + (d.flags[k] ? "on" : "off")).join(", ");
+  const live = $("ap-live");
+  if (d.live && d.live.url) { live.href = d.live.url; live.textContent = "Live Hetzner round " + d.live.run; live.hidden = false; apOpenOnce(d.live); } else live.hidden = true;
+  const sp = d.spend;
+  $("ap-spend-v").textContent = sp.spent_eur.toFixed(2) + " of " + sp.approved_eur.toFixed(2) + " EUR approved";
+  const bar = $("ap-spend-bar"); bar.className = "bar" + (sp.over ? " over" : sp.fraction > 0.8 ? " hot" : "");
+  bar.firstElementChild.style.width = Math.round(sp.fraction * 100) + "%";
+  $("ap-spend-s").textContent = "round cap " + sp.round_cap_eur.toFixed(2) + " EUR" + (d.job ? ", job " + d.job.kind + " " + (d.job.run || d.job.tag || "") : ", no job running");
+  $("ap-gates").replaceChildren(...d.gates.map(g => {
+    const l = g.last || {};
+    const res = l.ok === true ? "pass" : l.ok === false ? "fail" + (l.why ? ": " + l.why : "") : "not run";
+    return h("div", { class: g.fails >= 2 ? "f2" : g.fails === 1 ? "f1" : "" }, h("span", {}, g.step + " (" + g.fails + " fails)"), h("span", {}, res));
+  }));
+  const b = d.board;
+  $("ap-board-t").textContent = b.checkpoint ? "Decks by stake, " + b.checkpoint + " (" + b.who + ", " + b.set + ")" : "Decks by stake";
+  if (!b.decks.length) empty($("ap-board"), "No fair checkpoint measured yet.");
+  else {
+    const rows = b.decks.map(dk => h("tr", {}, h("td", {}, dk), b.stakes.map(sk => {
+      const c = b.cells[dk + "|" + sk];
+      return c ? h("td", { title: c.n + " games" }, c.pct.toFixed(0) + "% (" + c.n + ")") : h("td", { class: "na" }, "-");
+    })));
+    $("ap-board").replaceChildren(h("table", {}, h("thead", {}, h("tr", {}, h("th", {}, "deck"), b.stakes.map(sk => h("th", {}, "stake " + sk)))), h("tbody", {}, rows)));
+  }
+  $("ap-log").replaceChildren(...d.log.slice().reverse().map(l => h("li", {}, l.replace(/^- /, ""))));
+}
+async function apPoll() {
+  try {
+    const r = await fetch("autopilot.json", { cache: "no-store" });
+    if (r.ok) apRender(await r.json());
+  } catch (e) {}
+  setTimeout(apPoll, 30000);
+}
+apPoll();
 poll();
 </script>
 </body>
