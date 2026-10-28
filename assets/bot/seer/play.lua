@@ -102,7 +102,7 @@ function PL.scan(s, out_v, out_c, fast)
         for i = 1, top do out_c[i] = nom_c[nom_i[i]] end
         n = top
     end
-    for i = 1, n do out_v[i] = E.preview_into(scratch, s, out_c[i]) end
+    for i = 1, n do out_v[i] = E.preview_into(scratch, s, out_c[i], i > 1) end
     for i = n + 1, #out_v do out_v[i], out_c[i] = nil, nil end
     return n
 end

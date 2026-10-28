@@ -2347,9 +2347,15 @@ function E.step(s, a)
     return ok
 end
 
-function E.preview_into(scratch, s, pos)
-    ST.copy_preview(scratch, s)
-    for c = 1, scratch.n_cards do scratch.c_forced[c] = 0 end
+function E.preview_into(scratch, s, pos, again)
+    if again and ST.PREVIEW_PROXY and ST.PREVIEW_AGAIN then
+        ST.copy_preview_again(scratch, s)
+        local hand, forced = scratch.hand, scratch.c_forced
+        for i = 1, scratch.n_hand do forced[hand[i]] = 0 end
+    else
+        ST.copy_preview(scratch, s)
+        for c = 1, scratch.n_cards do scratch.c_forced[c] = 0 end
+    end
     local n = sorted_selection(scratch, pos, play_buf)
     for i = 1, n do remove_from_hand(scratch, play_buf[i]) end
     scratch.hands_left = scratch.hands_left - 1

@@ -88,7 +88,7 @@ function M.new(seed)
     return s
 end
 
-local function build_copier(proxy_rng)
+local function build_copier(proxy_rng, hand_cards)
     local src = {"return function(d, s)",
         "    local od, oh, odi, ork = d.n_deck or 0, d.n_hand or 0, d.n_disc or 0, d.n_rk or 0"}
     for i = 1, #SCALARS do
@@ -111,7 +111,23 @@ local function build_copier(proxy_rng)
         if guard then src[#src + 1] = "        end" end
         src[#src + 1] = "    end"
     end
-    group("s.n_cards", CARD_ARRAYS, false)
+    if hand_cards then
+        src[#src + 1] = "    do"
+        src[#src + 1] = "        local hand, nh = s.hand, s.n_hand"
+        for c = 1, #CARD_ARRAYS, 4 do
+            local loads, body = {}, {}
+            for i = c, math.min(c + 3, #CARD_ARRAYS) do
+                local f = CARD_ARRAYS[i]
+                loads[#loads + 1] = string.format("local d%d, s%d = d.%s, s.%s", i, i, f, f)
+                body[#body + 1] = string.format("d%d[i] = s%d[i]", i, i)
+            end
+            src[#src + 1] = "        do " .. table.concat(loads, " ")
+            src[#src + 1] = "        for j = 1, nh do local i = hand[j] " .. table.concat(body, " ") .. " end end"
+        end
+        src[#src + 1] = "    end"
+    else
+        group("s.n_cards", CARD_ARRAYS, false)
+    end
     group("s.n_jok", JOKER_ARRAYS, true)
     for i = 1, #FIXED_ARRAYS do
         local f = FIXED_ARRAYS[i]
@@ -177,6 +193,7 @@ function M.clone(s)
 end
 
 local copy_preview = build_copier(true)
+local copy_preview_hand = build_copier(true, true)
 
 function M.scratch()
     local d = tnew(0, 160)
@@ -188,6 +205,7 @@ function M.scratch()
 end
 
 M.PREVIEW_PROXY = true
+M.PREVIEW_AGAIN = true
 
 function M.copy_preview(d, s)
     if M.PREVIEW_PROXY then return copy_preview(d, s) end
@@ -195,6 +213,11 @@ function M.copy_preview(d, s)
         d.rng, d.rng_ids, d.n_rk = {}, {}, 0
     end
     return M.copy_into(d, s)
+end
+
+function M.copy_preview_again(d, s)
+    if M.PREVIEW_PROXY and M.PREVIEW_AGAIN then return copy_preview_hand(d, s) end
+    return M.copy_preview(d, s)
 end
 
 return M
