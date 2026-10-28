@@ -13,7 +13,7 @@ local pseudohash = rng.pseudohash
 local JOKER_ARRAYS = ST.JOKER_ARRAYS
 
 F.BUDGETS = {
-    lite = {worlds = 4, eval_h = 1, max_cands = 3,
+    lite = {worlds = 4, eval_h = 1, max_cands = 3, fast_top = 8,
         seer = {horizon = 1, tight_horizon = 2, beam = 2, tight_beam = 3, depth = 2},
         solve = {beam = 3, plays = 2, discards = 3}},
     std = {worlds = 8, eval_h = 2, max_cands = 4,
@@ -21,7 +21,7 @@ F.BUDGETS = {
         solve = {beam = 4, plays = 2, discards = 4}},
 }
 
-F.DEFAULTS = {worlds = 4, eval_h = 1, max_cands = 3, sampler_seed = "FAIR", run_cap = 0, quick_clear = false}
+F.DEFAULTS = {worlds = 4, eval_h = 1, max_cands = 3, sampler_seed = "FAIR", run_cap = 0, quick_clear = false, fast_top = 0}
 
 F.REVEAL = {reroll = true, open = true, use = true, buy_and_use = true, pick = true, reroll_boss = true, skip = true,
     select = true, play = true, discard = true, cash_out = true, leave = true}
@@ -346,7 +346,11 @@ end
 function F:decide(real, n)
     self.decisions = self.decisions + 1
     local base = F.sanitize(real)
-    return self:decide_base(base, n or self.o.worlds)
+    local top = PL.FAST_TOP
+    PL.FAST_TOP = self.o.fast_top or 0
+    local acts, best = self:decide_base(base, n or self.o.worlds)
+    PL.FAST_TOP = top
+    return acts, best
 end
 
 function F:play(setup, on_action, stop_ante)
