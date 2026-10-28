@@ -71,6 +71,30 @@ wrap(S, "shop_search", "seer.shop_search", true)
 wrap(S, "decide_blind", "seer.decide_blind", true)
 wrap(S, "decide_pack", "seer.decide_pack", true)
 wrap(S, "play_cons", "seer.play_cons", true)
+local E = require("bot.sim.engine")
+local pv_n = 0
+local base_pv = E.preview_into
+E.preview_into = function(...)
+    pv_n = pv_n + 1
+    return base_pv(...)
+end
+local base_scan = PL.scan
+PL.scan = function(s, ov, oc, fast, top)
+    local tag = ((depth["play.solve"] or 0) > 0 and "solve" or "other") .. (fast and ".fast" or ".full")
+    local p0, t0 = pv_n, clock()
+    local n = base_scan(s, ov, oc, fast, top)
+    add("scan." .. tag, clock() - t0)
+    N["pv." .. tag] = (N["pv." .. tag] or 0) + (pv_n - p0)
+    return n
+end
+local base_step = E.step
+E.step = function(...)
+    if (depth["play.solve"] or 0) == 0 then return base_step(...) end
+    local t0 = clock()
+    local r = base_step(...)
+    add("solve.step", clock() - t0)
+    return r
+end
 wrap(PL, "solve", "play.solve", true)
 wrap(PL, "fast_action", "play.fast_action", true)
 wrap(PL, "scan", "play.scan", true)
@@ -98,6 +122,7 @@ for k in pairs(T) do names[#names + 1] = k end
 table.sort(names, function(a, b) return T[a] > T[b] end)
 print(string.format("\n%d games, %.1f s total, %.1f s per game", games, total, total / math.max(1, games)))
 print(string.format("%-24s %9s %6s %9s %10s", "part", "s", "share", "calls", "ms/call"))
+for k, v in pairs(N) do if k:sub(1, 3) == "pv." then print(string.format("previews %-14s %10d", k:sub(4), v)) end end
 for _, k in ipairs(names) do
     print(string.format("%-24s %9.1f %5.1f%% %9d %10.2f", k, T[k], 100 * T[k] / total, N[k], 1000 * T[k] / N[k]))
 end
