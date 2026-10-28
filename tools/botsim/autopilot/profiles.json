@@ -47,7 +47,7 @@
                       {"name": "red", "decks": "b_red", "stakes": "2", "seeds": 150},
                       {"name": "gold", "decks": "b_red", "stakes": "8", "seeds": 30}]},
   "shuffle": {"seeds": 4, "max_steps": 400, "decks": "b_red", "stakes": "1,2"},
-  "fair_speed": {"max_s": 60, "args": "", "cells": ["white"]},
+  "fair_speed": {"max_ratio": 1.5, "args": "", "cells": ["white"]},
   "teacher": {"games": 20000, "per_job": 60, "max_jobs": 40, "stop_ante": 0, "decks": "all", "stakes": "1,2", "prefix": "TEACH", "budget": "lite", "timeout": 330,
               "paid": {"job": "teacher", "types": "cpx62", "hours": 5, "spend_cap": 1.5, "env": {}, "seeds_per_round": 120, "wait_minutes": 0}},
   "imitation": {"steps": 20000, "eval_seeds": 150, "min_ante": 5.5, "decks": "b_red", "stakes": "1", "timeout": 330},

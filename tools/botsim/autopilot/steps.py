@@ -197,8 +197,18 @@ def finish_speed(ctx, root, run_id):
     w, n, _ = white(games)
     t = [float(x.get("time") or 0) for x in games if int(x.get("stake") or 0) == 1]
     mean = sum(t) / len(t) if t else 0.0
-    bw, bn = (ctx.st.get("baseline") or {}).get("white") or [0, 0]
-    return gates.fair_speed(lk, sh, mean, ctx.prof["fair_speed"]["max_s"], w, n, bw, bn)
+    base = ctx.st.get("baseline") or {}
+    bw, bn = base.get("white") or [0, 0]
+    return gates.fair_speed(lk, sh, mean, speed_limit(ctx.prof["fair_speed"], base), w, n, bw, bn)
+
+
+def speed_limit(fs, base):
+    if fs.get("max_ratio"):
+        bn = (base.get("white") or [0, 0])[1]
+        if not bn:
+            return 0.0
+        return fs["max_ratio"] * float(base.get("time_sum") or 0) / bn
+    return fs["max_s"]
 
 
 def finish_teacher(ctx, root, run_id):

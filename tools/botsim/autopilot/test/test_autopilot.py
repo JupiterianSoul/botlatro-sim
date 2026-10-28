@@ -11,6 +11,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(HERE, "..")))
 import autopilot
 import ci
 import gates
+import steps
 import store as storemod
 
 
@@ -420,6 +421,10 @@ class TestPieces(unittest.TestCase):
         self.assertTrue(gates.shuffle({"games": 3, "identical": 3})["ok"])
         self.assertFalse(gates.shuffle({"games": 3, "identical": 2})["ok"])
         self.assertTrue(gates.worse(10, 100, 30, 100))
+        base = {"white": [39, 150], "time_sum": 12240.0}
+        self.assertAlmostEqual(steps.speed_limit({"max_ratio": 1.5}, base), 122.4)
+        self.assertEqual(steps.speed_limit({"max_ratio": 1.5}, {}), 0.0)
+        self.assertEqual(steps.speed_limit({"max_s": 60}, base), 60)
         self.assertFalse(gates.worse(29, 100, 30, 100))
         self.assertTrue(gates.improves({"ante": 6, "rate": 0.1}, {"ante": 5, "rate": 0.5}))
         self.assertFalse(gates.improves({"ante": 5, "rate": 0.1}, {"ante": 5, "rate": 0.5}))
