@@ -4,7 +4,7 @@ local E = require("bot.sim.engine")
 local D = require("bot.sim.data")
 local rng = require("bot.sim.rng")
 
-local opt = {n = 1000, seed = 1, every = 0}
+local opt = {n = 1000, seed = 1, every = 0, dna = 0}
 for _, a in ipairs(arg or {}) do
     local k, v = a:match("^%-*([%w_]+)=(.*)$")
     if k then opt[k] = tonumber(v) or v end
@@ -52,6 +52,9 @@ local function make_state(i)
     for _ = 1, rnd(9) - 1 do
         local id = chance(4) and rnd(D.NUM_JOKERS) or pick(HOT)
         E.add_joker(s, id, chance(5) and D.ED_KEYS[rnd(4)] or nil)
+    end
+    if opt.dna > 0 then
+        for _ = 1, rnd(3) do E.add_joker(s, pick({J.dna, J.dna, J.blueprint, J.erosion, J.hologram, J.raised_fist})) end
     end
     for k = 1, s.n_jok do
         if chance(3) then s.j_x[k] = pick({1, 1.25, 1.5, 2, 3.75, 0.5}) end
@@ -117,6 +120,7 @@ local function make_state(i)
     s.discards_left = rnd(5) - 1
     s.hands_played = rnd(20) - 1
     s.round_hands_played = chance(2) and 0 or rnd(3)
+    if opt.dna > 0 then s.round_hands_played = 0 end
     s.prob = pick({1, 1, 2, 4})
     s.consumable_buffer = chance(4) and 1 or 0
     s.cons_limit = rnd(3)

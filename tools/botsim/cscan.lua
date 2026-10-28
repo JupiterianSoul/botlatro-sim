@@ -22,6 +22,7 @@ const char *bs_blind_names(void);
 const char *bs_key_names(void);
 int bs_version(void);
 int bs_max_hand(void);
+int bs_max_cards(void);
 int bs_max_jokers(void);
 int bs_max_cons(void);
 int bs_max_id(void);
@@ -30,13 +31,14 @@ int bs_combo_count(int n);
 local okl, L = pcall(ffi.load, path)
 if not okl then return M end
 
-local MAXH, MAXJ, MAXC, MAXID, NK = L.bs_max_hand(), L.bs_max_jokers(), L.bs_max_cons(), L.bs_max_id(), 8
+local MAXH, MAXCARD, MAXJ, MAXC, MAXID, NK = L.bs_max_hand(), L.bs_max_cards(), L.bs_max_jokers(), L.bs_max_cons(), L.bs_max_id(), 8
 local cdef = ([[
 typedef struct {
     double c_enh[H2], c_bonus[H2], c_debuff[H2], c_pta[H2], c_pdebuff[H2];
     double j_mult[J1], j_x[J1], j_ex[J1], j_n[J1];
     double h_level[13], h_chips[13], h_mult[13], h_played[13], h_pround[13], h_vis[13];
     double rng_v[NK];
+    double n_playing;
     double money, dollar_buffer, consumable_buffer, blind_triggered, blind_eye, blind_mouth;
     int n_hand;
 } bs_mut;
@@ -49,7 +51,7 @@ typedef struct {
     double rng_hc[NK];
     double hashed_seed, hands_left, discards_left, hands_played, round_hands_played;
     double blind, blind_disabled, blind_suit, blind_face, most_played, prob;
-    double n_cons, cons_limit, joker_limit, n_deck, starting_deck_size, n_playing, tarot_used;
+    double n_cons, cons_limit, joker_limit, n_deck, starting_deck_size, tarot_used;
     double chips_cap, plasma, observatory, idol_rank, idol_suit, ancient_suit, next_uid;
     int nh0, n_jok;
 } bs_state;
@@ -70,10 +72,10 @@ local function names(p)
     return t
 end
 local jnames, bnames, knames = names(L.bs_joker_names()), names(L.bs_blind_names()), names(L.bs_key_names())
-cdef = cdef:gsub("H2", MAXH + 2):gsub("J1", MAXJ + 1):gsub("C1", MAXC + 1):gsub("NK", NK)
+cdef = cdef:gsub("H2", MAXCARD):gsub("J1", MAXJ + 1):gsub("C1", MAXC + 1):gsub("NK", NK)
     :gsub("NJN", #jnames):gsub("NBN", #bnames):gsub("MID", MAXID)
 ffi.cdef(cdef)
-if L.bs_version() ~= 100000 + ffi.sizeof("bs_state") or #knames ~= NK then return M end
+if L.bs_version() ~= 200000 + ffi.sizeof("bs_state") or #knames ~= NK then return M end
 
 local E = require("bot.sim.engine")
 local D = require("bot.sim.data")
@@ -201,7 +203,7 @@ local function marshal(s)
     P.blind, P.blind_disabled, P.blind_suit, P.most_played, P.prob = b, s.blind_disabled, s.blind_suit, s.most_played, s.prob
     P.blind_face = (b > 0 and BLINDS[b] and BLINDS[b].face) and 1 or 0
     P.n_cons, P.cons_limit, P.joker_limit, P.n_deck, P.starting_deck_size = nc, s.cons_limit, s.joker_limit, s.n_deck, s.starting_deck_size
-    P.n_playing, P.tarot_used, P.chips_cap, P.plasma = n_playing, s.tarot_used, s.chips_cap, s.plasma
+    m.n_playing, P.tarot_used, P.chips_cap, P.plasma = n_playing, s.tarot_used, s.chips_cap, s.plasma
     P.observatory = s.used_v[V_OBS] == 1 and 1 or 0
     P.idol_rank, P.idol_suit, P.ancient_suit, P.next_uid = s.idol_rank, s.idol_suit, s.ancient_suit, s.next_uid
     P.nh0, P.n_jok = nh, nj
