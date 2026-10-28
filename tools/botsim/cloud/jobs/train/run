@@ -91,6 +91,12 @@ START_WHO = os.environ.get("TRAIN_START_WHO", "greedy")
 SEARCH_ARGS = ["mix=%s" % VALUE_MIX, "score_prior=%s" % SCORE_PRIOR, "score_top=%d" % SCORE_TOP,
                "skip_pen=%s" % SKIP_PEN, "skip_ante=%d" % SKIP_ANTE]
 CURRIC_ARGS = ["start_ante=" + START_ANTE, "start_frac=%s" % START_FRAC, "start_who=" + START_WHO] if START_ANTE else []
+PLAYER = os.environ.get("TRAIN_PLAYER", "selfplay")
+FAIR_BUDGET = os.environ.get("TRAIN_FAIR_BUDGET", "lite")
+FAIR_NET_SIMS = envn("FAIR_NET_SIMS", 16, int)
+FAIR_ARGS = os.environ.get("TRAIN_FAIR_ARGS", "").split()
+FAIR_DECKS = (os.environ.get("TRAIN_FAIR_DECKS") or "b_red,b_blue,b_yellow,b_green,b_black,b_magic,b_nebula,b_ghost,b_abandoned,"
+              "b_checkered,b_zodiac,b_painted,b_anaglyph,b_plasma,b_erratic").split(",")
 
 mlock = threading.Lock()
 stop_evt = threading.Event()
@@ -279,9 +285,16 @@ class Agent(threading.Thread):
         shutil.rmtree(rdir, ignore_errors=True)
         os.makedirs(rdir)
         t0 = time.time()
+        fair = PLAYER == "fair" and not teacher
         if teacher and SEER_TEACHER_CMD:
             env = dict(os.environ, OUT_DIR=rdir, GAMES=str(WORKERS * RPF), SEED=str(seed), WORKERS=str(WORKERS), STAKE=str(stake))
             rc = run_cmd(["sh", "-c", SEER_TEACHER_CMD], env)
+        elif fair:
+            argv = IDLE + ["luajit", "tools/botsim/seer/teacher.lua", "mode=fair", "budget=" + FAIR_BUDGET, "weights=" + wpath,
+                           "net_sims=%d" % FAIR_NET_SIMS, "prefix=X%d_" % (self.box_index + 1), "start=%d" % seq, "seeds=1",
+                           "decks=" + FAIR_DECKS[seq % len(FAIR_DECKS)], "stakes=%d" % stake,
+                           "out=" + os.path.join(rdir, "f.bspr"), "jsonl=" + os.path.join(rdir, "g_f.jsonl")] + FAIR_ARGS
+            rc = run_cmd(argv)
         else:
             argv = IDLE + ["bash", POOL, "-w", "1", "-o", rdir, "-r", str(RPF), "-n", "1", "-s", str(seed), "-c", "-1"]
             if teacher:
@@ -309,6 +322,10 @@ class Agent(threading.Thread):
                 except ValueError:
                     continue
                 g["gen"] = gen
+                if fair:
+                    g.setdefault("type", "game")
+                    g["dur"] = g.pop("time", 0)
+                    g["sims"] = FAIR_NET_SIMS
                 n_games += 1
                 n_dec += int(g.get("dec", 0))
                 with self.lock:
@@ -316,7 +333,7 @@ class Agent(threading.Thread):
                 emit(**g)
         if teacher:
             n_games = len(files) * RPF
-        else:
+        elif not fair:
             self.maybe_record(rdir, gen, seq)
         with self.lock:
             self.games += n_games
@@ -325,7 +342,7 @@ class Agent(threading.Thread):
                 self.t_play += dt
                 self.n_play_dec += n_dec
         tag = "t" if teacher else "g%d" % gen
-        self.sink(tag, files, len(files) * RPF, seq)
+        self.sink(tag, files, n_games if fair else len(files) * RPF, seq)
         shutil.rmtree(rdir, ignore_errors=True)
         return True
 

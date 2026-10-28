@@ -193,6 +193,22 @@ do
     print(string.format("note: fair teacher %d records, %d with world votes on several moves", #run.recs, soft))
 end
 
+current = "fair teacher with a net proposing moves"
+do
+    local opts = {mode = "fair", budget = "lite", stop_ante = 1, K = 24, n_sims = 800, weights = "tools/botsim/train/start/r2_gen_0001.bnnw", net_sims = 8}
+    local b1, i1 = TE.run({seed = "TEACHN01", deck = "b_blue", stake = 1}, opts, 1)
+    local b2, i2 = TE.run({seed = "TEACHN01", deck = "b_blue", stake = 1}, opts, 1)
+    ok(i1.records > 0 and #REC.decode(REC.file_header() .. b1).runs == 1, "records decode")
+    ok(b1 == b2 and line_str(i1.line) == line_str(i2.line), "same seed gives the same net-guided line")
+    local s = E.new_run({seed = "TEACHN01", deck = "b_blue", stake = 1})
+    local legal = true
+    for _, a in ipairs(i1.line) do
+        if not E.step(s, a) then legal = false break end
+    end
+    ok(legal, "net-guided line replays")
+    print(string.format("note: net-guided fair teacher %d decisions, %d searched, net move chosen %d times", i1.decisions, i1.searched, i1.net_picks))
+end
+
 current = "solve search is deterministic and replays"
 do
     local setup = {seed = "SEERSLV1", deck = "b_blue", stake = 2}

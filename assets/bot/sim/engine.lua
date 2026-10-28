@@ -1155,6 +1155,8 @@ local function card_chips(s, cid)
     return NOMINAL[s.c_rank[cid]] + ENH_BONUS[e] + s.c_bonus[cid]
 end
 
+E.card_chips = card_chips
+
 local function discard_cards(s, cards, n, hook)
     resolve_blueprints(s)
     local nj = s.n_jok

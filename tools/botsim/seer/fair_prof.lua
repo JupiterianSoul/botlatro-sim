@@ -1,6 +1,6 @@
 package.path = "assets/?.lua;tools/?.lua;" .. package.path
 
-local opt = {budget = "lite", decks = "b_red", stakes = "1", seeds = 4, first = 1, prefix = "BENCH", sampler = "FAIR", jitopt = 1}
+local opt = {budget = "lite", decks = "b_red", stakes = "1", seeds = 4, first = 1, prefix = "BENCH", sampler = "FAIR", jitopt = 1, quick = 0, fast_top = 0}
 for _, a in ipairs(arg or {}) do
     local k, v = a:match("^%-*([%w_]+)=(.*)$")
     if k then opt[k] = type(opt[k]) == "number" and (tonumber(v) or opt[k]) or v end
@@ -76,13 +76,14 @@ local total, games = 0, 0
 for deck in opt.decks:gmatch("[^,]+") do
     for stake in opt.stakes:gmatch("[^,]+") do
         for i = opt.first, opt.first + opt.seeds - 1 do
-            local fo = F.new({budget = opt.budget, sampler_seed = opt.sampler})
+            PL.FAST_TOP = opt.fast_top
+            local fo = F.new({budget = opt.budget, sampler_seed = opt.sampler, quick_clear = opt.quick == 1})
             local t0 = clock()
             local line, s = fo:play({seed = string.format("%s%04d", opt.prefix, i), deck = deck, stake = tonumber(stake)})
             local dt = clock() - t0
             total, games = total + dt, games + 1
-            print(string.format("%s s%s %s%04d won=%d ante=%d time=%.1f actions=%d decisions=%d searched=%d",
-                deck, stake, opt.prefix, i, s.won == 1 and 1 or 0, S.final_ante(s), dt, #line, fo.decisions, fo.searched))
+            print(string.format("%s s%s %s%04d won=%d ante=%d time=%.1f actions=%d decisions=%d searched=%d quick=%d",
+                deck, stake, opt.prefix, i, s.won == 1 and 1 or 0, S.final_ante(s), dt, #line, fo.decisions, fo.searched, fo.quick))
             io.stdout:flush()
         end
     end
