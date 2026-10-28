@@ -1,7 +1,9 @@
 local E = require("bot.sim.engine")
 local ST = require("bot.sim.state")
+local EV = require("bot.sim.eval")
 
 local PL = {}
+PL.FAST_TOP = 0
 
 local min, max, log = math.min, math.max, math.log
 
@@ -53,6 +55,26 @@ local function wants_small(s)
     return E.find_joker(s, E.J.half) or E.find_joker(s, E.J.square) or false
 end
 
+local cbuf, nom_v, nom_c, nom_i = {}, {}, {}, {}
+local J = E.J
+
+local function nominal(s, cs, four, shortcut, smeared, splash)
+    local n = #cs
+    for i = 1, n do cbuf[i] = s.hand[cs[i]] end
+    local text = EV.evaluate(s, cbuf, n, four, shortcut, smeared, splash)
+    local chips = s.h_chips[text]
+    local sc = EV.scoring
+    for i = 1, n do
+        if sc[i] then chips = chips + E.card_chips(s, cbuf[i]) end
+    end
+    return chips * s.h_mult[text]
+end
+
+local function nom_greater(a, b)
+    if nom_v[a] ~= nom_v[b] then return nom_v[a] > nom_v[b] end
+    return a < b
+end
+
 function PL.scan(s, out_v, out_c, fast)
     local list = combos(s.n_hand)
     local fp = forced_pos(s)
@@ -62,10 +84,25 @@ function PL.scan(s, out_v, out_c, fast)
         local cs = list[i]
         if (fp == 0 or has(cs, fp)) and (not five or #cs == 5) then
             n = n + 1
-            out_v[n] = E.preview_into(scratch, s, cs)
             out_c[n] = cs
         end
     end
+    local top = PL.FAST_TOP
+    if five and top > 0 and n > top then
+        local fj = E.find_joker
+        local four, shortcut = fj(s, J.four_fingers), fj(s, J.shortcut)
+        local smeared, splash = fj(s, J.smeared), fj(s, J.splash)
+        for i = 1, n do
+            nom_c[i] = out_c[i]
+            nom_v[i] = nominal(s, out_c[i], four, shortcut, smeared, splash)
+            nom_i[i] = i
+        end
+        for i = n + 1, #nom_i do nom_i[i] = nil end
+        table.sort(nom_i, nom_greater)
+        for i = 1, top do out_c[i] = nom_c[nom_i[i]] end
+        n = top
+    end
+    for i = 1, n do out_v[i] = E.preview_into(scratch, s, out_c[i]) end
     for i = n + 1, #out_v do out_v[i], out_c[i] = nil, nil end
     return n
 end

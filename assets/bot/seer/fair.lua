@@ -21,7 +21,7 @@ F.BUDGETS = {
         solve = {beam = 4, plays = 2, discards = 4}},
 }
 
-F.DEFAULTS = {worlds = 4, eval_h = 1, max_cands = 3, sampler_seed = "FAIR", run_cap = 0}
+F.DEFAULTS = {worlds = 4, eval_h = 1, max_cands = 3, sampler_seed = "FAIR", run_cap = 0, quick_clear = false}
 
 F.REVEAL = {reroll = true, open = true, use = true, buy_and_use = true, pick = true, reroll_boss = true, skip = true,
     select = true, play = true, discard = true, cash_out = true, leave = true}
@@ -34,7 +34,7 @@ function F.new(opts)
     for k, v in pairs(F.DEFAULTS) do self.o[k] = v end
     for k, v in pairs(b) do self.o[k] = v end
     for k, v in pairs(opts) do self.o[k] = v end
-    self.decisions, self.searched, self.world_plans = 0, 0, 0
+    self.decisions, self.searched, self.world_plans, self.net_picks, self.quick = 0, 0, 0, 0, 0
     return self
 end
 
@@ -248,6 +248,17 @@ function F:decide_base(base, n)
     local phase = base.phase
     if base.won == 1 or phase == "game_over" or phase == "win" then return nil end
     if phase == "round_eval" then return {{type = "cash_out"}} end
+    if phase == "play" and self.o.quick_clear then
+        local cs, v = PL.best_play(base)
+        if cs and v >= base.blind_chips - base.chips then
+            local cards = {}
+            for i = 1, #cs do cards[i] = cs[i] end
+            local c = {plan = {{type = "play", cards = cards}}, n = n, first = 1, visits = n}
+            self.last_cands = {c}
+            self.quick = self.quick + 1
+            return {c.plan[1]}, c
+        end
+    end
     local worlds = {}
     for k = 1, n do
         worlds[k] = F.world(base, string.format("W%s_%d_%d_%d", tostring(self.o.sampler_seed), base.step, base.ante, k))
@@ -272,6 +283,20 @@ function F:decide_base(base, n)
         return a.first < b.first
     end)
     for i = #cands, self.o.max_cands + 1, -1 do cands[i] = nil end
+    if self.o.net_propose then
+        local a = self.o.net_propose(clone(worlds[1]))
+        if a then
+            local key = phase == "play" and action_key(a) or plan_key({a})
+            local c = by_key[key]
+            local kept = false
+            for i = 1, #cands do kept = kept or cands[i] == c end
+            if not kept then
+                c = c or {plan = {a}, n = 0, first = n + 1}
+                cands[#cands + 1] = c
+            end
+            c.net = true
+        end
+    end
     local best = cands[1]
     best.visits = n
     if #cands > 1 then
@@ -295,6 +320,7 @@ function F:decide_base(base, n)
             return a.first < b.first
         end)
         best = cands[1]
+        if best.net then self.net_picks = self.net_picks + 1 end
         for _, c in ipairs(cands) do c.visits = 0 end
         for k = 1, n do
             local top = cands[1]

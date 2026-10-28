@@ -63,10 +63,26 @@ function T.solved(setup, opts, index)
     return blob, {records = #recs, skipped = skipped, won = won, final_ante = final_ante, line = r.line, state = s, lines = r.lines}
 end
 
+function T.net_proposer(path, sims)
+    local WT = require("bot.nn.weights")
+    local NET = require("bot.nn.net")
+    local MC = require("bot.nn.mcts")
+    local mc = MC.new(NET.new(WT.load(path)), {K = 24, seed = 99991, alpha = 0.5, nodes = sims + 2, full = true})
+    local step = {type = "play", cards = {}}
+    return function(s)
+        if MC.terminal(s) or s.phase == "round_eval" then return nil end
+        mc:search(s, sims, {noise = 0, reuse = false, adaptive = true})
+        local e = mc:choose(0)
+        if not e then return nil end
+        return S.copy_action(mc:edge_action(e, step, s))
+    end
+end
+
 function T.fair(setup, opts, index)
     local FA = require("bot.seer.fair")
     local b = FA.BUDGETS[opts.budget or "lite"] or FA.BUDGETS.lite
-    local fo = FA.new({budget = opts.budget or "lite", seer = b.seer})
+    local fo = FA.new({budget = opts.budget or "lite", seer = b.seer,
+        net_propose = opts.weights and opts.weights ~= "" and T.net_proposer(opts.weights, opts.net_sims or 16) or nil})
     local t0 = os.clock()
     local line, fs = fo:play(setup, nil, opts.stop_ante)
     local tm = os.clock() - t0
@@ -85,7 +101,8 @@ function T.fair(setup, opts, index)
     local won = fs.won == 1 and 1 or 0
     local final_ante = won == 1 and fs.win_ante + 1 or fs.ante
     local blob = REC.encode_run(recs, won, final_ante, FE.DECK_IDX[setup.deck] or 0, setup.stake or 1, index or 0)
-    return blob, {records = #recs, skipped = skipped, won = won, final_ante = final_ante, line = line, state = fs, time = tm}
+    return blob, {records = #recs, skipped = skipped, won = won, final_ante = final_ante, line = line, state = fs, time = tm,
+        decisions = fo.decisions, searched = fo.searched, net_picks = fo.net_picks}
 end
 
 function T.run(setup, opts, index)
@@ -118,7 +135,7 @@ end
 
 if arg and arg[0] and arg[0]:match("teacher%.lua$") then
     local opt = {seeds = 4, decks = "b_red", stakes = "1", out = "tools/botsim/train/out/seer_teacher.bspr", prefix = "TEACH", K = 24, n_sims = 800, stop_ante = 0, start = 1,
-        mode = "play", max_lines = 8, time_limit = 0, wins_only = 0, budget = "lite", jsonl = ""}
+        mode = "play", max_lines = 8, time_limit = 0, wins_only = 0, budget = "lite", jsonl = "", weights = "", net_sims = 16}
     for _, a in ipairs(arg) do
         local k, v = a:match("^%-*([%w_]+)=(.*)$")
         if k then opt[k] = tonumber(v) or v end
@@ -137,14 +154,14 @@ if arg and arg[0] and arg[0]:match("teacher%.lua$") then
                 n = n + 1
                 local setup = {seed = string.format("%s%04d", opt.prefix, i), deck = d, stake = st}
                 local blob, info = T.run(setup, {K = opt.K, n_sims = opt.n_sims, stop_ante = opt.stop_ante > 0 and opt.stop_ante or nil,
-                    mode = opt.mode, budget = opt.budget, max_lines = opt.max_lines, time_limit = opt.time_limit}, n)
+                    mode = opt.mode, budget = opt.budget, max_lines = opt.max_lines, time_limit = opt.time_limit, weights = opt.weights, net_sims = opt.net_sims}, n)
                 if opt.wins_only == 0 or info.won == 1 then
                     fh:write(blob)
                     tot_rec = tot_rec + info.records
                 end
                 if jf then
-                    jf:write(string.format('{"deck":"%s","stake":%d,"seed":"%s","won":%d,"ante":%d,"time":%.2f,"records":%d}\n',
-                        d, st, setup.seed, info.won, info.final_ante, info.time or 0, info.records))
+                    jf:write(string.format('{"deck":"%s","stake":%d,"seed":"%s","won":%d,"ante":%d,"time":%.2f,"records":%d,"dec":%d,"searched":%d,"net_picks":%d}\n',
+                        d, st, setup.seed, info.won, info.final_ante, info.time or 0, info.records, info.decisions or 0, info.searched or 0, info.net_picks or 0))
                     jf:flush()
                 end
                 wins = wins + info.won

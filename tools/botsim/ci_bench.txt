@@ -1,3 +1,0 @@
-seer-tests|timeout 3h luajit tools/botsim/seer/test/run.lua > $OUT/seer-tests.txt 2>&1; tail -5 $OUT/seer-tests.txt
-fair-leak|timeout 3h luajit tools/botsim/seer/test/fair_test.lua > $OUT/fair-leak.txt 2>&1; tail -5 $OUT/fair-leak.txt
-cloud-tests|timeout 2h env KEEP_TEST_LOGS=$OUT/cloudtest python3 tools/botsim/cloud/test/run_cloud_tests.py > $OUT/cloud-tests.txt 2>&1; grep -E "^FAIL|failures|all passed" $OUT/cloud-tests.txt

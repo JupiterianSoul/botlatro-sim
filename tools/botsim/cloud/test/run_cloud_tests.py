@@ -252,6 +252,7 @@ def run_tests(tmp):
     box_test(tmp, env, api)
     backup_test(tmp)
     train_test(tmp)
+    train_fair_test(tmp)
     import safe_tests
     safe_tests.run(tmp, env, key, check, hz, stub, stub_servers, stub_log, start)
     import hardening_tests
@@ -278,6 +279,51 @@ def train_python():
         subprocess.run([PY, "-m", "venv", venv], check=True)
         subprocess.run([py, "-m", "pip", "install", "-q", "torch", "numpy", "--index-url", "https://download.pytorch.org/whl/cpu"], check=True)
     return py
+
+
+def train_fair_test(tmp):
+    py = train_python()
+    ip, n = "127.0.0.4", "fbox0"
+    port = free_port()
+    secret = "fairsecret0123456789abcdefghijklm"
+    now = time.time()
+    run = {"run": "r-fair", "port": port, "cap": 100.0, "spent_before": 0, "boxes": [
+        {"name": n, "ip": ip, "type": "cpx22", "cores": 1, "role": "head", "price_hourly_gross": 0.01, "created": now, "deadline": now + 3000}]}
+    node = {"name": n, "run": "r-fair", "role": "head", "secret": secret, "port": port, "deadline": now + 3000, "workers": 2}
+    e = write_box(os.path.join(tmp, n), {"name": n}, node, run, "f")
+    e.update(BOTSIM_BIND=ip, BOTSIM_DASH_STATE=os.path.join(tmp, n, "dash"), BOTSIM_WORKERS="2", TRAIN_PY=py, TRAIN_GENS="3", TRAIN_GAMES="2",
+             TRAIN_PLAYER="fair", TRAIN_FAIR_ARGS="stop_ante=1", TRAIN_FAIR_NET_SIMS="4", TRAIN_FAIR_DECKS="b_red,b_blue",
+             TRAIN_WEIGHTS=os.path.join(REPO, "tools", "botsim", "train", "start", "r2_gen_0001.bnnw"),
+             TRAIN_STEPS="20", TRAIN_EVAL_PER="1", TRAIN_EVAL_DECKS="b_red", TRAIN_EVAL_STAKES="1", TRAIN_EVAL_SIMS="4", TRAIN_SIMS="4",
+             TRAIN_RECORD_GAP="0", BOTSIM_JOB_STOP_TIMEOUT="60")
+    home = e["BOTSIM_HOME"]
+    start([PY, os.path.join(CLOUD, "dashboard.py"), "--box"], e, os.path.join(tmp, n + "-dash.log"))
+    check(wait_http("http://%s:%d/%s/api/state" % (ip, port, secret)), "train fair: dashboard answers")
+    job = start(NICE + [PY, os.path.join(CLOUD, "jobrun.py"), "train"], e, os.path.join(tmp, n + "-job.log"))
+    hm = os.path.join(home, "run", "metrics.jsonl")
+
+    def lines(**kw):
+        out = []
+        try:
+            for ln in open(hm):
+                try:
+                    r = json.loads(ln)
+                except ValueError:
+                    continue
+                if all(r.get(k) == v for k, v in kw.items()):
+                    out.append(r)
+        except OSError:
+            pass
+        return out
+
+    ok = wait_for(lambda: len({r["gen"] for r in lines(type="gen")}) >= 2, 900)
+    gens = sorted({r["gen"] for r in lines(type="gen")})
+    check(ok, "train fair: head trained at least two generations on net-guided Fair Seer games %s" % gens)
+    games = [g for g in lines(type="game") if g.get("gen") is not None]
+    check(games and all("dur" in g and "net_picks" in g and g.get("deck") in ("b_red", "b_blue") for g in games),
+          "train fair: game lines come from the fair teacher (%d games)" % len(games))
+    os.kill(job.pid, signal.SIGTERM)
+    check(wait_for(lambda: job.poll() is not None, 60) and job.returncode == 0, "train fair: clean exit after a stop")
 
 
 def train_test(tmp):
