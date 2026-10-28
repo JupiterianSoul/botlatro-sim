@@ -237,6 +237,97 @@
    "price_hourly_gross": 0.26724,
    "run": "r20261026-101837",
    "type": "ccx33"
+  },
+  {
+   "created": 1793017836.0,
+   "deadline": 1793021075.957057,
+   "deleted": 1793018175.024981,
+   "id": 172540861,
+   "location": "fsn1",
+   "name": "botsim-r20261026-123035-0",
+   "price_hourly_gross": 0.01248,
+   "run": "r20261026-123035",
+   "type": "cpx02"
+  },
+  {
+   "created": 1793187841.0,
+   "deadline": 1793191081.173394,
+   "deleted": 1793188006.574145,
+   "id": 173056071,
+   "location": "fsn1",
+   "name": "botsim-r20261028-114401-0",
+   "price_hourly_gross": 0.01248,
+   "run": "r20261028-114401",
+   "type": "cpx02"
+  },
+  {
+   "created": 1793205285.0,
+   "deadline": 1793223105.327082,
+   "deleted": 1793206901.234518,
+   "id": 173129402,
+   "location": "fsn1",
+   "name": "botsim-r20261028-163445-0",
+   "price_hourly_gross": 0.53172,
+   "run": "r20261028-163445",
+   "type": "ccx43"
+  },
+  {
+   "created": 1793206931.0,
+   "deadline": 1793224750.7282767,
+   "deleted": 1793208509.1485715,
+   "id": 173135278,
+   "location": "fsn1",
+   "name": "botsim-r20261028-170210-0",
+   "price_hourly_gross": 0.53172,
+   "run": "r20261028-170210",
+   "type": "ccx43"
+  },
+  {
+   "created": 1793208530.0,
+   "deadline": 1793226349.8463914,
+   "deleted": 1793215671.3562586,
+   "deleted_estimated": true,
+   "id": 173140401,
+   "location": "fsn1",
+   "name": "botsim-r20261028-172849-0",
+   "price_hourly_gross": 0.53172,
+   "run": "r20261028-172849",
+   "type": "ccx43"
+  },
+  {
+   "created": 1793215687.0,
+   "deadline": 1793233507.3977568,
+   "deleted": 1793219381.5497618,
+   "deleted_estimated": true,
+   "id": 173164951,
+   "location": "fsn1",
+   "name": "botsim-r20261028-192807-0",
+   "price_hourly_gross": 0.53172,
+   "run": "r20261028-192807",
+   "type": "ccx43"
+  },
+  {
+   "created": 1793219401.0,
+   "deadline": 1793222821.3497562,
+   "deleted": 1793219577.0865135,
+   "id": 173177652,
+   "location": "fsn1",
+   "name": "botsim-r20261028-213001-0",
+   "price_hourly_gross": 0.08364,
+   "run": "r20261028-213001",
+   "type": "ccx13"
+  },
+  {
+   "created": 1793219405.0,
+   "deadline": 1793222821.3497562,
+   "deleted": 1793219568.1664941,
+   "deleted_estimated": true,
+   "id": 173177672,
+   "location": "fsn1",
+   "name": "botsim-r20261028-213001-1",
+   "price_hourly_gross": 0.08364,
+   "run": "r20261028-213001",
+   "type": "ccx13"
   }
  ]
 }

@@ -7,8 +7,8 @@ Hetzner bills every started hour, so each box costs `started hours x gross hourl
 
 | | EUR |
 | --- | ---: |
-| spent so far (as of 2026-10-26 10:25:03Z) | 9.55 |
-| left under the cap | 90.45 |
+| spent so far (as of 2026-10-28 20:33:00Z) | 12.93 |
+| left under the cap | 87.07 |
 
 ## Servers
 
@@ -35,5 +35,13 @@ Hetzner bills every started hour, so each box costs `started hours x gross hourl
 | r20261026-101516 | botsim-r20261026-101516-0 | cpx02 | fsn1 | 0.0125 | 2026-10-26 09:15:17Z | 2026-10-26 09:18:35Z | 1 | 0.0125 |
 | r20261026-101837 | botsim-r20261026-101837-0 | cpx62 | fsn1 | 0.2509 | 2026-10-26 09:18:37Z | 2026-10-26 10:25:03Z | 2 | 0.5018 |
 | r20261026-101837 | botsim-r20261026-101837-1 | ccx33 | fsn1 | 0.2672 | 2026-10-26 09:18:37Z | 2026-10-26 10:25:03Z | 2 | 0.5345 |
+| r20261026-123035 | botsim-r20261026-123035-0 | cpx02 | fsn1 | 0.0125 | 2026-10-26 12:30:36Z | 2026-10-26 12:36:15Z | 1 | 0.0125 |
+| r20261028-114401 | botsim-r20261028-114401-0 | cpx02 | fsn1 | 0.0125 | 2026-10-28 11:44:01Z | 2026-10-28 11:46:46Z | 1 | 0.0125 |
+| r20261028-163445 | botsim-r20261028-163445-0 | ccx43 | fsn1 | 0.5317 | 2026-10-28 16:34:45Z | 2026-10-28 17:01:41Z | 1 | 0.5317 |
+| r20261028-170210 | botsim-r20261028-170210-0 | ccx43 | fsn1 | 0.5317 | 2026-10-28 17:02:11Z | 2026-10-28 17:28:29Z | 1 | 0.5317 |
+| r20261028-172849 | botsim-r20261028-172849-0 | ccx43 | fsn1 | 0.5317 | 2026-10-28 17:28:50Z | 2026-10-28 19:27:51Z (est.) | 2 | 1.0634 |
+| r20261028-192807 | botsim-r20261028-192807-0 | ccx43 | fsn1 | 0.5317 | 2026-10-28 19:28:07Z | 2026-10-28 20:29:41Z (est.) | 2 | 1.0634 |
+| r20261028-213001 | botsim-r20261028-213001-0 | ccx13 | fsn1 | 0.0836 | 2026-10-28 20:30:01Z | 2026-10-28 20:32:57Z | 1 | 0.0836 |
+| r20261028-213001 | botsim-r20261028-213001-1 | ccx13 | fsn1 | 0.0836 | 2026-10-28 20:30:05Z | 2026-10-28 20:32:48Z (est.) | 1 | 0.0836 |
 
 "est." means the box was gone when the ledger was synced (deleted by its own watchdog or the dashboard Stop); the end time is then the earlier of the sync time and its deadline plus 5 minutes, so the figure errs high.
