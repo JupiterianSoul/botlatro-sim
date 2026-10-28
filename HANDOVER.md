@@ -54,6 +54,13 @@ Read this first, then tools/botsim/autopilot/DESIGN.md.
 - Profile after D (6 games): play.scan 60% but 0.06 ms per scan (was 0.26, now mostly marshalling and the Lua side), state.clone 10%, seer.rollout fast_action 39%. Next speed step if needed: move the rollout's fast_action loop (scan + discard choice) or the marshal into C, or the net value head instead of rollouts.
 - Local cloud tests: only the 2 known old failures (head sees games, bench result present).
 
+## Session 2026-10-28 late night (on main, 06caebc)
+- The 3 old Cloud test failures had one cause: the autopilot `unit` job had no luajit on the Ubuntu 26 runner image. It now builds the pinned LuaJIT like the other workflows. Unit job green (run 40775720185): 37 autopilot tests, every Cloud test.
+- Two-box checks poll up to 90 s instead of one read after sleep(16); failed cloud checks print the job logs.
+- Imitation was killed twice (exit 143) right after fetching the teacher data: train.py decoded every record into dense numpy arrays (about 1.6 GB of raw records, last round 275 MB gz). Records are now lazy (records.read_lazy, decoded per batch); Cloud test checks lazy equals eager batches.
+- Autopilot resumed 21:58, imitation attempt 3 dispatched (run 40776242810). Approval: 30 EUR, round cap 5 EUR, 6.64 EUR spent by the autopilot; ledger 22.79 EUR of 100.
+- Next: check autopilot/log.md. If imitation failed again, read the run log (train.txt in out/). If it passed, expert runs on Hetzner by itself; report each round.
+
 ## Next
 0. Gabriel chose (2026-10-28 night): next session = autopilot rounds on the faster code plus the 3 old Cloud test failures (item 2). No more speed work for now.
 1. Watch autopilot/log.md in botlatro-results: fair_speed 721e43-4, then teacher (CI fan-out, 20000 games), imitation, expert (Hetzner, 30 EUR approved, round cap 4).
