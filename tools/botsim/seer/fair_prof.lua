@@ -1,6 +1,6 @@
 package.path = "assets/?.lua;tools/?.lua;" .. package.path
 
-local opt = {budget = "lite", decks = "b_red", stakes = "1", seeds = 4, first = 1, prefix = "BENCH", sampler = "FAIR", jitopt = 1, quick = 0, fast_top = -1, proxy = 1, again = 1, cache = 1, reuse = 1}
+local opt = {budget = "lite", decks = "b_red", stakes = "1", seeds = 4, first = 1, prefix = "BENCH", sampler = "FAIR", jitopt = 1, quick = 0, fast_top = -1, proxy = 1, again = 1, cache = 1, reuse = 1, kid_top = -1}
 for _, a in ipairs(arg or {}) do
     local k, v = a:match("^%-*([%w_]+)=(.*)$")
     if k then opt[k] = type(opt[k]) == "number" and (tonumber(v) or opt[k]) or v end
