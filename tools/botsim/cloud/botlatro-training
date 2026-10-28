@@ -15,6 +15,19 @@ if [ -f "$CONF/current_run.json" ] && [ -f "$CONF/dashboard_url" ]; then
     fi
 fi
 
+if [ -z "$live_url" ] && command -v gh >/dev/null; then
+    results="repos/JupiterianSoul/botlatro-results/contents/autopilot"
+    run=$(gh api "$results/state.json" --jq .content 2>/dev/null | base64 -d 2>/dev/null |
+        python3 -c "import json,sys; print((json.load(sys.stdin).get('job') or {}).get('run') or '')" 2>/dev/null)
+    if [ -n "$run" ]; then
+        url=$(gh api "$results/hz/$run.json" --jq .content 2>/dev/null | base64 -d 2>/dev/null |
+            python3 -c "import json,sys; print(json.load(sys.stdin).get('dashboard_url') or '')" 2>/dev/null)
+        if [ -n "$url" ] && [ "$(curl -s -m 4 -o /dev/null -w '%{http_code}' "${url}api/state")" = "200" ]; then
+            live_url="$url"
+        fi
+    fi
+fi
+
 if [ -n "$live_url" ]; then
     exec omarchy-launch-webapp "$live_url"
 fi
