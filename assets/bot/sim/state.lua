@@ -88,7 +88,7 @@ function M.new(seed)
     return s
 end
 
-local function build_copier()
+local function build_copier(proxy_rng)
     local src = {"return function(d, s)",
         "    local od, oh, odi, ork = d.n_deck or 0, d.n_hand or 0, d.n_disc or 0, d.n_rk or 0"}
     for i = 1, #SCALARS do
@@ -128,7 +128,23 @@ local function build_copier()
     group("s.n_hand", {"hand"}, false)
     group("s.n_disc", {"disc"}, false)
     group("s.n_tags", {"tags"}, true)
-    src[#src + 1] = [==[
+    if proxy_rng then
+        src[#src + 1] = [==[
+    local dc, sc = d.cons, s.cons
+    for i = 1, s.n_cons do dc[i] = sc[i] end
+    for i = s.n_cons + 1, #dc do dc[i] = nil end
+    local dd, dh, ddi = d.deck, d.hand, d.disc
+    for i = s.n_deck + 1, od do dd[i] = nil end
+    for i = s.n_hand + 1, oh do dh[i] = nil end
+    for i = s.n_disc + 1, odi do ddi[i] = nil end
+    local p = d.rng_proxy
+    for k in pairs(p) do p[k] = nil end
+    d.rng_mt.__index = s.rng
+    d.rng = p
+    return d
+end]==]
+    else
+        src[#src + 1] = [==[
     local dc, sc = d.cons, s.cons
     for i = 1, s.n_cons do dc[i] = sc[i] end
     for i = s.n_cons + 1, #dc do dc[i] = nil end
@@ -147,7 +163,8 @@ local function build_copier()
     for i = nk + 1, ork do di[i] = nil end
     return d
 end]==]
-    local chunk = assert(loadstring(table.concat(src, "\n"), "=state_copier"))
+    end
+    local chunk = assert(loadstring(table.concat(src, "\n"), proxy_rng and "=preview_copier" or "=state_copier"))
     return chunk()
 end
 
@@ -159,11 +176,25 @@ function M.clone(s)
     return M.copy_into(d, s)
 end
 
+local copy_preview = build_copier(true)
+
 function M.scratch()
     local d = tnew(0, 160)
     for _, k in ipairs(SCALARS) do d[k] = 0 end
     new_arrays(d)
+    d.rng_mt = {}
+    d.rng_proxy = setmetatable({}, d.rng_mt)
     return d
+end
+
+M.PREVIEW_PROXY = true
+
+function M.copy_preview(d, s)
+    if M.PREVIEW_PROXY then return copy_preview(d, s) end
+    if d.rng == d.rng_proxy then
+        d.rng, d.rng_ids, d.n_rk = {}, {}, 0
+    end
+    return M.copy_into(d, s)
 end
 
 return M
