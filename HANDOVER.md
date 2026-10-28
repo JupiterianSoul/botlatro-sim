@@ -55,6 +55,7 @@ Read this first, then tools/botsim/autopilot/DESIGN.md.
 - Local cloud tests: only the 2 known old failures (head sees games, bench result present).
 
 ## Next
+0. Gabriel chose (2026-10-28 night): next session = autopilot rounds on the faster code plus the 3 old Cloud test failures (item 2). No more speed work for now.
 1. Watch autopilot/log.md in botlatro-results: fair_speed 721e43-4, then teacher (CI fan-out, 20000 games), imitation, expert (Hetzner, 30 EUR approved, round cap 4).
 2. Fix the 3 old Cloud test failures in the botsim-autopilot `unit` job (push a ci-ap-* branch to run it; run 40716974826 shows them).
 3. Teacher speed plan, approved by Gabriel 2026-10-28: about 80 s per Fair Seer lite game now, target 10-20 s. Profile: play.scan 95%, PL.solve 70% (beam of up to 6 nodes, about 50 kids per level, each kid scanned over all 218 combos, preview about 3.8 us, mostly play_eval). Do the phases in order, one at a time, each verified on CI before merge; report measured s/game after each.
