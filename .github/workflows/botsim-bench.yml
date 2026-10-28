@@ -65,6 +65,8 @@ jobs:
           ln -sf "$HOME/luajit/bin/luajit-2.1."* "$HOME/luajit/bin/luajit" 2>/dev/null || true
           "$HOME/luajit/bin/luajit" -v | grep -q "$LUAJIT_VERSION"
           echo "cores: $(nproc)"
+      - name: C scan library
+        run: make -B -C tools/botsim/c > /dev/null
       - name: Golden sim test
         run: bash tools/botsim/test/ci.sh sim-test.txt
       - name: Run
