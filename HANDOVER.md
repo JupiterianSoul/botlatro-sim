@@ -30,7 +30,16 @@ Read this first, then tools/botsim/autopilot/DESIGN.md.
 - fair_speed failed twice (99.3, 91.8 s/game, wins identical 39/150): the 60 s bar came from one-game profiles, the gate runs 4 games per runner where the baseline itself is about 82 s. Gabriel chose a relative bar: `max_ratio` 1.5 x fair_bench white mean (profiles.json full). Autopilot resumed 15:48, fair_speed attempt 4 (721e43-4) dispatched.
 - Known: the `unit` job's Cloud tests fail 3 tests (head sees games from both boxes, bench result present, train gen 0) since 26 Oct, before these changes. Gabriel OK'd pushing past it; fix it next.
 
+## Later 2026-10-28 (17:30)
+- fair_speed passed 16:25. Teacher runs on Hetzner: ccx43 (16 dedicated cores, 0.53 EUR/h), because the 17 shared cores are partly taken by Gabriel's gb-main-desktop and gb-main-android servers (never touch them). Rounds of 600 seeds (about 1200 games, about 2 h). Round 1: 240 games in 25 min, 0.53 EUR. Ledger 10.64 EUR at 17:05.
+- Training app (~/.local/bin/botlatro-training now points at this repo) opens the autopilot's live round via botlatro-results when this PC has no run.
+- Gabriel will ask Hetzner for a higher shared core limit; when granted, switch teacher back to cpx62 (half the price per core).
+
 ## Next
 1. Watch autopilot/log.md in botlatro-results: fair_speed 721e43-4, then teacher (CI fan-out, 20000 games), imitation, expert (Hetzner, 30 EUR approved, round cap 4).
 2. Fix the 3 old Cloud test failures in the botsim-autopilot `unit` job (push a ci-ap-* branch to run it; run 40716974826 shows them).
-3. Speed: preview cost is play_eval (about 3.8 us per preview, 218 previews per non-fast scan, solve is 70% of Fair Seer time). Ideas that keep games identical: reuse the scan of a kid when it enters the next beam level, cache per-scan work in play_eval (find_joker, resolve_blueprints).
+3. Teacher speedups, approved by Gabriel (start here). Now about 80 s per Fair Seer lite game. Profile: play.scan 95%, PL.solve 70% (beam of up to 6 nodes, about 50 kids per level, each kid scanned over all 218 combos, preview about 3.8 us, mostly play_eval).
+   a. Identical games: reuse a kid's scan when it enters the next beam level; per-scan caching of combo-independent work in play_eval (find_joker calls, resolve_blueprints, update_dynamic parts). Verify: sim tests, test_preview, Seer, leak, BENCH 1-30 x 5 decks identical to run 40712152628 (39 wins).
+   b. Top-N in solve: score only the top 8 five-card plays by nominal score in PL.solve/node_best (like PL.FAST_TOP in rollouts, which gave 2x with 39 vs 36 wins). Must keep wins not worse on the 150 BENCH games (two-proportion check as in the fair_speed gate).
+   c. Optional, also needs the win check: fewer worlds when every world agrees on the move.
+   Report measured s/game before and after (estimates given to Gabriel: a 65-70 s, a+b 35-45 s). Merge to main only after CI passes; the autopilot picks the new code up on its next round.
