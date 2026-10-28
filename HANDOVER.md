@@ -59,6 +59,10 @@ Read this first, then tools/botsim/autopilot/DESIGN.md.
 - Two-box checks poll up to 90 s instead of one read after sleep(16); failed cloud checks print the job logs.
 - Imitation was killed twice (exit 143) right after fetching the teacher data: train.py decoded every record into dense numpy arrays (about 1.6 GB of raw records, last round 275 MB gz). Records are now lazy (records.read_lazy, decoded per batch); Cloud test checks lazy equals eager batches.
 - Autopilot resumed 21:58, imitation attempt 3 dispatched (run 40776242810). Approval: 30 EUR, round cap 5 EUR, 6.64 EUR spent by the autopilot; ledger 22.79 EUR of 100.
+- Imitation attempt 3 (run 40776242810): training worked (2M records = window cap, 20000 runs, 20000 steps, val policy 0.94, win_pred 0.188 vs true 0.181). Gate failed twice over:
+  - Shuffle check 0 of 8 identical, but it is a harness bug: fair_shuffle.lua who=net calls MC.advance_forced on the scrambled view copy, so the net answers in the shop ("open:jokers:1") while the real state is still in round_eval; the step fails and the game ends "stuck". Fix: advance_forced the real state before building the view. Whether MCTS on a scrambled view then matches (search steps the view's hidden future) is unknown; a fair net check may need sims=0 or determinized search.
+  - Net eval: 150 b_red white games, mean ante 2.03 (305/150), 1 win, vs min_ante 5.5. Far below the teacher. Needs a real look (action mapping between teacher records and the net, MCTS sims=32 vs policy only, eval vs teacher on the same seeds).
+- Attempt 4 (721e43-8) will fail the same way and the autopilot stops itself; nothing paid runs.
 - Next: check autopilot/log.md. If imitation failed again, read the run log (train.txt in out/). If it passed, expert runs on Hetzner by itself; report each round.
 
 ## Next
