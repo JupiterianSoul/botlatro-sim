@@ -937,7 +937,7 @@ def cmd_deploy(args):
             rsync(b, "./assets/bot", "%s@%s:/opt/botsim/repo/" % (ssh_user(), b["ip"]), args.dry_run, ["-R", "--exclude", "*.tmp"])
             rsync(b, "./assets/functions", "%s@%s:/opt/botsim/repo/" % (ssh_user(), b["ip"]), args.dry_run, ["-R"])
             rsync(b, "./tools/botsim", "%s@%s:/opt/botsim/repo/" % (ssh_user(), b["ip"]), args.dry_run,
-                  ["-R", "--exclude", "tools/botsim/results/", "--exclude", "__pycache__/", "--exclude", ".venv/", "--exclude", "tools/botsim/train/out/"])
+                  ["-R", "--exclude", "tools/botsim/results/", "--exclude", "tools/botsim/c/libbotsim.so", "--exclude", "__pycache__/", "--exclude", ".venv/", "--exclude", "tools/botsim/train/out/"])
             box_luajit_and_golden(b, args.dry_run)
             if for_job:
                 box_job_needs(b, for_job, args.dry_run)
@@ -1384,6 +1384,8 @@ LUAJIT_SETUP = ("set -e; want=%s; have=$(/usr/local/bin/luajit -v 2>/dev/null | 
                 "make -C /opt/botsim/luajit-src install PREFIX=/usr/local >>/var/log/botsim-luajit-build.log 2>&1; fi; "
                 "ln -sf /usr/local/bin/luajit-$want /usr/local/bin/luajit; /usr/local/bin/luajit -v") % LUAJIT_VERSION
 GOLDEN_CHECK = ("cd /opt/botsim/repo && test -f %s || { echo 'golden test %s missing in the deployed tree'; exit 3; }; "
+                "make -B -C tools/botsim/c >/var/log/botsim-clib.log 2>&1 || { tail -n 20 /var/log/botsim-clib.log; exit 4; }; "
+                "timeout 300 /usr/local/bin/luajit tools/botsim/fuzz_scan.lua n=200 2>&1 | tail -n 5; test ${PIPESTATUS[0]} -eq 0 || exit 5; "
                 "timeout 600 /usr/local/bin/luajit tools/botsim/test/run.lua 2>&1 | tail -n 15; exit ${PIPESTATUS[0]}") % (shlex.quote(GOLDEN), GOLDEN)
 
 
