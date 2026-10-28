@@ -77,6 +77,16 @@ def check(cond, what):
         fails.append(what)
 
 
+def show_logs(*paths, n=40):
+    for path in paths:
+        try:
+            tail = open(path, errors="replace").read().splitlines()[-n:]
+        except OSError:
+            tail = ["(missing)"]
+        print("---- %s" % path, flush=True)
+        print("\n".join(tail), flush=True)
+
+
 def hz(env, *args, inp=None, timeout=300):
     r = subprocess.run([PY, os.path.join(CLOUD, "hz.py")] + list(args), env=env, capture_output=True, text=True, input=inp or "", timeout=timeout)
     if os.environ.get("HZ_VERBOSE"):
@@ -368,10 +378,15 @@ def train_test(tmp):
     ok = wait_for(lambda: len({r["gen"] for r in lines(hm, type="gen")}) >= 3, 420)
     gens = sorted({r["gen"] for r in lines(hm, type="gen")})
     check(ok and gens[:3] == [0, 1, 2], "train: head trained generation 0 on teacher records and at least two more generations %s" % gens)
-    g0 = lines(hm, type="gen", gen=0)[0]
+    if not ok:
+        show_logs(*[os.path.join(tmp, n + "-job.log") for n in names], hm, n=80)
+    g0 = (lines(hm, type="gen", gen=0) or [{}])[0]
     check(all(k in g0 for k in ("loss", "loss_policy", "loss_value", "loss_ante", "lr", "samples", "buffer", "train_s", "steps", "val_policy", "val_win_pred", "epochs")), "train: gen lines carry losses, held-out losses, calibration, lr, samples and buffer")
     batches = os.path.join(homes[0], "work", "batches")
     files = [f for d in os.listdir(batches) for f in os.listdir(os.path.join(batches, d))] if os.path.isdir(batches) else []
+    recs = [os.path.join(dp, f) for h in homes for dp, _, fs in os.walk(h) for f in fs if f.endswith(".bspr")][:6]
+    r = subprocess.run([py, os.path.join(REPO, "tools", "botsim", "train", "test", "lazy_check.py")] + recs, capture_output=True, text=True)
+    check(recs and r.returncode == 0, "train: lazy records decode like eager ones (%s)" % (r.stdout.strip() or r.stderr.strip()[-300:]))
     check(any(f.startswith(names[0] + "_") for f in files) and any(f.startswith(names[1] + "_") for f in files),
           "train: records from both boxes reached the head (%d files)" % len(files))
     node_in = os.path.join(homes[1], "xfer", "in")
@@ -494,10 +509,17 @@ def box_test(tmp, env, api):
         check(e.code == 404, "wrong secret gets 404")
     page = get(head_url).decode()
     check("Emergency stop" in page and "api/view" in page and "Watch a game" in page, "page serves")
-    time.sleep(16)
-    st = json.loads(get(head_url + "api/state"))
-    check(st["games"] > 0 and len([b for b in st["boxes"] if b["games"] > 0]) == 2, "head sees games from both boxes (%s games, %.1f/s)" % (st["games"], st["gps"]))
+    st = {}
+
+    def both_seen():
+        st.update(json.loads(get(head_url + "api/state")))
+        return st["games"] > 0 and len([b for b in st["boxes"] if b["games"] > 0]) == 2 and st["bench"] is not None
+
+    seen = wait_for(both_seen, 90)
+    check(seen or st["games"] > 0 and len([b for b in st["boxes"] if b["games"] > 0]) == 2, "head sees games from both boxes (%s games, %.1f/s)" % (st["games"], st["gps"]))
     check(st["bench"] is not None and st["demo"] is True, "bench result present, demo flag set by the fake job")
+    if not seen:
+        show_logs(*[os.path.join(tmp, b["name"] + s) for b in boxes for s in ("-job.log", "-dash.log")])
     vw = json.loads(get(head_url + "api/view"))
     pn = vw["view"]["panels"]
     check(pn["tiles"]["games"] > 0 and pn["win_gen"] and pn["heat"]["all"] and pn["ante"], "view: tiles, win rate, heatmap and ante distribution have data (%d games)" % pn["tiles"]["games"])
