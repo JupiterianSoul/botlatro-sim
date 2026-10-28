@@ -13,7 +13,7 @@ local ED_NEG = 4
 
 S.DEFAULTS = {
     horizon = 2, tight_horizon = 3, beam = 3, tight_beam = 4, depth = 3, tight_margin = 0.4,
-    solve_beam = 6, solve_plays = 3, solve_discards = 6,
+    solve_beam = 6, solve_plays = 3, solve_discards = 6, solve_kid_top = 0,
     w_clear = 10, w_strength = 2, w_money = 0.04, money_cap = 60, death = -40, win = 1000,
     max_steps = 3000, roll_shop = 0, roll_reserve = 0, roll_swap = 3, skip_cost = 1000, noise = 0, noise_seed = 0,
 }
@@ -564,7 +564,7 @@ function S:decide_play(s)
     local u = self:play_cons(s)
     if u then return {u} end
     local o = self.o
-    local acts = PL.solve(s, {beam = o.solve_beam, plays = o.solve_plays, discards = o.solve_discards})
+    local acts = PL.solve(s, {beam = o.solve_beam, plays = o.solve_plays, discards = o.solve_discards, kid_top = o.solve_kid_top})
     return acts
 end
 

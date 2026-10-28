@@ -14,7 +14,7 @@ local JOKER_ARRAYS = ST.JOKER_ARRAYS
 
 F.BUDGETS = {
     lite = {worlds = 4, eval_h = 1, max_cands = 3, fast_top = 8,
-        seer = {horizon = 1, tight_horizon = 2, beam = 2, tight_beam = 3, depth = 2},
+        seer = {horizon = 1, tight_horizon = 2, beam = 2, tight_beam = 3, depth = 2, solve_kid_top = 8},
         solve = {beam = 3, plays = 2, discards = 3, kid_top = 8}},
     std = {worlds = 8, eval_h = 2, max_cands = 4,
         seer = {},
