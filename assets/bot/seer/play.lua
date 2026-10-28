@@ -76,7 +76,7 @@ local function nom_greater(a, b)
     return a < b
 end
 
-function PL.scan(s, out_v, out_c, fast)
+function PL.scan(s, out_v, out_c, fast, top)
     local list = combos(s.n_hand)
     local fp = forced_pos(s)
     local five = fast and not wants_small(s)
@@ -88,7 +88,7 @@ function PL.scan(s, out_v, out_c, fast)
             out_c[n] = cs
         end
     end
-    local top = PL.FAST_TOP
+    top = top or PL.FAST_TOP
     if five and top > 0 and n > top then
         local fj = E.find_joker
         local four, shortcut = fj(s, J.four_fingers), fj(s, J.shortcut)
@@ -167,7 +167,13 @@ local function key_of(cs)
     return k
 end
 
-local function node_best(k)
+local function node_best(k, top)
+    if top > 0 then
+        local n = PL.scan(k.s, sv, sc, true, top)
+        local bv = -1
+        for i = 1, n do if sv[i] > bv then bv = sv[i] end end
+        return bv, n
+    end
     local n = PL.scan(k.s, sv, sc)
     local bv = -1
     local kv, kc = {}, {}
@@ -192,6 +198,7 @@ function PL.solve(s0, opts)
     local B = opts.beam or 6
     local NP = opts.plays or 3
     local ND = opts.discards or 6
+    local KT = PL.KID_TOP or opts.kid_top or 0
     local start_h, start_d = s0.hands_left, s0.discards_left
     local best
     local beam = {{s = ST.clone(s0), acts = {}, h = 0}}
@@ -289,7 +296,7 @@ function PL.solve(s0, opts)
         if #kids == 0 then break end
         for i = 1, #kids do
             local k = kids[i]
-            local bv, n = node_best(k)
+            local bv, n = node_best(k, KT)
             evals = evals + n
             k.h = k.s.chips + bv * (1 + 0.15 * (k.s.hands_left - 1)) + k.s.hands_left * 1e-3 + k.s.discards_left * 1e-6
             k.key = k.s.chips .. ":" .. k.s.hands_left .. ":" .. k.s.discards_left .. ":" .. table.concat(k.s.hand, ",", 1, k.s.n_hand)

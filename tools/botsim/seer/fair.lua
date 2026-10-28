@@ -5,7 +5,7 @@ local F = require("bot.seer.fair")
 local S = require("bot.seer.seer")
 
 local opt = {budget = "lite", worlds = 0, eval_h = 0, max_cands = 0, seer = "", decks = "b_red", stakes = "1", seeds = 10,
-    first = 1, prefix = "FAIR", sampler = "FAIR", run_cap = 0, part = "", jobs = 1, out = "", summary = "", quick = 0, fast_top = -1}
+    first = 1, prefix = "FAIR", sampler = "FAIR", run_cap = 0, part = "", jobs = 1, out = "", summary = "", quick = 0, fast_top = -1, kid_top = -1}
 local raw = {}
 for _, a in ipairs(arg or {}) do
     local k, v = a:match("^%-*([%w_]+)=(.*)$")
@@ -78,6 +78,7 @@ end
 
 local fopts = {budget = opt.budget, sampler_seed = opt.sampler, run_cap = opt.run_cap, quick_clear = opt.quick == 1}
 if opt.fast_top >= 0 then fopts.fast_top = opt.fast_top end
+if opt.kid_top >= 0 then require("bot.seer.play").KID_TOP = opt.kid_top end
 local b = F.BUDGETS[opt.budget] or F.BUDGETS.lite
 if opt.worlds > 0 then fopts.worlds = opt.worlds end
 if opt.eval_h > 0 then fopts.eval_h = opt.eval_h end

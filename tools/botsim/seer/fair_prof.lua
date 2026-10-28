@@ -40,6 +40,7 @@ local F = require("bot.seer.fair")
 local S = require("bot.seer.seer")
 local PL = require("bot.seer.play")
 PL.REUSE_SCAN = opt.reuse == 1
+if opt.kid_top >= 0 then PL.KID_TOP = opt.kid_top end
 
 local phase_now = "?"
 local base_decide = F.decide_base
