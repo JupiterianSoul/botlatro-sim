@@ -5,12 +5,19 @@ import os
 import shutil
 import subprocess
 import time
+import urllib.parse
+import urllib.request
 
 RUN_DIR = os.environ.get("BOTSIM_RUN_DIR", "run")
 METRICS = os.environ.get("BOTSIM_METRICS", os.path.join(RUN_DIR, "metrics.jsonl"))
 STOP = os.environ.get("BOTSIM_STOP_FILE", os.path.join(RUN_DIR, "STOP"))
 WORKERS = int(os.environ.get("BOTSIM_WORKERS") or os.cpu_count() or 1)
 ROLE = os.environ.get("BOTSIM_ROLE", "head")
+BOX = os.environ.get("BOTSIM_BOX", "local")
+ETC = os.environ.get("BOTSIM_ETC", "/etc/botsim")
+PEERS = os.environ.get("BOTSIM_PEERS", os.path.join(ETC, "run.json"))
+XFER = os.environ.get("BOTSIM_XFER") or os.path.join(os.path.dirname(os.path.abspath(RUN_DIR)), "xfer")
+NODE_WAIT = float(os.environ.get("TEACH_NODE_WAIT", "120"))
 OUT = os.path.join(RUN_DIR, "teacher")
 WORK = os.path.join(os.environ.get("TMPDIR", "/tmp"), "botsim-teacher")
 PART_BYTES = int(os.environ.get("TEACH_PART_BYTES", str(40 * 1024 * 1024)))
@@ -37,6 +44,48 @@ def seed_slices(start, seeds, n):
     return out
 
 
+def load_json(p, d=None):
+    try:
+        with open(p) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return d
+
+
+def http(base, query, data=None, timeout=60):
+    req = urllib.request.Request(base + "?" + query, data=data, method="POST" if data is not None else "GET")
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return r.read()
+
+
+def box_share(run, start, seeds):
+    boxes = run.get("boxes") or []
+    names = [b.get("name") for b in boxes]
+    if len(boxes) < 2 or BOX not in names:
+        return start, seeds, []
+    w = [max(1, int(b.get("cores") or 1)) for b in boxes]
+    tot = sum(w)
+    cuts, acc = [0], 0
+    for x in w:
+        acc += x
+        cuts.append(seeds * acc // tot)
+    i = names.index(BOX)
+    nodes = [b for b in boxes if b.get("name") != BOX] if ROLE == "head" else []
+    return start + cuts[i], cuts[i + 1] - cuts[i], nodes
+
+
+def put_xfer(name, path=None, obj=None):
+    d = os.path.join(XFER, "out")
+    os.makedirs(d, exist_ok=True)
+    tmp = os.path.join(d, ".part-" + name)
+    if obj is not None:
+        with open(tmp, "w") as f:
+            json.dump(obj, f)
+    else:
+        shutil.copyfile(path, tmp)
+    os.replace(tmp, os.path.join(d, name))
+
+
 def leak_check():
     args = env("TEACH_LEAK_ARGS", "").split()
     p = subprocess.run(["luajit", "tools/botsim/seer/test/fair_test.lua"] + args, capture_output=True, text=True, timeout=3600)
@@ -59,14 +108,21 @@ def read_games(paths):
     return games
 
 
+def gzip_to(p, gz):
+    with open(p, "rb") as src, gzip.open(gz, "wb", 6) as dst:
+        shutil.copyfileobj(src, dst)
+
+
 def pack(bsprs):
     n, total = 0, 0
     for i, p in enumerate(bsprs):
         if not os.path.exists(p) or os.path.getsize(p) == 0:
             continue
-        gz = os.path.join(WORK, "w%03d.bspr.gz" % i)
-        with open(p, "rb") as src, gzip.open(gz, "wb", 6) as dst:
-            shutil.copyfileobj(src, dst)
+        if p.endswith(".gz"):
+            gz = p
+        else:
+            gz = os.path.join(WORK, "w%03d.bspr.gz" % i)
+            gzip_to(p, gz)
         with open(gz, "rb") as f:
             k = 0
             while True:
@@ -81,13 +137,83 @@ def pack(bsprs):
     return n, total
 
 
+def stop_asked():
+    return os.path.exists(STOP) or (ROLE != "head" and os.path.exists(os.path.join(XFER, "in", "STOP")))
+
+
+def stop_nodes(nodes, node):
+    for b in nodes:
+        try:
+            http(node_base(b, node), "name=in/STOP", data=b"stop", timeout=10)
+        except Exception:
+            pass
+
+
+def node_base(b, node):
+    return "http://%s:%s/%s/api/xfer" % (b["ip"], node.get("port"), node.get("secret"))
+
+
+def node_progress(nodes, node):
+    n = 0
+    for b in nodes:
+        try:
+            n += int(json.loads(http(node_base(b, node), "get=out/progress.json", timeout=10)).get("games") or 0)
+        except Exception:
+            pass
+    return n
+
+
+def collect(nodes, node, deadline, own_games, work_total):
+    got, pending, stopped, last_p = [], list(nodes), False, 0
+    while pending and time.time() < deadline:
+        if not stopped and os.path.exists(STOP):
+            stopped = True
+            stop_nodes(nodes, node)
+            deadline = min(deadline, time.time() + NODE_WAIT)
+        if time.time() - last_p > 60:
+            done = own_games + node_progress(pending, node) + sum(int(m.get("games") or 0) for m in got)
+            emit(type="progress", games=done, workers=WORKERS, work_done=done, work_total=work_total)
+            last_p = time.time()
+        for b in list(pending):
+            base = node_base(b, node)
+            try:
+                meta = json.loads(http(base, "get=out/done.json", timeout=10))
+            except Exception:
+                continue
+            d = os.path.join(WORK, "node-" + b["name"])
+            os.makedirs(d, exist_ok=True)
+            try:
+                for name in meta.get("files", []):
+                    with open(os.path.join(d, name), "wb") as f:
+                        f.write(http(base, "get=" + urllib.parse.quote("out/" + name), timeout=600))
+            except Exception as e:
+                emit(type="log", level="error", msg="teacher: fetch from %s failed: %s" % (b["name"], e))
+                continue
+            meta["dir"] = d
+            got.append(meta)
+            pending.remove(b)
+        if pending:
+            time.sleep(3)
+    return got, [b["name"] for b in pending], stopped
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
-    if ROLE != "head":
-        emit(type="state", state="done", msg="teacher runs on the head box only")
-        return 0
     start = int(env("TEACH_START", "1"))
     seeds = int(env("TEACH_SEEDS", "1"))
+    all_start, all_seeds = start, seeds
+    run = load_json(PEERS, {}) or {}
+    node = load_json(os.path.join(ETC, "node.json"), {}) or {}
+    start, seeds, nodes = box_share(run, start, seeds)
+    if ROLE != "head" and len(run.get("boxes") or []) < 2:
+        emit(type="state", state="done", msg="teacher: single box run, nothing for a node")
+        return 0
+    if ROLE != "head":
+        for name in ("done.json", "progress.json"):
+            try:
+                os.remove(os.path.join(XFER, "out", name))
+            except OSError:
+                pass
     decks, stakes = env("TEACH_DECKS", "b_red"), env("TEACH_STAKES", "1")
     base = ["luajit", "tools/botsim/seer/teacher.lua", "mode=fair", "budget=" + env("TEACH_BUDGET", "lite"),
             "prefix=" + env("TEACH_PREFIX", "TEACH"), "decks=" + decks, "stakes=" + stakes]
@@ -95,13 +221,17 @@ def main():
         base.append("stop_ante=" + env("TEACH_STOP_ANTE", "0"))
     shutil.rmtree(WORK, ignore_errors=True)
     os.makedirs(WORK)
-    emit(type="state", state="running", msg="teacher: leak test, then seeds %d..%d on %d workers" % (start, start + seeds - 1, WORKERS))
-    ok, last = leak_check()
-    emit(type="log", level="info" if ok else "error", msg="leak test %s: %s" % ("passed" if ok else "FAILED", last[0]))
-    if not ok:
-        emit(type="teacher", games=0, records=0, bytes=0, leak_ok=False, start=start, seeds=0)
-        emit(type="state", state="failed", msg="leak test failed")
-        return 1
+    if ROLE == "head":
+        emit(type="state", state="running", msg="teacher: leak test, then seeds %d..%d on %d workers, %d other box(es)" % (
+            start, start + seeds - 1, WORKERS, len(nodes)))
+        ok, last = leak_check()
+        emit(type="log", level="info" if ok else "error", msg="leak test %s: %s" % ("passed" if ok else "FAILED", last[0]))
+        if not ok:
+            emit(type="teacher", games=0, records=0, bytes=0, leak_ok=False, start=all_start, seeds=0)
+            emit(type="state", state="failed", msg="leak test failed")
+            return 1
+    else:
+        emit(type="state", state="running", msg="teacher node: seeds %d..%d on %d workers" % (start, start + seeds - 1, WORKERS))
     procs, bsprs, jsonls = [], [], []
     for i, (s, k) in enumerate(seed_slices(start, seeds, WORKERS)):
         b, j = os.path.join(WORK, "w%03d.bspr" % i), os.path.join(WORK, "w%03d.jsonl" % i)
@@ -112,7 +242,7 @@ def main():
                                       stdout=log, stderr=subprocess.STDOUT, start_new_session=True))
     t0, stopped, last_p = time.time(), False, 0
     while any(p.poll() is None for p in procs):
-        if os.path.exists(STOP):
+        if stop_asked():
             for p in procs:
                 if p.poll() is None:
                     os.killpg(p.pid, 15)
@@ -121,25 +251,70 @@ def main():
             stopped = True
             break
         if time.time() - last_p > 60:
-            g = read_games(jsonls)
-            emit(type="progress", games=len(g), workers=WORKERS, work_done=len(g),
-                 work_total=seeds * len(decks.split(",")) * len(stakes.split(",")))
+            g = len(read_games(jsonls))
+            if ROLE == "head":
+                done = g + node_progress(nodes, node)
+                emit(type="progress", games=done, workers=WORKERS, work_done=done,
+                     work_total=all_seeds * len(decks.split(",")) * len(stakes.split(",")))
+            else:
+                put_xfer("progress.json", obj={"games": g})
             last_p = time.time()
         time.sleep(2)
+    bad = [i for i, p in enumerate(procs) if p.returncode not in (0, None) and not stopped]
+    if ROLE != "head":
+        files = []
+        for i, (b, j) in enumerate(zip(bsprs, jsonls)):
+            if os.path.exists(j):
+                put_xfer("w%03d.jsonl" % i, j)
+                files.append("w%03d.jsonl" % i)
+            if os.path.exists(b) and os.path.getsize(b) > 0:
+                gz = b + ".gz"
+                gzip_to(b, gz)
+                put_xfer("w%03d.bspr.gz" % i, gz)
+                files.append("w%03d.bspr.gz" % i)
+        for i in bad:
+            put_xfer("w%03d.log" % i, os.path.join(WORK, "w%03d.log" % i))
+            files.append("w%03d.log" % i)
+        g = len(read_games(jsonls))
+        put_xfer("progress.json", obj={"games": g})
+        put_xfer("done.json", obj={"box": BOX, "files": files, "games": g, "complete": not stopped and not bad, "bad": len(bad)})
+        shutil.rmtree(WORK, ignore_errors=True)
+        emit(type="state", state="saved" if stopped else ("failed" if bad else "done"), msg="teacher node: %d games handed to the head" % g)
+        return 1 if bad else 0
+    wait_until = time.time() + (NODE_WAIT if stopped else 3600 * 24)
+    if stopped:
+        stop_nodes(nodes, node)
+    work_total = all_seeds * len(decks.split(",")) * len(stakes.split(","))
+    metas, missing, late_stop = collect(nodes, node, wait_until, len(read_games(jsonls)), work_total) if nodes else ([], [], False)
+    stopped = stopped or late_stop
+    node_bad = 0
+    for m in metas:
+        for name in m.get("files", []):
+            fp = os.path.join(m["dir"], name)
+            if name.endswith(".jsonl"):
+                jsonls.append(fp)
+            elif name.endswith(".bspr.gz"):
+                bsprs.append(fp)
+            elif name.endswith(".log"):
+                shutil.copy(fp, os.path.join(OUT, "%s-%s" % (os.path.basename(m["dir"]), name)))
+        node_bad += int(m.get("bad") or 0)
+        if not m.get("complete"):
+            stopped = True
+    if missing:
+        emit(type="log", level="error", msg="teacher: no results from %s" % ", ".join(missing))
     games = read_games(jsonls)
     with open(os.path.join(OUT, "games.jsonl"), "w") as f:
         for g in games:
             f.write(json.dumps(g) + "\n")
-    bad = [i for i, p in enumerate(procs) if p.returncode not in (0, None) and not stopped]
     for i in bad:
         shutil.copy(os.path.join(WORK, "w%03d.log" % i), OUT)
     n, total = pack(bsprs)
     recs = sum(int(g.get("records") or 0) for g in games)
-    emit(type="teacher", games=len(games), records=recs, bytes=total, files=n, leak_ok=True, start=start, seeds=seeds,
-         complete=not stopped and not bad, wins=sum(int(g.get("won") or 0) for g in games), secs=round(time.time() - t0))
+    emit(type="teacher", games=len(games), records=recs, bytes=total, files=n, leak_ok=True, start=all_start, seeds=all_seeds,
+         complete=not stopped and not bad and not node_bad and not missing, boxes=1 + len(nodes), wins=sum(int(g.get("won") or 0) for g in games), secs=round(time.time() - t0))
     shutil.rmtree(WORK, ignore_errors=True)
-    if bad:
-        emit(type="state", state="failed", msg="%d teacher worker(s) failed, logs in teacher/" % len(bad))
+    if bad or node_bad:
+        emit(type="state", state="failed", msg="%d teacher worker(s) failed, logs in teacher/" % (len(bad) + node_bad))
         return 1
     emit(type="state", state="saved" if stopped else "done",
          msg="teacher: %d games, %d records, %.1f MB packed" % (len(games), recs, total / 1048576.0))
