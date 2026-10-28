@@ -1,4 +1,4 @@
-# Handover 2026-10-28 (afternoon)
+# Handover 2026-10-28 (afternoon, 13:20)
 
 Read this first, then tools/botsim/autopilot/DESIGN.md.
 
@@ -21,8 +21,8 @@ Read this first, then tools/botsim/autopilot/DESIGN.md.
 - Paid tiny-teach round r20261028-114401 started 11:44 (0.0125 EUR).
 - Full autopilot re-initialised, fair_bench dispatched 11:49 (721e43). Gabriel approved 30 EUR, round cap 4. expert_ok on, fair_speed_ok off until preview-proxy is merged.
 - Paid tiny-teach passed: round done, gate passed, boxes gone, 0.0125 EUR (ledger 9.5755).
+- preview-proxy merged into main (3e2a023): BENCH 1-30 x 5 decks white, all 150 games identical to run 40678407782 (39 wins). Same-runner A/B 65.0 to 59.5 s/game in one job, the other job's runner slowed mid-job (63.0 to 92.4, every phase slower). Merged code CI: Seer 193/193, leak 323/323, cloud tests passed. fair_speed_ok switched on 13:18 (run 40685903845).
 
 ## Next
-1. Read run 40682408530: top8p games must equal run 40678407782 top8 game for game; prof-ab old vs new s/game. If identical, merge branch `preview-proxy` (one commit) into main and push.
-2. After the merge: workflow command=flag args="fair_speed_ok on" dir=autopilot.
-3. Watch the autopilot log in botlatro-results; teacher rounds start on Hetzner after fair_speed passes.
+1. Watch the autopilot log in botlatro-results (autopilot/log.md). fair_bench 721e43 was running at 13:20; fair_speed_ok and expert_ok are on, so fair_speed (CI) and then teacher rounds (Hetzner, 30 EUR approved, round cap 4) follow on their own. If fair_speed fails only on CI timing noise (wins fine, s/game near 60), look for more speedups that keep games identical, e.g. skip copying shop and pack arrays in copy_preview, verified with test_preview and identical games on CI.
+2. sim tests have 3 failures on main (also before the merge, run 40685760882): test_rng pseudoshuffle KQ3N1P2M, test_rng tag and voucher sequence 88888888, test_econ FFI random port vs math.random (1700 of 20000). The tests run the real game functions on the pinned LuaJIT 2.1.1791988261, whose math.random disagrees with the FFI port in rng.lua; the sim uses the port and matches the hardcoded real-game deck QFCIQ6C1. Find out which one matches LOVE 11.5 (its bundled LuaJIT), then fix the port or the pinned LuaJIT. The Golden sim test step pipes through tail and never fails; make it fail on FAIL lines.
