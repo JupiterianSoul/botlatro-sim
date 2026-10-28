@@ -1,4 +1,4 @@
-# Handover 2026-10-28 (evening, 20:00)
+# Handover 2026-10-28 (night)
 
 Read this first, then tools/botsim/autopilot/DESIGN.md.
 
@@ -46,6 +46,14 @@ Read this first, then tools/botsim/autopilot/DESIGN.md.
 - Then phase D in its own session.
 - Stuck alert fixed (4e37a57): it fired on 600-seed teacher rounds because the phase text never changes; it now also resets when the game count moves. Takes effect from the next deployed round.
 
+## Phase D, night 2026-10-28 (on main)
+- PL.scan runs in C: tools/botsim/c/scan.c (evaluate, RNG port, play_eval with every scoring joker, DNA, Midas, Vampire, bosses), tools/botsim/cscan.lua marshals the state once per scan and swaps PL.scan when tools/botsim/c/libbotsim.so exists. Loaded from jitopt, so every runner gets it; BOTSIM_CLIB=0 turns it off. The game never has the .so and keeps the Lua scan.
+- Built by `make -B -C tools/botsim/c` in botsim-bench.yml and botsim-work.yml, and on Hetzner boxes in GOLDEN_CHECK (hz.py), which also runs a 200-state fuzz before the tests; rsync excludes a local .so. test/ci.sh runs the same 200-state fuzz when the lib exists.
+- Fuzz (tools/botsim/fuzz_scan.lua, CI run 40756637354): 1.12M random states (120k with `dna=1`), 4.5M scans, 644M previews, 0 differ. Round 1 (run 40753790064) found 393 differing scans, all DNA (Erosion missed the copied card, two DNA copies shared a slot); fixed.
+- BENCH 1-30 x 5 decks white: all 150 games identical to phase B run 40742385845 (38 wins), 9.7 s/game vs 54.5. Pinned pairs C off vs on: 32.7 to 10.0 and 51.6 to 14.6 s/game (3.3x, 3.5x). Sim 504/504, Seer 193/193, leak 323/323 with C loaded.
+- Profile after D (6 games): play.scan 60% but 0.06 ms per scan (was 0.26, now mostly marshalling and the Lua side), state.clone 10%, seer.rollout fast_action 39%. Next speed step if needed: move the rollout's fast_action loop (scan + discard choice) or the marshal into C, or the net value head instead of rollouts.
+- Local cloud tests: only the 2 known old failures (head sees games, bench result present).
+
 ## Next
 1. Watch autopilot/log.md in botlatro-results: fair_speed 721e43-4, then teacher (CI fan-out, 20000 games), imitation, expert (Hetzner, 30 EUR approved, round cap 4).
 2. Fix the 3 old Cloud test failures in the botsim-autopilot `unit` job (push a ci-ap-* branch to run it; run 40716974826 shows them).
@@ -53,6 +61,6 @@ Read this first, then tools/botsim/autopilot/DESIGN.md.
    A. Identical games: reuse a kid's scan when it enters the next beam level; per-scan caching of combo-independent work in play_eval (find_joker calls, resolve_blueprints, update_dynamic parts). Check: sim tests, test_preview, Seer, leak, BENCH 1-30 x 5 decks identical to run 40712152628 (39 wins). Expected 65-70 s.
    B. Top 8 in solve: score only the top 8 five-card plays by nominal score in PL.solve/node_best (like PL.FAST_TOP in rollouts, 2x there with 39 vs 36 wins). Check: wins not worse on the 150 BENCH games (two-proportion check as in the fair_speed gate). Expected 35-45 s.
    C (next, rethink with the profile above: rollout fast scans are now half the time, so a scan memo should cover PL.best_play in rollouts as well as solve). Memoize previews: same hand in the same situation reached again inside a solve reuses its scan. Key must cover everything scoring reads (jokers and their counters, money, hands/discards left, blind, levels, RNG proxy state). Check: identical BENCH games plus a test comparing memoized and fresh scans. Expected about 20 s.
-   D. Hot path in C, teacher only: profile again after C, then port only what is still hot (likely EV.evaluate, card scoring, play_eval joker effects, the preview copy) to a C library loaded through LuaJIT FFI, used on CI and Hetzner only, falling back to Lua when missing. The Lua sim stays the reference and stays in the game. Port in small pieces, each fuzzed against Lua on millions of random states (tools/botsim/fuzz.lua) with identical results. Build it in the CI workflows and hz.py LUAJIT_SETUP. Check: fuzz identical, all tests, BENCH identical. Expected 10-20 s.
+   D. DONE (see Phase D above). Hot path in C, teacher only: profile again after C, then port only what is still hot (likely EV.evaluate, card scoring, play_eval joker effects, the preview copy) to a C library loaded through LuaJIT FFI, used on CI and Hetzner only, falling back to Lua when missing. The Lua sim stays the reference and stays in the game. Port in small pieces, each fuzzed against Lua on millions of random states (tools/botsim/fuzz.lua) with identical results. Build it in the CI workflows and hz.py LUAJIT_SETUP. Check: fuzz identical, all tests, BENCH identical. Expected 10-20 s.
    Later, inside step 3: the net's value head replaces the fast-policy rollouts (AlphaZero style), switched on gradually and measured each round. That is the route to a few seconds per game.
    Merge to main only after CI passes; the autopilot picks the new code up on its next round.
