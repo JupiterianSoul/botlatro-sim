@@ -36,7 +36,7 @@ def load_data(paths, window, val_every=0):
     dims, recs, runs, val = None, [], [], []
     nrun = 0
     for f in files:
-        d, r, x = R.read(f)
+        d, r, x = R.read_lazy(f)
         if dims is None:
             dims = d
         key = ("GF", "CF", "JF", "IF", "FA", "types")

@@ -35,7 +35,88 @@ def read(path):
     return parse(data)
 
 
-def parse(data):
+def read_lazy(path):
+    with open(path, "rb") as f:
+        data = f.read()
+    return parse(data, lazy=True)
+
+
+class Lazy:
+    __slots__ = ("ctx", "pos", "won", "final_ante")
+
+    def __init__(self, ctx, pos, won, final_ante):
+        self.ctx, self.pos, self.won, self.final_ante = ctx, pos, won, final_ante
+
+    def __getitem__(self, k):
+        if k == "won":
+            return self.won
+        if k == "final_ante":
+            return self.final_ante
+        return self.load()[k]
+
+    def load(self):
+        return _record(self.ctx, self.pos, self.won, self.final_ante)[0]
+
+
+def _skip_sparse(data, pos):
+    (nnz,) = struct.unpack_from("<H", data, pos)
+    return pos + 2 + 6 * nnz
+
+
+def _skip(ctx, pos):
+    data = ctx[0]
+    nc, nj, ni, phase, na, chosen = struct.unpack_from("<4BHH", data, pos)
+    pos = _skip_sparse(data, pos + 20)
+    for _ in range(nc + nj + ni):
+        pos = _skip_sparse(data, pos)
+    for _ in range(na):
+        pos = _skip_sparse(data, pos + 16)
+    return pos
+
+
+def _record(ctx, pos, won, final_ante):
+    data, GF, CF, JF, IF, FA, MS, tent = ctx
+    nc, nj, ni, phase, na, chosen = struct.unpack_from("<4BHH", data, pos)
+    root_q, net_v, n_sims = struct.unpack_from("<ffI", data, pos + 8)
+    pos += 20
+    g, pos = _sparse(data, pos, GF)
+    c, pos = _rows(data, pos, nc, CF)
+    j, pos = _rows(data, pos, nj, JF)
+    it, pos = _rows(data, pos, ni, IF)
+    atype = np.zeros(na, dtype=np.int64)
+    asel = np.zeros((na, max(nc, 1)), dtype=np.float32)
+    aitem = np.zeros((na, max(ni, 1)), dtype=np.float32)
+    ajok = np.zeros((na, max(nj, 1)), dtype=np.float32)
+    visits = np.zeros(na, dtype=np.float32)
+    prior = np.zeros(na, dtype=np.float32)
+    afa = np.zeros((na, FA), dtype=np.float32)
+    for a in range(na):
+        t, n = data[pos], data[pos + 1]
+        sel = data[pos + 2:pos + 2 + MS]
+        ent = data[pos + 2 + MS]
+        pos += 8
+        vis, pr = struct.unpack_from("<If", data, pos)
+        pos += 8
+        atype[a] = t - 1
+        for i in range(n):
+            asel[a, sel[i]] = 1.0
+        if ent != 255:
+            k = tent[t - 1]
+            if k == 1:
+                aitem[a, ent] = 1.0
+            elif k == 2:
+                ajok[a, ent] = 1.0
+        visits[a] = vis
+        prior[a] = pr
+        afa[a], pos = _sparse(data, pos, FA)
+    return {
+        "g": g, "c": c, "j": j, "i": it, "atype": atype, "asel": asel, "aitem": aitem, "ajok": ajok, "afa": afa,
+        "visits": visits, "prior": prior, "chosen": chosen, "root_q": root_q, "net_v": net_v, "n_sims": n_sims,
+        "phase": phase, "won": won, "final_ante": final_ante,
+    }, pos
+
+
+def parse(data, lazy=False):
     assert data[:4] == MAGIC, "bad record magic"
     ver, GF, CF, JF, IF, FA, MS = struct.unpack_from("<7I", data, 4)
     assert ver == VERSION, f"unsupported record version {ver}"
@@ -45,6 +126,7 @@ def parse(data):
     pos += 2 + tl
     tent = np.array([ENT_KIND.get(t, 0) for t in types], dtype=np.int64)
     dims = {"version": ver, "GF": GF, "CF": CF, "JF": JF, "IF": IF, "FA": FA, "MS": MS, "types": ",".join(types)}
+    ctx = (data, GF, CF, JF, IF, FA, MS, tent)
     recs = []
     runs = []
     while pos < len(data):
@@ -53,48 +135,17 @@ def parse(data):
         pos += 16
         runs.append({"n": nrec, "won": won, "final_ante": final_ante, "deck": deck_idx, "stake": stake, "index": run_index})
         for _ in range(nrec):
-            nc, nj, ni, phase, na, chosen = struct.unpack_from("<4BHH", data, pos)
-            root_q, net_v, n_sims = struct.unpack_from("<ffI", data, pos + 8)
-            pos += 20
-            g, pos = _sparse(data, pos, GF)
-            c, pos = _rows(data, pos, nc, CF)
-            j, pos = _rows(data, pos, nj, JF)
-            it, pos = _rows(data, pos, ni, IF)
-            atype = np.zeros(na, dtype=np.int64)
-            asel = np.zeros((na, max(nc, 1)), dtype=np.float32)
-            aitem = np.zeros((na, max(ni, 1)), dtype=np.float32)
-            ajok = np.zeros((na, max(nj, 1)), dtype=np.float32)
-            visits = np.zeros(na, dtype=np.float32)
-            prior = np.zeros(na, dtype=np.float32)
-            afa = np.zeros((na, FA), dtype=np.float32)
-            for a in range(na):
-                t, n = data[pos], data[pos + 1]
-                sel = data[pos + 2:pos + 2 + MS]
-                ent = data[pos + 2 + MS]
-                pos += 8
-                vis, pr = struct.unpack_from("<If", data, pos)
-                pos += 8
-                atype[a] = t - 1
-                for i in range(n):
-                    asel[a, sel[i]] = 1.0
-                if ent != 255:
-                    k = tent[t - 1]
-                    if k == 1:
-                        aitem[a, ent] = 1.0
-                    elif k == 2:
-                        ajok[a, ent] = 1.0
-                visits[a] = vis
-                prior[a] = pr
-                afa[a], pos = _sparse(data, pos, FA)
-            recs.append({
-                "g": g, "c": c, "j": j, "i": it, "atype": atype, "asel": asel, "aitem": aitem, "ajok": ajok, "afa": afa,
-                "visits": visits, "prior": prior, "chosen": chosen, "root_q": root_q, "net_v": net_v, "n_sims": n_sims,
-                "phase": phase, "won": float(won), "final_ante": float(final_ante),
-            })
+            if lazy:
+                recs.append(Lazy(ctx, pos, float(won), float(final_ante)))
+                pos = _skip(ctx, pos)
+            else:
+                r, pos = _record(ctx, pos, float(won), float(final_ante))
+                recs.append(r)
     return dims, runs, recs
 
 
 def collate(recs, dims, dtype=torch.float32):
+    recs = [r.load() if isinstance(r, Lazy) else r for r in recs]
     B = len(recs)
     C = max(1, max(r["c"].shape[0] for r in recs))
     J = max(1, max(r["j"].shape[0] for r in recs))
