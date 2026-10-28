@@ -1632,13 +1632,21 @@ E.update_dynamic = update_dynamic
 
 local end_round
 
-local function play_eval(s, n)
+local pvc = {ek = {}, bp = {}, dk = {}, dx = {}, dm = {}, dn = {}, nd = 0}
+local DYN = {[J.throwback] = true, [J.stencil] = true, [J.swashbuckler] = true, [J.stone] = true, [J.steel_joker] = true, [J.drivers_license] = true}
+
+local function play_eval(s, n, pc)
     local cards = play_buf
-    local four = find_joker(s, J.four_fingers)
-    local shortcut = find_joker(s, J.shortcut)
-    local smeared = find_joker(s, J.smeared)
-    local pareidolia = find_joker(s, J.pareidolia)
-    local splash = find_joker(s, J.splash)
+    local four, shortcut, smeared, pareidolia, splash
+    if pc == 2 then
+        four, shortcut, smeared, pareidolia, splash = pvc.four, pvc.shortcut, pvc.smeared, pvc.pareidolia, pvc.splash
+    else
+        four = find_joker(s, J.four_fingers)
+        shortcut = find_joker(s, J.shortcut)
+        smeared = find_joker(s, J.smeared)
+        pareidolia = find_joker(s, J.pareidolia)
+        splash = find_joker(s, J.splash)
+    end
     ctx.smeared, ctx.pareidolia = smeared, pareidolia
     local text = EV.evaluate(s, cards, n, four, shortcut, smeared, splash)
     local scoring = EV.scoring
@@ -1653,9 +1661,35 @@ local function play_eval(s, n)
     s.h_pround[text] = s.h_pround[text] + 1
     s.last_hand = text
     s.h_vis[text] = 1
-    update_dynamic(s)
-    resolve_blueprints(s)
     local nj = s.n_jok
+    if pc == 2 then
+        local dk, dx, dm, dn = pvc.dk, pvc.dx, pvc.dm, pvc.dn
+        local jx, jm, jn = s.j_x, s.j_mult, s.j_n
+        for i = 1, pvc.nd do
+            local k = dk[i]
+            jx[k], jm[k], jn[k] = dx[i], dm[i], dn[i]
+        end
+        local ek, bp = pvc.ek, pvc.bp
+        for k = 1, nj do eff_k[k], eff_bp[k] = ek[k], bp[k] end
+    else
+        update_dynamic(s)
+        resolve_blueprints(s)
+        if pc == 1 then
+            pvc.four, pvc.shortcut, pvc.smeared, pvc.pareidolia, pvc.splash = four, shortcut, smeared, pareidolia, splash
+            local dk, dx, dm, dn = pvc.dk, pvc.dx, pvc.dm, pvc.dn
+            local j_id, jx, jm, jn = s.j_id, s.j_x, s.j_mult, s.j_n
+            local nd = 0
+            for k = 1, nj do
+                if DYN[j_id[k]] then
+                    nd = nd + 1
+                    dk[nd], dx[nd], dm[nd], dn[nd] = k, jx[k], jm[k], jn[k]
+                end
+            end
+            pvc.nd = nd
+            local ek, bp = pvc.ek, pvc.bp
+            for k = 1, nj do ek[k], bp[k] = eff_k[k], eff_bp[k] end
+        end
+    end
     local j_id = s.j_id
     local chips, mult = 0, 0
     local prob = s.prob
@@ -2347,20 +2381,25 @@ function E.step(s, a)
     return ok
 end
 
+E.PREVIEW_CACHE = true
+
 function E.preview_into(scratch, s, pos, again)
+    local pc
     if again and ST.PREVIEW_PROXY and ST.PREVIEW_AGAIN then
+        pc = E.PREVIEW_CACHE and pvc.src == s and 2 or nil
         ST.copy_preview_again(scratch, s)
         local hand, forced = scratch.hand, scratch.c_forced
         for i = 1, scratch.n_hand do forced[hand[i]] = 0 end
     else
         ST.copy_preview(scratch, s)
         for c = 1, scratch.n_cards do scratch.c_forced[c] = 0 end
+        if E.PREVIEW_CACHE then pc, pvc.src = 1, s else pvc.src = nil end
     end
     local n = sorted_selection(scratch, pos, play_buf)
     for i = 1, n do remove_from_hand(scratch, play_buf[i]) end
     scratch.hands_left = scratch.hands_left - 1
     scratch.dollar_buffer = 0
-    local gained, text = play_eval(scratch, n)
+    local gained, text = play_eval(scratch, n, pc)
     return gained, text
 end
 

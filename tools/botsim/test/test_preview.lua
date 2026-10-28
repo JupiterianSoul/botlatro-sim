@@ -99,6 +99,7 @@ local joker_sets = {
     {"j_vampire", "j_sixth_sense", "j_space", "j_blueprint"},
     {"j_todo_list", "j_ice_cream", "j_gros_michel", "j_brainstorm"},
     {"j_stone", "j_steel_joker", "j_trousers", "j_runner", "j_square"},
+    {"j_stencil", "j_swashbuckler", "j_throwback", "j_drivers_license", "j_blueprint"},
 }
 local enh = {1, 2, 3, 4, 5, 6, 7, 8}
 local again, fresh = ST.scratch(), ST.scratch()

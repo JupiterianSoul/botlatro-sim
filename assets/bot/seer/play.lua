@@ -4,6 +4,7 @@ local EV = require("bot.sim.eval")
 
 local PL = {}
 PL.FAST_TOP = 0
+PL.REUSE_SCAN = true
 
 local min, max, log = math.min, math.max, math.log
 
@@ -108,6 +109,7 @@ function PL.scan(s, out_v, out_c, fast)
 end
 
 local sv, sc = {}, {}
+local scan_v, scan_c = sv, sc
 
 function PL.best_play(s, fast)
     local n = PL.scan(s, sv, sc, fast)
@@ -165,11 +167,17 @@ local function key_of(cs)
     return k
 end
 
-local function node_best(s)
-    local n = PL.scan(s, sv, sc)
+local function node_best(k)
+    local n = PL.scan(k.s, sv, sc)
     local bv = -1
-    for i = 1, n do if sv[i] > bv then bv = sv[i] end end
-    return bv
+    local kv, kc = {}, {}
+    for i = 1, n do
+        local v = sv[i]
+        kv[i], kc[i] = v, sc[i]
+        if v > bv then bv = v end
+    end
+    k.sv, k.sc, k.n = kv, kc, n
+    return bv, n
 end
 
 local function better(a, b)
@@ -195,8 +203,12 @@ function PL.solve(s0, opts)
         for bi = 1, #beam do
             local node = beam[bi]
             local s = node.s
-            local n = PL.scan(s, sv, sc)
-            evals = evals + n
+            local n, sv, sc = node.n, node.sv, node.sc
+            if not n or not PL.REUSE_SCAN then
+                sv, sc = scan_v, scan_c
+                n = PL.scan(s, sv, sc)
+                evals = evals + n
+            end
             local need = s.blind_chips - s.chips
             local order = {}
             for i = 1, n do order[i] = i end
@@ -277,8 +289,8 @@ function PL.solve(s0, opts)
         if #kids == 0 then break end
         for i = 1, #kids do
             local k = kids[i]
-            local bv = node_best(k.s)
-            evals = evals + #sc
+            local bv, n = node_best(k)
+            evals = evals + n
             k.h = k.s.chips + bv * (1 + 0.15 * (k.s.hands_left - 1)) + k.s.hands_left * 1e-3 + k.s.discards_left * 1e-6
             k.key = k.s.chips .. ":" .. k.s.hands_left .. ":" .. k.s.discards_left .. ":" .. table.concat(k.s.hand, ",", 1, k.s.n_hand)
         end
