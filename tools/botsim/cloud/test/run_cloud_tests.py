@@ -641,6 +641,14 @@ def aggregation_checks(res, env):
     check(got == ["cap95"] and al2.check(snap) == [], "95% alert once, nothing resent after a dashboard restart")
     failing = alerts.Alerter("http://x", "t", st_path + "2", sender=lambda *a, **k: False)
     check(failing.check(snap) == [] and not failing.sent, "a failed send is retried later, not marked sent")
+    slow = alerts.Alerter("http://x", "t", st_path + "3", sender=lambda *a, **k: True)
+    base = {"run": "r2", "phase": "teacher games", "job_states": {"a": "running"}, "money": {"spent": 1, "cap": 100}, "boxes": [1]}
+    stalls = []
+    for i in range(6):
+        stalls += [k for k in slow.check(dict(base, now=now + 900 * i, games=40 * i)) if k == "stall"]
+    for i in range(6, 9):
+        stalls += [k for k in slow.check(dict(base, now=now + 900 * i, games=200)) if k == "stall"]
+    check(stalls == ["stall"], "stuck alert waits while games still go up under one phase, fires once they stop (%s)" % stalls)
 
 
 if __name__ == "__main__":

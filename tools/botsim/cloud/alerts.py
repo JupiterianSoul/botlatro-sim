@@ -126,9 +126,10 @@ class Alerter:
             if self.fire("deadline", "Deletion soon on %s%s" % (run, tag), msg, 4, "hourglass"):
                 out.append("deadline")
         phase = s.get("phase") or ""
+        mark = (phase, s.get("games"))
         seen = getattr(self, "_phase", None)
-        if seen is None or seen[0] != phase:
-            self._phase = (phase, now)
+        if seen is None or seen[0] != mark:
+            self._phase = (mark, now)
         elif phase and not finished and now - seen[1] >= float(s.get("stall_after", 1800)):
             key = "stall:%s:%d" % (phase, seen[1])
             msg = "No progress for %d min, still at: %s" % (round((now - seen[1]) / 60), phase)
