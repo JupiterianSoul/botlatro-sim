@@ -1,0 +1,1 @@
+split|luajit tools/botsim/diag/preview_split.lua
