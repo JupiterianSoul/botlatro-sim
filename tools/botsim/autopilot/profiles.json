@@ -43,7 +43,7 @@
   "dry_paid": false,
   "leak_args": "",
   "bench": {"budget": "lite", "prefix": "BENCH", "run_cap": 0, "per_job": 15, "timeout": 330, "min_white_rate": 0.25,
-            "cells": [{"name": "white", "decks": "b_red", "stakes": "1", "seeds": 150},
+            "cells": [{"name": "white", "decks": "b_red,b_blue,b_yellow,b_black,b_plasma", "stakes": "1", "seeds": 30},
                       {"name": "red", "decks": "b_red", "stakes": "2", "seeds": 150},
                       {"name": "gold", "decks": "b_red", "stakes": "8", "seeds": 30}]},
   "shuffle": {"seeds": 4, "max_steps": 400, "decks": "b_red", "stakes": "1,2"},

@@ -1,4 +1,5 @@
 package.path = "assets/?.lua;tools/?.lua;" .. package.path
+require("botsim.jitopt")
 
 local F = require("bot.seer.fair")
 local S = require("bot.seer.seer")
