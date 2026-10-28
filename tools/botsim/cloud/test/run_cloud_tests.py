@@ -384,7 +384,18 @@ def train_test(tmp):
     check(all(k in g0 for k in ("loss", "loss_policy", "loss_value", "loss_ante", "lr", "samples", "buffer", "train_s", "steps", "val_policy", "val_win_pred", "epochs")), "train: gen lines carry losses, held-out losses, calibration, lr, samples and buffer")
     batches = os.path.join(homes[0], "work", "batches")
     files = [f for d in os.listdir(batches) for f in os.listdir(os.path.join(batches, d))] if os.path.isdir(batches) else []
-    recs = [os.path.join(dp, f) for h in homes for dp, _, fs in os.walk(h) for f in fs if f.endswith(".bspr")][:6]
+    snap = os.path.join(tmp, "lazy-recs")
+    os.makedirs(snap, exist_ok=True)
+    recs = []
+    for src in [os.path.join(dp, f) for h in homes for dp, _, fs in os.walk(h) for f in fs if f.endswith(".bspr")]:
+        dst = os.path.join(snap, "%d_%s" % (len(recs), os.path.basename(src)))
+        try:
+            shutil.copyfile(src, dst)
+        except OSError:
+            continue
+        recs.append(dst)
+        if len(recs) == 6:
+            break
     r = subprocess.run([py, os.path.join(REPO, "tools", "botsim", "train", "test", "lazy_check.py")] + recs, capture_output=True, text=True)
     check(recs and r.returncode == 0, "train: lazy records decode like eager ones (%s)" % (r.stdout.strip() or r.stderr.strip()[-300:]))
     check(any(f.startswith(names[0] + "_") for f in files) and any(f.startswith(names[1] + "_") for f in files),
