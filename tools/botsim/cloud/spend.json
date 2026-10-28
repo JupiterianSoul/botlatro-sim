@@ -328,6 +328,73 @@
    "price_hourly_gross": 0.08364,
    "run": "r20261028-213001",
    "type": "ccx13"
+  },
+  {
+   "created": 1793219943.0,
+   "deadline": 1793223363.215735,
+   "deleted": 1793219959.905303,
+   "id": 173178958,
+   "location": "fsn1",
+   "name": "botsim-r20261028-203903-0",
+   "price_hourly_gross": 1.64232,
+   "run": "r20261028-203903",
+   "type": "ccx63"
+  },
+  {
+   "created": 1793219946.0,
+   "deadline": 1793223363.215735,
+   "deleted": 1793219959.905303,
+   "id": 173178972,
+   "location": "fsn1",
+   "name": "botsim-r20261028-203903-1",
+   "price_hourly_gross": 1.64232,
+   "run": "r20261028-203903",
+   "type": "ccx63"
+  },
+  {
+   "created": 1793220238.0,
+   "deadline": 1793223657.5848613,
+   "deleted": 1793220252.8668172,
+   "id": 173179592,
+   "location": "fsn1",
+   "name": "botsim-r20261028-204357-0",
+   "price_hourly_gross": 1.64232,
+   "run": "r20261028-204357",
+   "type": "ccx63"
+  },
+  {
+   "created": 1793220240.0,
+   "deadline": 1793223657.5848613,
+   "deleted": 1793220252.8668172,
+   "id": 173179598,
+   "location": "fsn1",
+   "name": "botsim-r20261028-204357-1",
+   "price_hourly_gross": 1.64232,
+   "run": "r20261028-204357",
+   "type": "ccx63"
+  },
+  {
+   "created": 1793220441.0,
+   "deadline": 1793223860.7044883,
+   "deleted": null,
+   "id": 173180175,
+   "location": "fsn1",
+   "name": "botsim-r20261028-204720-0",
+   "price_hourly_gross": 1.64232,
+   "run": "r20261028-204720",
+   "type": "ccx63"
+  },
+  {
+   "created": 1793220444.0,
+   "deadline": 1793223860.7044883,
+   "deleted": 1793222124.058401,
+   "deleted_estimated": true,
+   "id": 173180183,
+   "location": "fsn1",
+   "name": "botsim-r20261028-204720-1",
+   "price_hourly_gross": 1.64232,
+   "run": "r20261028-204720",
+   "type": "ccx63"
   }
  ]
 }

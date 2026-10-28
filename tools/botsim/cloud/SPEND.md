@@ -7,8 +7,8 @@ Hetzner bills every started hour, so each box costs `started hours x gross hourl
 
 | | EUR |
 | --- | ---: |
-| spent so far (as of 2026-10-28 20:33:00Z) | 12.93 |
-| left under the cap | 87.07 |
+| spent so far (as of 2026-10-28 21:15:27Z) | 22.79 |
+| left under the cap | 77.21 |
 
 ## Servers
 
@@ -43,5 +43,11 @@ Hetzner bills every started hour, so each box costs `started hours x gross hourl
 | r20261028-192807 | botsim-r20261028-192807-0 | ccx43 | fsn1 | 0.5317 | 2026-10-28 19:28:07Z | 2026-10-28 20:29:41Z (est.) | 2 | 1.0634 |
 | r20261028-213001 | botsim-r20261028-213001-0 | ccx13 | fsn1 | 0.0836 | 2026-10-28 20:30:01Z | 2026-10-28 20:32:57Z | 1 | 0.0836 |
 | r20261028-213001 | botsim-r20261028-213001-1 | ccx13 | fsn1 | 0.0836 | 2026-10-28 20:30:05Z | 2026-10-28 20:32:48Z (est.) | 1 | 0.0836 |
+| r20261028-203903 | botsim-r20261028-203903-0 | ccx63 | fsn1 | 1.6423 | 2026-10-28 20:39:03Z | 2026-10-28 20:39:19Z | 1 | 1.6423 |
+| r20261028-203903 | botsim-r20261028-203903-1 | ccx63 | fsn1 | 1.6423 | 2026-10-28 20:39:06Z | 2026-10-28 20:39:19Z | 1 | 1.6423 |
+| r20261028-204357 | botsim-r20261028-204357-0 | ccx63 | fsn1 | 1.6423 | 2026-10-28 20:43:58Z | 2026-10-28 20:44:12Z | 1 | 1.6423 |
+| r20261028-204357 | botsim-r20261028-204357-1 | ccx63 | fsn1 | 1.6423 | 2026-10-28 20:44:00Z | 2026-10-28 20:44:12Z | 1 | 1.6423 |
+| r20261028-204720 | botsim-r20261028-204720-0 | ccx63 | fsn1 | 1.6423 | 2026-10-28 20:47:21Z | still running | 1 | 1.6423 |
+| r20261028-204720 | botsim-r20261028-204720-1 | ccx63 | fsn1 | 1.6423 | 2026-10-28 20:47:24Z | 2026-10-28 21:15:24Z (est.) | 1 | 1.6423 |
 
 "est." means the box was gone when the ledger was synced (deleted by its own watchdog or the dashboard Stop); the end time is then the earlier of the sync time and its deadline plus 5 minutes, so the figure errs high.
