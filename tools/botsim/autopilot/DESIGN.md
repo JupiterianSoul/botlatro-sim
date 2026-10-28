@@ -88,7 +88,7 @@ Global options: `--dir`, `--store-local PATH` (tests), `--dry-run` (prints what 
 | step | where | job | gate (full / tiny) |
 | --- | --- | --- | --- |
 | `fair_bench` | CI | leak test (`fair_test.lua`, slow), shuffled-view check, Fair Seer lite on the fixed seeds (white, red, gold cells from the profile) | 0 leak failures, every shuffled game identical, white wins >= 25% / >= 0 |
-| `fair_speed` | CI, needs `fair_speed_ok` | same seeds as the white baseline, plus leak and shuffle checks | mean s/game <= 60 and wins not worse than baseline (one-sided two-proportion z, p < 0.05) |
+| `fair_speed` | CI, needs `fair_speed_ok` | same seeds as the white baseline, plus leak and shuffle checks | mean s/game at most `max_ratio` (1.5 in `full`) times the fair_bench white mean, measured the same way (4 games per runner), and wins not worse than baseline (one-sided two-proportion z, p < 0.05). A fixed `max_s` still works. The old 60 s bar came from one-game-at-a-time profiles and could not pass on CI, where the baseline itself is about 82 s |
 | `teacher` | CI fan-out | `teacher.lua mode=fair` batches until `games` reached | games and records reached, leak test passed on this commit |
 | `imitation` | CI (CPU torch) | `train.py` on the teacher artifacts, then net-alone eval on the fixed seeds, shuffle check of the net | white mean ante >= 5.5 / >= 1, shuffle identical |
 | `expert` | Hetzner, needs `expert_ok` and budget | rounds of the `train` job with `TRAIN_PLAYER=fair` (net-guided Fair Seer games instead of self-play) from the current best | round best beats the previous best on its fixed eval, shuffle check of the new best passes on CI; stops after `stale_gens >= 4` |
