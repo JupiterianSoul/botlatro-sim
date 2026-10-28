@@ -1,6 +1,6 @@
 package.path = "assets/?.lua;tools/?.lua;" .. package.path
 
-local opt = {budget = "lite", decks = "b_red", stakes = "1", seeds = 4, first = 1, prefix = "BENCH", sampler = "FAIR", jitopt = 1, quick = 0, fast_top = -1, proxy = 1, again = 1, cache = 1, reuse = 1, kid_top = -1, repeats = 0}
+local opt = {budget = "lite", decks = "b_red", stakes = "1", seeds = 4, first = 1, prefix = "BENCH", sampler = "FAIR", jitopt = 1, quick = 0, fast_top = -1, proxy = 1, again = 1, cache = 1, reuse = 1, kid_top = -1, repeats = 0, memo = -1}
 for _, a in ipairs(arg or {}) do
     local k, v = a:match("^%-*([%w_]+)=(.*)$")
     if k then opt[k] = type(opt[k]) == "number" and (tonumber(v) or opt[k]) or v end
@@ -153,7 +153,7 @@ local total, games = 0, 0
 for deck in opt.decks:gmatch("[^,]+") do
     for stake in opt.stakes:gmatch("[^,]+") do
         for i = opt.first, opt.first + opt.seeds - 1 do
-            local fo = F.new({budget = opt.budget, sampler_seed = opt.sampler, quick_clear = opt.quick == 1, fast_top = opt.fast_top >= 0 and opt.fast_top or nil})
+            local fo = F.new({budget = opt.budget, sampler_seed = opt.sampler, quick_clear = opt.quick == 1, fast_top = opt.fast_top >= 0 and opt.fast_top or nil, memo = opt.memo >= 0 and opt.memo == 1 or nil})
             local t0 = clock()
             local line, s = fo:play({seed = string.format("%s%04d", opt.prefix, i), deck = deck, stake = tonumber(stake)})
             local dt = clock() - t0

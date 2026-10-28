@@ -220,4 +220,85 @@ function M.copy_preview_again(d, s)
     return M.copy_preview(d, s)
 end
 
+local floor = math.floor
+local ffi = require("ffi")
+local bit = require("bit")
+local bxor, rol, tobit = bit.bxor, bit.rol, bit.tobit
+local u64 = ffi.new("union { double d; int32_t i[2]; }")
+local str_id, n_str = setmetatable({}, {__mode = "k"}), 0
+local h1, h2 = 0, 0
+
+local function mix(a)
+    h1 = tobit(h1 * 31 + a)
+    h2 = tobit(bxor(rol(h2, 5), a) * 1000003)
+end
+
+local function put(v)
+    local t = type(v)
+    if t == "number" then
+        if v == floor(v) and v >= -2147483648 and v < 2147483648 then
+            mix(v)
+        else
+            u64.d = v
+            mix(u64.i[0]) mix(u64.i[1]) mix(-7)
+        end
+    elseif t == "string" then
+        local id = str_id[v]
+        if not id then n_str = n_str + 1 id = n_str str_id[v] = id end
+        mix(id) mix(-3)
+    elseif t == "boolean" then
+        mix(v and -11 or -13)
+    elseif t == "nil" then
+        mix(-17)
+    else
+        local id = str_id[v]
+        if not id then n_str = n_str + 1 id = n_str str_id[v] = id end
+        mix(id) mix(-37)
+    end
+end
+
+local HASH_SCALARS = {}
+for _, f in ipairs(SCALARS) do
+    if f ~= "step" and f ~= "hcache" then HASH_SCALARS[#HASH_SCALARS + 1] = f end
+end
+
+function M.hash(s)
+    h1, h2 = 0, 0
+    for i = 1, #HASH_SCALARS do put(s[HASH_SCALARS[i]]) end
+    local nc = s.n_cards
+    for f = 1, #CARD_ARRAYS do
+        local a = s[CARD_ARRAYS[f]]
+        for i = 1, nc do put(a[i]) end
+    end
+    local nj = s.n_jok
+    for f = 1, #JOKER_ARRAYS do
+        local a = s[JOKER_ARRAYS[f]]
+        for i = 1, nj do put(a[i]) end
+    end
+    for f = 1, #FIXED_ARRAYS do
+        local a, n = s[FIXED_ARRAYS[f][1]], FIXED_ARRAYS[f][2]
+        for i = 1, n do put(a[i]) end
+    end
+    for f = 1, #VAR_ARRAYS do
+        local a, n = s[VAR_ARRAYS[f][1]], s[VAR_ARRAYS[f][2]] or 0
+        for i = 1, n do put(a[i]) end
+    end
+    local hand, deck, disc, tags, cons = s.hand, s.deck, s.disc, s.tags, s.cons
+    for i = 1, s.n_hand do put(hand[i]) end
+    mix(-19)
+    for i = 1, s.n_deck do put(deck[i]) end
+    mix(-23)
+    for i = 1, s.n_disc do put(disc[i]) end
+    mix(-29)
+    for i = 1, s.n_tags do put(tags[i]) end
+    for i = 1, s.n_cons do put(cons[i]) end
+    mix(-31)
+    local r, ids = s.rng, s.rng_ids
+    for i = 1, s.n_rk do
+        local id = ids[i]
+        put(id) put(r[id])
+    end
+    return h1, h2
+end
+
 return M

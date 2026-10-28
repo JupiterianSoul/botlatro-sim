@@ -104,6 +104,7 @@ local joker_sets = {
 local enh = {1, 2, 3, 4, 5, 6, 7, 8}
 local again, fresh = ST.scratch(), ST.scratch()
 local rchecked, rdiffer, rbad, added = 0, 0, 0, 0
+local mchecked, mdiffer, mmiss, mcollide = 0, 0, 0, 0
 for si, set in ipairs(joker_sets) do
     for _, deck in ipairs({"b_red", "b_plasma"}) do
         local s = E.new_run({seed = "AGAIN00" .. si, deck = deck, stake = 1})
@@ -134,7 +135,27 @@ for si, set in ipairs(joker_sets) do
                     rchecked = rchecked + 1
                     if g1 ~= g2 or t1 ~= t2 then rdiffer = rdiffer + 1 end
                 end
-                a = PL.fast_action(s)
+                local mv1, mc1, mv2, mc2, fv, fc = {}, {}, {}, {}, {}, {}
+                PL.memo = {}
+                local n1 = PL.scan(s, mv1, mc1)
+                local cl = ST.clone(s)
+                local n2 = PL.scan(cl, mv2, mc2)
+                local entries = 0
+                for _ in pairs(PL.memo) do entries = entries + 1 end
+                PL.memo = nil
+                local nf = PL.scan(s, fv, fc)
+                mchecked = mchecked + 1
+                if entries ~= 1 then mmiss = mmiss + 1 end
+                local same = n1 == nf and n2 == nf
+                for i = 1, nf do
+                    if mv1[i] ~= fv[i] or mv2[i] ~= fv[i] or mc1[i] ~= fc[i] or mc2[i] ~= fc[i] then same = false end
+                end
+                if not same then mdiffer = mdiffer + 1 end
+                local h1, h2 = ST.hash(s)
+                cl.chips = cl.chips + 1
+                local c1, c2 = ST.hash(cl)
+                if h1 == c1 and h2 == c2 then mcollide = mcollide + 1 end
+                a = PL.fast_action(s)                a = PL.fast_action(s)
             elseif s.phase == "blind_select" then a = {type = "select"}
             elseif s.phase == "round_eval" then a = {type = "cash_out"}
             elseif s.phase == "shop" then a = {type = "leave"}
@@ -148,3 +169,7 @@ T.ok(added >= 24, "jokers added: " .. added)
 T.ok(rchecked > 1000, "repeat previews checked: " .. rchecked)
 T.eq(rbad, 0, "restored states that differ from a full copy")
 T.eq(rdiffer, 0, "repeat previews that differ")
+T.ok(mchecked > 50, "memo scans checked: " .. mchecked)
+T.eq(mdiffer, 0, "memo scans that differ from a fresh scan")
+T.eq(mmiss, 0, "clones that missed the memo")
+T.eq(mcollide, 0, "changed states with the same hash")

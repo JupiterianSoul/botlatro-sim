@@ -76,7 +76,31 @@ local function nom_greater(a, b)
     return a < b
 end
 
+PL.memo = nil
+
+local raw_scan
+
 function PL.scan(s, out_v, out_c, fast, top)
+    top = top or PL.FAST_TOP
+    local memo = PL.memo
+    if not memo then return raw_scan(s, out_v, out_c, fast, top) end
+    local a, b = ST.hash(s)
+    local key = a .. ":" .. b .. ":" .. (fast and top or -1)
+    local m = memo[key]
+    if m then
+        local n, mv, mc = m.n, m.v, m.c
+        for i = 1, n do out_v[i], out_c[i] = mv[i], mc[i] end
+        for i = n + 1, #out_v do out_v[i], out_c[i] = nil, nil end
+        return n
+    end
+    local n = raw_scan(s, out_v, out_c, fast, top)
+    local mv, mc = {}, {}
+    for i = 1, n do mv[i], mc[i] = out_v[i], out_c[i] end
+    memo[key] = {n = n, v = mv, c = mc}
+    return n
+end
+
+raw_scan = function(s, out_v, out_c, fast, top)
     local list = combos(s.n_hand)
     local fp = forced_pos(s)
     local five = fast and not wants_small(s)
@@ -88,7 +112,6 @@ function PL.scan(s, out_v, out_c, fast, top)
             out_c[n] = cs
         end
     end
-    top = top or PL.FAST_TOP
     if five and top > 0 and n > top then
         local fj = E.find_joker
         local four, shortcut = fj(s, J.four_fingers), fj(s, J.shortcut)

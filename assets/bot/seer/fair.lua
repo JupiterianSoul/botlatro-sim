@@ -13,7 +13,7 @@ local pseudohash = rng.pseudohash
 local JOKER_ARRAYS = ST.JOKER_ARRAYS
 
 F.BUDGETS = {
-    lite = {worlds = 4, eval_h = 1, max_cands = 3, fast_top = 8,
+    lite = {worlds = 4, eval_h = 1, max_cands = 3, fast_top = 8, memo = true,
         seer = {horizon = 1, tight_horizon = 2, beam = 2, tight_beam = 3, depth = 2, solve_kid_top = 8},
         solve = {beam = 3, plays = 2, discards = 3, kid_top = 8}},
     std = {worlds = 8, eval_h = 2, max_cands = 4,
@@ -21,7 +21,7 @@ F.BUDGETS = {
         solve = {beam = 4, plays = 2, discards = 4}},
 }
 
-F.DEFAULTS = {worlds = 4, eval_h = 1, max_cands = 3, sampler_seed = "FAIR", run_cap = 0, quick_clear = false, fast_top = 0}
+F.DEFAULTS = {worlds = 4, eval_h = 1, max_cands = 3, sampler_seed = "FAIR", run_cap = 0, quick_clear = false, fast_top = 0, memo = false}
 
 F.REVEAL = {reroll = true, open = true, use = true, buy_and_use = true, pick = true, reroll_boss = true, skip = true,
     select = true, play = true, discard = true, cash_out = true, leave = true}
@@ -346,10 +346,11 @@ end
 function F:decide(real, n)
     self.decisions = self.decisions + 1
     local base = F.sanitize(real)
-    local top = PL.FAST_TOP
+    local top, memo = PL.FAST_TOP, PL.memo
     PL.FAST_TOP = self.o.fast_top or 0
+    if self.o.memo then PL.memo = {} end
     local acts, best = self:decide_base(base, n or self.o.worlds)
-    PL.FAST_TOP = top
+    PL.FAST_TOP, PL.memo = top, memo
     return acts, best
 end
 
