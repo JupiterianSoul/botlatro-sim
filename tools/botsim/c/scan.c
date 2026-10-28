@@ -9,7 +9,9 @@
 #define MAXC 32
 #define MAXID 256
 #define NK 8
-#define BS_VERSION 1
+#define MAXNEW 8
+#define MAXCARD (MAXH + MAXNEW + 1)
+#define BS_VERSION 2
 
 #define JOKER_LIST(X) \
     X(four_fingers) X(shortcut) X(smeared) X(pareidolia) X(splash) X(blueprint) X(brainstorm) \
@@ -39,24 +41,25 @@ enum { KEY_LIST(ENUM_K) NK_NAMES };
 #define STR_(n) #n ","
 
 typedef struct {
-    double c_enh[MAXH + 2], c_bonus[MAXH + 2], c_debuff[MAXH + 2], c_pta[MAXH + 2], c_pdebuff[MAXH + 2];
+    double c_enh[MAXCARD], c_bonus[MAXCARD], c_debuff[MAXCARD], c_pta[MAXCARD], c_pdebuff[MAXCARD];
     double j_mult[MAXJ + 1], j_x[MAXJ + 1], j_ex[MAXJ + 1], j_n[MAXJ + 1];
     double h_level[13], h_chips[13], h_mult[13], h_played[13], h_pround[13], h_vis[13];
     double rng_v[NK];
+    double n_playing;
     double money, dollar_buffer, consumable_buffer, blind_triggered, blind_eye, blind_mouth;
     int n_hand;
 } bs_mut;
 
 typedef struct {
     bs_mut m;
-    double c_rank[MAXH + 2], c_suit[MAXH + 2], c_osuit[MAXH + 2], c_ed[MAXH + 2], c_seal[MAXH + 2], c_uid[MAXH + 2];
-    int hand[MAXH + 2];
+    double c_rank[MAXCARD], c_suit[MAXCARD], c_osuit[MAXCARD], c_ed[MAXCARD], c_seal[MAXCARD], c_uid[MAXCARD];
+    int hand[MAXCARD];
     double j_id[MAXJ + 1], j_ed[MAXJ + 1], j_debuff[MAXJ + 1], j_h[MAXJ + 1];
     double cons_hand[MAXC + 1];
     double rng_hc[NK];
     double hashed_seed, hands_left, discards_left, hands_played, round_hands_played;
     double blind, blind_disabled, blind_suit, blind_face, most_played, prob;
-    double n_cons, cons_limit, joker_limit, n_deck, starting_deck_size, n_playing, tarot_used;
+    double n_cons, cons_limit, joker_limit, n_deck, starting_deck_size, tarot_used;
     double chips_cap, plasma, observatory, idol_rank, idol_suit, ancient_suit, next_uid;
     int nh0, n_jok;
 } bs_state;
@@ -77,6 +80,7 @@ const char *bs_blind_names(void) { return BLIND_LIST(STR_); }
 const char *bs_key_names(void) { return KEY_LIST(STR_); }
 int bs_version(void) { return BS_VERSION * 100000 + (int)sizeof(bs_state); }
 int bs_max_hand(void) { return MAXH; }
+int bs_max_cards(void) { return MAXCARD; }
 int bs_max_jokers(void) { return MAXJ; }
 int bs_max_cons(void) { return MAXC; }
 int bs_max_id(void) { return MAXID; }
@@ -650,7 +654,7 @@ static void joker_main(bs_state *s, int ek, int text, int n_full, int ns, double
     } else if (id == JID(blue_joker)) {
         if (s->n_deck > 0) *oc = 2 * s->n_deck;
     } else if (id == JID(erosion)) {
-        double d = s->starting_deck_size - s->n_playing;
+        double d = s->starting_deck_size - s->m.n_playing;
         if (d > 0) *om = 4 * d;
     } else if (id == JID(stone)) {
         double t = s->m.j_n[ek];
@@ -693,7 +697,7 @@ static void joker_main(bs_state *s, int ek, int text, int n_full, int ns, double
 }
 
 static void remove_hand_pos(bs_state *s, const int *pos, int n) {
-    int keep[MAXH + 2], nk = 0, k = 1;
+    int keep[MAXCARD], nk = 0, k = 1;
     for (int i = 1; i <= s->nh0; i++) {
         if (k <= n && pos[k] == i) { k++; continue; }
         keep[++nk] = i;
@@ -755,7 +759,7 @@ static double play_eval(bs_state *s, const int *cards, int n, int four, int shor
         } else if (id == JID(dna)) {
             if (s->round_hands_played == 0 && n == 1) {
                 int src = cards[1];
-                int cid = s->nh0 + 1;
+                int cid = s->m.n_hand + n + 1;
                 s->c_rank[cid] = s->c_rank[src];
                 s->c_suit[cid] = s->c_suit[src];
                 s->c_osuit[cid] = s->c_osuit[src];
@@ -770,6 +774,7 @@ static double play_eval(bs_state *s, const int *cards, int n, int four, int shor
                 blind_debuff_card(s, cid);
                 s->m.n_hand++;
                 s->hand[s->m.n_hand] = cid;
+                s->m.n_playing = s->m.n_playing + 1;
                 for (int q = 1; q <= nj; q++)
                     if (s->j_id[q] == JID(hologram) && s->j_debuff[q] == 0) s->m.j_x[q] = s->m.j_x[q] + 1 * 0.25;
             }
@@ -994,6 +999,9 @@ static int nom_i[8192], sel[8192];
 int bs_scan(bs_state *s, int fp, int five, int top, double *out_v, int *out_i) {
     int nh = s->nh0;
     if (nh > MAXH || s->n_jok > MAXJ || s->n_cons > MAXC) return -1;
+    int ndna = 0;
+    for (int k = 1; k <= s->n_jok; k++) if (s->j_id[k] == JID(dna) || s->j_id[k] == JID(blueprint) || s->j_id[k] == JID(brainstorm)) ndna++;
+    if (ndna > MAXNEW) return -1;
     build_combos(nh);
     for (int i = 1; i <= nh; i++) s->hand[i] = i;
     s->m.n_hand = nh;
