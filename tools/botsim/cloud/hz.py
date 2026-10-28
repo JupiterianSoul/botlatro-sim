@@ -36,7 +36,7 @@ SSH_KEY = os.path.expanduser(os.environ.get("BOTSIM_SSH_KEY", "~/.ssh/botsim_het
 IMAGE = "ubuntu-24.04"
 DEFAULT_TYPES = "cpx62,ccx33"
 DEFAULT_LOCATIONS = "fsn1,nbg1,hel1"
-LIMITS = {"shared": 17, "dedicated": 144}
+LIMITS = {"shared": 17, "dedicated": 96}
 FATAL_CODES = {"unauthorized", "forbidden", "resource_limit_exceeded", "rate_limit_exceeded", "invalid_input", "uniqueness_error"}
 
 
