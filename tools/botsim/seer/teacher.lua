@@ -1,4 +1,5 @@
 package.path = "assets/?.lua;tools/?.lua;" .. package.path
+require("botsim.jitopt")
 
 local E = require("bot.sim.engine")
 local S = require("bot.seer.seer")
@@ -10,23 +11,34 @@ local T = {}
 local F = FE.new_state_buf(true)
 local AB = FE.new_action_buf(1024, true)
 
-function T.encode(s, a, opts)
+function T.encode(s, a, opts, soft)
     if not FE.PHASES[s.phase] then return nil, s.phase end
     FE.state(s, F)
     local n = FE.list_actions(s, AB, F)
     if n < 2 then return nil, "forced" end
     local chosen = FE.find_action(AB, a, s)
     if not chosen or chosen < 0 then return nil, "unmatched_" .. s.phase end
+    local vis = {[chosen] = 1}
+    if soft and #soft > 0 then
+        vis = {[chosen] = 0}
+        for _, sc in ipairs(soft) do
+            local k = FE.find_action(AB, sc.action, s)
+            if k and k >= 0 then vis[k] = (vis[k] or 0) + sc.visits end
+        end
+        if vis[chosen] == 0 then vis[chosen] = 1 end
+    end
     local others = {}
     for k = 0, n - 1 do if k ~= chosen then others[#others + 1] = k end end
     table.sort(others, function(x, y)
+        local vx, vy = vis[x] or 0, vis[y] or 0
+        if vx ~= vy then return vx > vy end
         local px, py = AB.type[x] <= 2 and AB.xe[x] or -math.huge, AB.type[y] <= 2 and AB.xe[y] or -math.huge
         if px ~= py then return px > py end
         return x < y
     end)
     local K = math.min(opts.K or 24, n, 255)
-    local picks = {{k = chosen, visits = 1, prior = 1 / K}}
-    for i = 1, K - 1 do picks[#picks + 1] = {k = others[i], visits = 0, prior = 1 / K} end
+    local picks = {{k = chosen, visits = vis[chosen], prior = 1 / K}}
+    for i = 1, K - 1 do picks[#picks + 1] = {k = others[i], visits = vis[others[i]] or 0, prior = 1 / K} end
     return REC.encode_choice(F, AB, picks, {chosen = 1, phase = FE.PHASES[s.phase], n_sims = opts.n_sims or 800})
 end
 
@@ -56,13 +68,13 @@ function T.fair(setup, opts, index)
     local b = FA.BUDGETS[opts.budget or "lite"] or FA.BUDGETS.lite
     local fo = FA.new({budget = opts.budget or "lite", seer = b.seer})
     local t0 = os.clock()
-    local line, fs = fo:play(setup)
+    local line, fs = fo:play(setup, nil, opts.stop_ante)
     local tm = os.clock() - t0
     local s = E.new_run(setup)
     local recs, skipped = {}, {}
     for i = 1, #line do
         local a = line[i]
-        local rec, why = T.encode(s, a, opts)
+        local rec, why = T.encode(s, a, opts, fo.scores[i])
         if rec then recs[#recs + 1] = rec end
         if why then skipped[why] = (skipped[why] or 0) + 1 end
         if not E.step(s, a) then

@@ -133,6 +133,8 @@ def main():
                 os.killpg(p.pid, signal.SIGKILL)
             except ProcessLookupError:
                 pass
+        if os.environ.get("KEEP_TEST_LOGS"):
+            shutil.copytree(tmp, os.environ["KEEP_TEST_LOGS"], dirs_exist_ok=True, ignore=shutil.ignore_patterns("*.bspr", "*.bnnw", "*.pt", ".venv*"))
         shutil.rmtree(tmp, ignore_errors=True)
     print("\n%d failures" % len(fails) if fails else "\nall passed")
     sys.exit(1 if fails else 0)
@@ -169,7 +171,7 @@ def run_tests(tmp):
 
     rc, out = hz(env, "plan")
     check(rc == 0 and "0.5182" in out, "plan: cpx62 + ccx33 for 1 h costs 0.5182 EUR incl. IPv4")
-    rc, out = hz(env, "plan", "--types", "ccx63", "--hours", "1")
+    rc, out = hz(env, "plan", "--types", "ccx63:4", "--hours", "1")
     check(rc == 1 and "core limits" in out, "plan refuses types over the account core limits")
     rc, out = hz(env, "plan", "--types", "cx23", "--hours", "0.17")
     check(rc == 0 and "0.0115" in out, "plan: 10 min on cx23 bills one hour, 0.0115 EUR")

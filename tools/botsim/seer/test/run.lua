@@ -169,6 +169,30 @@ do
     ok(onehot, "visits one-hot on the chosen action")
 end
 
+current = "fair teacher records: stop ante and world votes"
+do
+    local blob, info = TE.run({seed = "TEACHF01", deck = "b_red", stake = 1}, {mode = "fair", budget = "lite", stop_ante = 1, K = 24, n_sims = 800}, 2)
+    local data = REC.decode(REC.file_header() .. blob)
+    local run = data.runs[1]
+    ok(#run.recs == info.records and info.records > 0, "records decode")
+    ok(info.won == 1 or info.state.ante <= 2, "fair run stops after stop_ante")
+    local chosen_ok, sums_ok, soft = true, true, 0
+    for _, r in ipairs(run.recs) do
+        local nz, sum = 0, 0
+        for _, a in ipairs(r.acts) do
+            if a.visits > 0 then nz, sum = nz + 1, sum + a.visits end
+        end
+        if r.acts[r.chosen + 1].visits <= 0 then chosen_ok = false end
+        if nz > 1 then
+            soft = soft + 1
+            if sum > 5 then sums_ok = false end
+        end
+    end
+    ok(chosen_ok, "chosen action always has visits")
+    ok(sums_ok, "world votes never exceed the world count")
+    print(string.format("note: fair teacher %d records, %d with world votes on several moves", #run.recs, soft))
+end
+
 current = "solve search is deterministic and replays"
 do
     local setup = {seed = "SEERSLV1", deck = "b_blue", stake = 2}

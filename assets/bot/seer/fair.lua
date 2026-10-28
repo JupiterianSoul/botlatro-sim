@@ -273,13 +273,17 @@ function F:decide_base(base, n)
     end)
     for i = #cands, self.o.max_cands + 1, -1 do cands[i] = nil end
     local best = cands[1]
+    best.visits = n
     if #cands > 1 then
         self.searched = self.searched + 1
+        best.visits = 0
         local evaluator = S.new(self.o.seer)
         for _, c in ipairs(cands) do
             local sv, sw = 0, 0
+            c.vk, c.wk = {}, {}
             for k = 1, n do
                 local v, won = self:evaluate(worlds[k], c.plan, phase, evaluator)
+                c.vk[k], c.wk[k] = v, won
                 sv, sw = sv + v, sw + won
             end
             c.v, c.w = sv / n, sw / n
@@ -291,8 +295,26 @@ function F:decide_base(base, n)
             return a.first < b.first
         end)
         best = cands[1]
+        for _, c in ipairs(cands) do c.visits = 0 end
+        for k = 1, n do
+            local top = cands[1]
+            for i = 2, #cands do
+                local c = cands[i]
+                if c.wk[k] > top.wk[k] or (c.wk[k] == top.wk[k] and c.vk[k] > top.vk[k]) then top = c end
+            end
+            top.visits = top.visits + 1
+        end
     end
+    self.last_cands = cands
     return commit_prefix(best.plan, phase), best
+end
+
+function F.scores_of(cands)
+    local out = {}
+    for _, c in ipairs(cands) do
+        if (c.visits or 0) > 0 then out[#out + 1] = {action = S.copy_action(c.plan[1]), visits = c.visits} end
+    end
+    return out
 end
 
 function F:decide(real, n)
@@ -301,18 +323,21 @@ function F:decide(real, n)
     return self:decide_base(base, n or self.o.worlds)
 end
 
-function F:play(setup, on_action)
+function F:play(setup, on_action, stop_ante)
     local s = E.new_run(setup)
     local t0 = os.clock()
     local line = {}
     local capped = false
+    self.scores = {}
     for _ = 1, 4000 do
         if s.won == 1 or s.phase == "game_over" or s.phase == "win" then break end
+        if stop_ante and s.ante > stop_ante then break end
         local n = self.o.worlds
         if self.o.run_cap > 0 and os.clock() - t0 > self.o.run_cap then
             n = 1
             capped = true
         end
+        self.last_cands = nil
         local acts = self:decide(s, n)
         if not acts or #acts == 0 then break end
         local moved = false
@@ -320,6 +345,7 @@ function F:play(setup, on_action)
             local a = acts[i]
             if not E.step(s, a) then break end
             moved = true
+            if i == 1 and self.last_cands then self.scores[#line + 1] = F.scores_of(self.last_cands) end
             line[#line + 1] = S.copy_action(a)
             if on_action then on_action(s, a) end
         end
