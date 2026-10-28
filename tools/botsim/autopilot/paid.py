@@ -213,7 +213,11 @@ def run_name(ctx):
 
 
 def tail(out, n=300):
-    return (out or "").strip()[-n:]
+    out = (out or "").strip()
+    key = [l.strip() for l in out.splitlines() if "up stopped" in l or "failed (" in l or "ApiError" in l]
+    if key:
+        return (" | ".join(key[-3:]) + " | " + out[-n:])[-(n + 400):]
+    return out[-n:]
 
 
 def abort(ctx, why):
