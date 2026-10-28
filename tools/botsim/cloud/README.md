@@ -87,7 +87,7 @@ Each box gets its host key from us: `up` generates a fresh ed25519 key per box, 
 
 ### LuaJIT
 
-Ubuntu's `luajit` package shuffles some seeds differently from the LuaJIT 2.1 rolling release that LOVE 11.5 ships, so boxes don't use it. `deploy` copies the source of LuaJIT commit `2a8e017ef1ec` (version 2.1.1791988261, the one on Gabriel's laptop) from a local cache (`~/.config/botsim/cache`, fetched once from GitHub by `doctor` and checked against its sha256) and builds it on the box into `/usr/local/bin` (about 10 s on 4 laptop cores). The build is plain x86_64, no `-march`, so it runs the same on the Intel and AMD boxes.
+Ubuntu's `luajit` package shuffles some seeds differently from the real game, so boxes don't use it. Steam Balatro ships LuaJIT 2.0.5 and LOVE 11.5 for Android ships 2.1.1700008891; neither fuses the multiply-add in `math.randomseed`. gcc does when it targets a CPU with FMA (Ubuntu 26.04 defaults to x86-64-v3), which changes about 1 seed in 12, so every build here uses `XCFLAGS=-ffp-contract=off`. `deploy` copies the source of LuaJIT commit `2a8e017ef1ec` (version 2.1.1791988261, the one on Gabriel's laptop) from a local cache (`~/.config/botsim/cache`, fetched once from GitHub by `doctor` and checked against its sha256) and builds it on the box into `/usr/local/bin` (about 10 s on 4 laptop cores). The build is plain x86_64, no `-march`, so it runs the same on the Intel and AMD boxes.
 
 ## The train job
 
