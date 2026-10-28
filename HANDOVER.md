@@ -1,4 +1,4 @@
-# Handover 2026-10-28 (evening, 15:50)
+# Handover 2026-10-28 (evening, 20:00)
 
 Read this first, then tools/botsim/autopilot/DESIGN.md.
 
@@ -35,13 +35,20 @@ Read this first, then tools/botsim/autopilot/DESIGN.md.
 - Training app (~/.local/bin/botlatro-training now points at this repo) opens the autopilot's live round via botlatro-results when this PC has no run.
 - Gabriel will ask Hetzner for a higher shared core limit; when granted, switch teacher back to cpx62 (half the price per core).
 
+## Teacher speed, evening 2026-10-28 (on main)
+- Phase A (1108a41): solve reuses a kid's scan when it enters the beam; repeat previews in a scan reuse find_joker results, update_dynamic values and blueprint links (E.PREVIEW_CACHE, PL.REUSE_SCAN, both on). BENCH 1-30 x 5 decks: all 150 games identical to run 40712152628 (39 wins). Sim, Seer, leak pass. Gain small: pinned pairs -10% and +4% (CI noise), solve 63.5 to 52.1 ms/call.
+- Phase B (049696f): fair lite ranks solve kids by a fast scan of only the top 8 five-card plays (`kid_top` in the lite solve budget, `solve_kid_top` in the lite seer budget, both 8; plain Seer keeps 0). The first try only covered fair.lua's own solve; most kids come from S:decide_play (beam 6, 3 plays, 6 discards). Run 40742385845: 38 of 150 wins vs 39 (z 0.13, not worse, 91 games changed), sim/Seer/leak pass. Pinned pairs (old and new at the same time on cores 0 and 1): 82.8 to 63.7 and 91.5 to 81.6 s/game under the profiler (-23%, -11%). Bench 54.5 s/game (phase A run 63.3, reference 71.0).
+- Timing method: sequential A/B on one runner is useless (the second run is always slower). Use concurrent `taskset -c 0` / `taskset -c 1` pairs, see the pairB lines in git history of tools/botsim/ci_bench.txt (commit "ci bench: phase B with Seer solve kids").
+- fair_prof.lua now splits scan time and preview counts by solve/other and full/fast. Profile after B (6 games, 39.4 s/game): rollout fast scans 50.7% (461k scans, 0.26 ms), solve full scans 21.8% (32k, 1.62 ms, about 370 previews each), solve fast scans 15.8%, solve.step 0.3%, clone 2%.
+- Stuck alert fixed (4e37a57): it fired on 600-seed teacher rounds because the phase text never changes; it now also resets when the game count moves. Takes effect from the next deployed round.
+
 ## Next
 1. Watch autopilot/log.md in botlatro-results: fair_speed 721e43-4, then teacher (CI fan-out, 20000 games), imitation, expert (Hetzner, 30 EUR approved, round cap 4).
 2. Fix the 3 old Cloud test failures in the botsim-autopilot `unit` job (push a ci-ap-* branch to run it; run 40716974826 shows them).
 3. Teacher speed plan, approved by Gabriel 2026-10-28: about 80 s per Fair Seer lite game now, target 10-20 s. Profile: play.scan 95%, PL.solve 70% (beam of up to 6 nodes, about 50 kids per level, each kid scanned over all 218 combos, preview about 3.8 us, mostly play_eval). Do the phases in order, one at a time, each verified on CI before merge; report measured s/game after each.
    A. Identical games: reuse a kid's scan when it enters the next beam level; per-scan caching of combo-independent work in play_eval (find_joker calls, resolve_blueprints, update_dynamic parts). Check: sim tests, test_preview, Seer, leak, BENCH 1-30 x 5 decks identical to run 40712152628 (39 wins). Expected 65-70 s.
    B. Top 8 in solve: score only the top 8 five-card plays by nominal score in PL.solve/node_best (like PL.FAST_TOP in rollouts, 2x there with 39 vs 36 wins). Check: wins not worse on the 150 BENCH games (two-proportion check as in the fair_speed gate). Expected 35-45 s.
-   C. Memoize previews: same hand in the same situation reached again inside a solve reuses its scan. Key must cover everything scoring reads (jokers and their counters, money, hands/discards left, blind, levels, RNG proxy state). Check: identical BENCH games plus a test comparing memoized and fresh scans. Expected about 20 s.
+   C (next, rethink with the profile above: rollout fast scans are now half the time, so a scan memo should cover PL.best_play in rollouts as well as solve). Memoize previews: same hand in the same situation reached again inside a solve reuses its scan. Key must cover everything scoring reads (jokers and their counters, money, hands/discards left, blind, levels, RNG proxy state). Check: identical BENCH games plus a test comparing memoized and fresh scans. Expected about 20 s.
    D. Hot path in C, teacher only: profile again after C, then port only what is still hot (likely EV.evaluate, card scoring, play_eval joker effects, the preview copy) to a C library loaded through LuaJIT FFI, used on CI and Hetzner only, falling back to Lua when missing. The Lua sim stays the reference and stays in the game. Port in small pieces, each fuzzed against Lua on millions of random states (tools/botsim/fuzz.lua) with identical results. Build it in the CI workflows and hz.py LUAJIT_SETUP. Check: fuzz identical, all tests, BENCH identical. Expected 10-20 s.
    Later, inside step 3: the net's value head replaces the fast-policy rollouts (AlphaZero style), switched on gradually and measured each round. That is the route to a few seconds per game.
    Merge to main only after CI passes; the autopilot picks the new code up on its next round.
