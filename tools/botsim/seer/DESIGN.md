@@ -174,6 +174,14 @@ With `run_cap` (CPU seconds per run), a run that goes over the cap keeps playing
 
 `worlds=`, `eval_h=`, `max_cands=` and `seer=key:value,...` override a budget.
 
+### World votes, net proposals and speed
+
+- After a searched decision every world votes for the candidate that scored best in it (wins first, then rollout value). `fo.scores[i]` holds the votes for action `i` of the line; the fair teacher writes them as visit counts, so records are soft targets instead of one-hot. An unsearched decision gives all votes to the one plan.
+- `net_propose` (teacher `weights=` and `net_sims=`): when the worlds disagree, the net's MCTS move on world 1 joins the candidates and is evaluated like the others. `net_picks` counts how often it wins. Asking the net on every decision made almost every decision a search, so it is only asked where there is already a choice.
+- `fast_top` (lite: 8): in rollouts the fast policy ranks the five-card plays by hand base chips times mult plus card chips and previews only the top N. Measured on BENCH 1-30, 5 decks, white: 129.9 to 66.4 s per game, wins 36 to 39 of 150.
+- `quick_clear` (off): play the best visible play when it clears the blind, without worlds. It saved nothing measurable (127.8 s, 35 wins) and stays off.
+- The runners load `botsim.jitopt` (bigger LuaJIT trace limits): 1.84x faster with identical games.
+
 ### Why it cannot cheat
 
 Every decision goes `real -> F.sanitize -> worlds -> Seer`. After `sanitize` the real state is never read again, and `sanitize` keeps nothing hidden: the RNG and seed are replaced by constants, the unseen pool is sorted. So two real states that differ only in hidden things give the same sanitized view, the same worlds for the same sampler seed, and the same decision. `tools/botsim/seer/test/fair_test.lua` checks exactly that on states from two runs (blind select, shop, play, packs when they come up, plus a synthetic state with face-down cards and face-down jokers): it builds a variant with another seed, other RNG values, a reordered deck, swapped face-down cards and swapped hidden joker order, and asserts the sanitized views are byte identical and that `decide` returns the same actions. It also checks that worlds keep the visible facts, that deciding does not change the real state or its RNG, and that a short fair run is legal and deterministic. It prints how often the cheating Seer changes its move on the same pairs, which shows the variants really matter.
@@ -190,9 +198,9 @@ luajit tools/botsim/seer/fair.lua summary=a.jsonl,b.jsonl
 
 Options: `budget=lite|std`, `worlds`, `eval_h`, `max_cands`, `seer=horizon:2,beam:3`, `decks`, `stakes`, `seeds` (count), `first` (first seed number), `prefix` (default `FAIR`, seeds `FAIR0001..`), `sampler` (sampler seed), `run_cap`, `jobs` (worker processes, each writes `<out>.partK` as it goes), `part=k/n`, `out` (JSON lines: deck, stake, seed, won, ante, time, actions, decisions, searched, world_plans, capped, budget, worlds, s_per_decision).
 
-### Cost (estimated, not measured yet)
+### Cost
 
-Seer play mode costs about 40 CPU s per run on white stake. Fair Seer replans every action in a blind and after every reveal in a shop, in every world, so per run it is roughly worlds x 2 to 3 x a Seer run, plus the evaluations. Expected: `lite` about 1 to 3 CPU s per decision and 3 to 6 minutes per run; `std` about 5 to 10 s per decision and 12 to 20 minutes per run, which is why the CI lines set `run_cap`. The first CI run replaces these with measured numbers (`s_per_decision` and `time` in the JSON lines).
+Measured on CI runners (2 cores), BENCH 1-30, 5 decks, white, `lite`: 182 s per game before the speed work, 130 s with jitopt, 66 s with `fast_top=8`. `tools/botsim/seer/fair_prof.lua` breaks the time down by phase and function.
 
 ### Not done yet
 

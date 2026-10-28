@@ -91,7 +91,7 @@ Global options: `--dir`, `--store-local PATH` (tests), `--dry-run` (prints what 
 | `fair_speed` | CI, needs `fair_speed_ok` | same seeds as the white baseline, plus leak and shuffle checks | mean s/game <= 60 and wins not worse than baseline (one-sided two-proportion z, p < 0.05) |
 | `teacher` | CI fan-out | `teacher.lua mode=fair` batches until `games` reached | games and records reached, leak test passed on this commit |
 | `imitation` | CI (CPU torch) | `train.py` on the teacher artifacts, then net-alone eval on the fixed seeds, shuffle check of the net | white mean ante >= 5.5 / >= 1, shuffle identical |
-| `expert` | Hetzner, needs `expert_ok` and budget | rounds of the job named in the profile (`train` today, the net-guided Fair Seer job when it exists) from the current best | round best beats the previous best on its fixed eval, shuffle check of the new best passes on CI; stops after `stale_gens >= 4` |
+| `expert` | Hetzner, needs `expert_ok` and budget | rounds of the `train` job with `TRAIN_PLAYER=fair` (net-guided Fair Seer games instead of self-play) from the current best | round best beats the previous best on its fixed eval, shuffle check of the new best passes on CI; stops after `stale_gens >= 4` |
 | `ladder` | Hetzner | as `expert` with `TRAIN_STAKES` at the current rung | promote at the profile's win rate (white 60%), next stake; after Gold, full benchmark on every deck, then `done` |
 
 Before every `up` (paid.py): free precheck passed for this checkpoint, `paid.approved_eur - paid.spent_eur >= round cost`, `round cost <= paid.round_cap_eur`, shared ledger total + round cost <= 100 EUR (hz.py refuses too), then `hz.py doctor`, `up --types T --hours H --spend-cap C --yes`, `deploy`, `run <job> --env ... --env BOTSIM_DELETE_WHEN_DONE=1 --env TRAIN_PATIENCE=4 --json`. Any failure after `up`: `hz.py down`, verify `list`, alert. The run state file goes to `<dir>/hz/<run>.json`.
@@ -139,4 +139,4 @@ ntfy through `alerts.send`, topic from `~/.config/botsim/ntfy_topic`: every gate
 ## Not automated (code work the autopilot waits for)
 
 - Fair Seer speed (`fair_speed_ok`): search only decisions that matter (shop, packs, skips, discards; trivial ones by the greedy rule), reuse rollouts across nearby decisions, keep leak and shuffle checks green, target under 60 s per lite game with the same wins on the same seeds.
-- Net-guided Fair Seer for expert iteration (`expert_ok`): the net proposes the candidate moves and replaces random rollouts with its value; a Hetzner job that plays it, trains the next net and evaluates on the fixed eval.
+- Net-guided Fair Seer for expert iteration (`expert_ok`): built as `TRAIN_PLAYER=fair` in the `train` job. Each lane plays one Fair Seer game with the current net; where the sampled worlds disagree, the net's MCTS move joins the candidates. Records carry world votes as soft targets. Rollouts still use the fast policy, not the net's value.
