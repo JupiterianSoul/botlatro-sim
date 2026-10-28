@@ -181,6 +181,7 @@ With `run_cap` (CPU seconds per run), a run that goes over the cap keeps playing
 - `fast_top` (lite: 8): in rollouts the fast policy ranks the five-card plays by hand base chips times mult plus card chips and previews only the top N. Measured on BENCH 1-30, 5 decks, white: 129.9 to 66.4 s per game, wins 36 to 39 of 150.
 - `quick_clear` (off): play the best visible play when it clears the blind, without worlds. It saved nothing measurable (127.8 s, 35 wins) and stays off.
 - The runners load `botsim.jitopt` (bigger LuaJIT trace limits): 1.84x faster with identical games.
+- Preview copies (`ST.copy_preview`, on with `ST.PREVIEW_PROXY`) read the RNG through a lookup into the source state instead of copying it; writes stay in the scratch. BENCH 1-30, 5 decks, white: all 150 games identical to the plain copy (39 wins). Old vs new on the same runner (`fair_prof.lua proxy=0|1`, 6 games): 65.0 to 59.5 s per game in one job; the other job measured 63.0 to 92.4 s with every phase slower, including ones previews do not touch, so that runner slowed down mid-job.
 
 ### Why it cannot cheat
 
@@ -200,7 +201,7 @@ Options: `budget=lite|std`, `worlds`, `eval_h`, `max_cands`, `seer=horizon:2,bea
 
 ### Cost
 
-Measured on CI runners (2 cores), BENCH 1-30, 5 decks, white, `lite`: 182 s per game before the speed work, 130 s with jitopt, 66 s with `fast_top=8`. `tools/botsim/seer/fair_prof.lua` breaks the time down by phase and function.
+Measured on CI runners (2 cores), BENCH 1-30, 5 decks, white, `lite`: 182 s per game before the speed work, 130 s with jitopt, 66 to 91 s with `fast_top=8` (same games, different runners), 83 s with preview proxy on a run where the same games took 91 s before. CI timing noise between runners is about 35%, so compare on one runner. `tools/botsim/seer/fair_prof.lua` breaks the time down by phase and function.
 
 ### Not done yet
 
