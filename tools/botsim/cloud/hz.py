@@ -1379,7 +1379,7 @@ GOLDEN = os.environ.get("BOTSIM_GOLDEN_TEST", "tools/botsim/test/test_econ.lua")
 LUAJIT_SETUP = ("set -e; want=%s; have=$(/usr/local/bin/luajit -v 2>/dev/null | awk '{print $2}'); "
                 "if [ \"$have\" != \"$want\" ]; then rm -rf /opt/botsim/luajit-src; mkdir -p /opt/botsim/luajit-src; "
                 "tar -xzf /opt/botsim/luajit.tar.gz -C /opt/botsim/luajit-src --strip-components=1; "
-                "make -C /opt/botsim/luajit-src -j\"$(nproc)\" PREFIX=/usr/local >/var/log/botsim-luajit-build.log 2>&1 "
+                "make -C /opt/botsim/luajit-src -j\"$(nproc)\" PREFIX=/usr/local XCFLAGS=-ffp-contract=off >/var/log/botsim-luajit-build.log 2>&1 "
                 "|| { tail -n 20 /var/log/botsim-luajit-build.log; exit 1; }; "
                 "make -C /opt/botsim/luajit-src install PREFIX=/usr/local >>/var/log/botsim-luajit-build.log 2>&1; fi; "
                 "ln -sf /usr/local/bin/luajit-$want /usr/local/bin/luajit; /usr/local/bin/luajit -v") % LUAJIT_VERSION

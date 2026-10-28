@@ -23,6 +23,7 @@ env:
   LUAJIT_COMMIT: 2a8e017ef1ece6a95b983ffca073d30609dce7c4
   LUAJIT_SHA256: 54705d4b1de50a9c668539b9cf0dc3170d94ffdad51fafd1cf4477e498be7144
   LUAJIT_VERSION: 2.1.1791988261
+  LUAJIT_XCFLAGS: -ffp-contract=off
 
 jobs:
   run:
@@ -47,14 +48,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/luajit
-          key: luajit-${{ env.LUAJIT_COMMIT }}
+          key: luajit-${{ env.LUAJIT_COMMIT }}-nofma
       - name: Pinned LuaJIT
         if: steps.lj.outputs.cache-hit != 'true'
         run: |
           curl -sSL -o lj.tar.gz "https://github.com/LuaJIT/LuaJIT/archive/$LUAJIT_COMMIT.tar.gz"
           echo "$LUAJIT_SHA256  lj.tar.gz" | sha256sum -c -
           mkdir src && tar -xzf lj.tar.gz -C src --strip-components=1
-          make -C src -j"$(nproc)" PREFIX="$HOME/luajit" > /dev/null
+          make -C src -j"$(nproc)" PREFIX="$HOME/luajit" XCFLAGS="$LUAJIT_XCFLAGS" > /dev/null
           make -C src install PREFIX="$HOME/luajit" > /dev/null
       - name: Check LuaJIT
         run: |
