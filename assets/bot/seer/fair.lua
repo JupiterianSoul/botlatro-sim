@@ -283,7 +283,7 @@ function F:decide_base(base, n)
         return a.first < b.first
     end)
     for i = #cands, self.o.max_cands + 1, -1 do cands[i] = nil end
-    if self.o.net_propose then
+    if self.o.net_propose and #cands > 1 then
         local a = self.o.net_propose(clone(worlds[1]))
         if a then
             local key = phase == "play" and action_key(a) or plan_key({a})
