@@ -1,6 +1,6 @@
 package.path = "assets/?.lua;tools/?.lua;" .. package.path
 
-local opt = {budget = "lite", decks = "b_red", stakes = "1", seeds = 4, first = 1, prefix = "BENCH", sampler = "FAIR", jitopt = 1, quick = 0, fast_top = -1, proxy = 1, again = 1, cache = 1, reuse = 1, kid_top = -1}
+local opt = {budget = "lite", decks = "b_red", stakes = "1", seeds = 4, first = 1, prefix = "BENCH", sampler = "FAIR", jitopt = 1, quick = 0, fast_top = -1, proxy = 1, again = 1, cache = 1, reuse = 1, kid_top = -1, repeats = 0}
 for _, a in ipairs(arg or {}) do
     local k, v = a:match("^%-*([%w_]+)=(.*)$")
     if k then opt[k] = type(opt[k]) == "number" and (tonumber(v) or opt[k]) or v end
@@ -87,6 +87,54 @@ PL.scan = function(s, ov, oc, fast, top)
     N["pv." .. tag] = (N["pv." .. tag] or 0) + (pv_n - p0)
     return n
 end
+local rep_d, rep_s, rep_hit = {}, {}, {}
+local kbuf = {}
+local function state_key(s, fast, top)
+    local n = 0
+    local function put(v) n = n + 1 kbuf[n] = tostring(v) end
+    put(fast and 1 or 0) put(top or -1)
+    for _, f in ipairs(ST.SCALARS) do if f ~= "step" then put(s[f]) end end
+    for _, f in ipairs(ST.CARD_ARRAYS) do local a = s[f] for i = 1, s.n_cards do put(a[i]) end end
+    for _, f in ipairs(ST.JOKER_ARRAYS) do local a = s[f] for i = 1, s.n_jok do put(a[i]) end end
+    for _, f in ipairs(ST.FIXED_ARRAYS) do local a = s[f[1]] for i = 1, f[2] do put(a[i]) end end
+    for i = 1, s.n_hand do put(s.hand[i]) end
+    for i = 1, s.n_cons do put(s.cons[i]) end
+    local ks = {}
+    for k in pairs(s.rng) do ks[#ks + 1] = tostring(k) end
+    table.sort(ks)
+    for _, k in ipairs(ks) do put(k) put(s.rng[k]) end
+    return table.concat(kbuf, ",", 1, n)
+end
+if opt.repeats == 1 then
+    local inner_scan = PL.scan
+    PL.scan = function(s, ov, oc, fast, top)
+        local tag = ((depth["play.solve"] or 0) > 0 and "solve" or "other") .. (fast and ".fast" or ".full")
+        local k = state_key(s, fast, top)
+        local p0 = pv_n
+        local n = inner_scan(s, ov, oc, fast, top)
+        local pv = pv_n - p0
+        local function count(scope, seen)
+            local h = scope .. "." .. tag
+            local r = rep_hit[h] or {0, 0, 0, 0}
+            rep_hit[h] = r
+            r[1], r[2] = r[1] + 1, r[2] + pv
+            if seen[k] then r[3], r[4] = r[3] + 1, r[4] + pv else seen[k] = true end
+        end
+        count("decide", rep_d)
+        if (depth["play.solve"] or 0) > 0 then count("solve", rep_s) end
+        return n
+    end
+    local base_solve = PL.solve
+    PL.solve = function(...)
+        if (depth["play.solve"] or 0) <= 1 then rep_s = {} end
+        return base_solve(...)
+    end
+    local base_decide2 = F.decide
+    F.decide = function(...)
+        rep_d = {}
+        return base_decide2(...)
+    end
+end
 local base_step = E.step
 E.step = function(...)
     if (depth["play.solve"] or 0) == 0 then return base_step(...) end
@@ -122,6 +170,7 @@ for k in pairs(T) do names[#names + 1] = k end
 table.sort(names, function(a, b) return T[a] > T[b] end)
 print(string.format("\n%d games, %.1f s total, %.1f s per game", games, total, total / math.max(1, games)))
 print(string.format("%-24s %9s %6s %9s %10s", "part", "s", "share", "calls", "ms/call"))
+for k, r in pairs(rep_hit) do print(string.format("repeat %-18s scans %8d hits %8d (%.1f%%) previews %10d saved %10d (%.1f%%)", k, r[1], r[3], 100 * r[3] / r[1], r[2], r[4], 100 * r[4] / math.max(1, r[2]))) end
 for k, v in pairs(N) do if k:sub(1, 3) == "pv." then print(string.format("previews %-14s %10d", k:sub(4), v)) end end
 for _, k in ipairs(names) do
     print(string.format("%-24s %9.1f %5.1f%% %9d %10.2f", k, T[k], 100 * T[k] / total, N[k], 1000 * T[k] / N[k]))
