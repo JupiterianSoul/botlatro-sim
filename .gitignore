@@ -9,3 +9,4 @@ tools/botsim/train/out/
 __pycache__/
 .venv/
 *.tmp
+tools/botsim/c/libbotsim.so
