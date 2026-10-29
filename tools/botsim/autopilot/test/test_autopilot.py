@@ -59,6 +59,7 @@ class World:
         self.auto_complete = True
         self.run_n = 0
         self.teacher = None
+        self.imitation = None
 
     def __call__(self, argv, env=None, timeout=None):
         self.calls.append(list(argv))
@@ -155,6 +156,18 @@ class World:
                  {"type": "state", "state": self.job_state}]
         if self.teacher is not None:
             lines = [{"type": "state", "state": "running"}, dict(type="teacher", **self.teacher), {"type": "state", "state": self.job_state}]
+        if self.imitation is not None:
+            lines = [{"type": "state", "state": "running"}, dict(type="imitation", **self.imitation), {"type": "state", "state": self.job_state}]
+            os.makedirs(os.path.join(d, "imitation"), exist_ok=True)
+            with open(os.path.join(d, "imitation", "imitation.bnnw"), "w") as f:
+                f.write("net")
+            with open(os.path.join(d, "imitation", "games.jsonl"), "w") as f:
+                for i in range(2):
+                    f.write(json.dumps({"deck": "b_red", "stake": 1, "seed": i + 1, "won": True, "ante": self.imitation["mean_ante"], "time": 5.0}) + "\n")
+            with open(os.path.join(d, "imitation", "leak.txt"), "w") as f:
+                f.write("fair tests: 12 passed, 0 failed\n")
+            with open(os.path.join(d, "imitation", "shuffle.json"), "w") as f:
+                f.write(json.dumps({"games": 1, "identical": 1}))
         with open(os.path.join(d, "metrics.jsonl"), "w") as f:
             for m in lines:
                 f.write(json.dumps(m) + "\n")
@@ -406,6 +419,12 @@ class TestTeacherPaid(Base):
         self.assertEqual(st["status"], "stopped")
         self.assertEqual(self.world.boxes, [])
 
+    def test_imitation_round_on_hetzner(self):
+        import steps
+        prof = self.profiles["full"]
+        self.assertTrue(steps.on_hetzner(prof, "imitation"))
+        self.assertEqual(prof["imitation"]["cfg"], "E=64,H=256")
+
     def test_imitation_fetches_hetzner_records(self):
         import steps
         ctx = type("C", (), {})()
@@ -459,5 +478,34 @@ class TestPieces(unittest.TestCase):
             shutil.rmtree(d)
 
 
+class TestImitationPaid(Base):
+    def setUp(self):
+        super().setUp()
+        self.ap("init", "--profile", "tiny-imit")
+        self.imit = {"games": 2, "wins": 2, "mean_ante": 6.0, "sec_per_game": 5.0, "samples_per_s": 9000, "train_secs": 10, "leak_ok": True,
+                     "eval_failed": False, "threads": 4, "stopped": False}
+
+    def test_round_runs_imitate_job(self):
+        self.world.imitation = self.imit
+        self.ap("approve", "--eur", "5", "--round-cap", "5")
+        st = self.ticks(10)
+        self.assertEqual(st["status"], "done", st.get("reason"))
+        run = self.world.hz_calls("run")[0]
+        self.assertIn("imitate", run)
+        self.assertIn("IMIT_RUNS=", run)
+        self.assertIn("IMIT_CFG=E=64,H=256", run)
+        self.assertEqual(st["best"]["name"], "imitation")
+        self.assertEqual(self.world.boxes, [])
+        self.assertFalse(self.world.dispatches())
+
+    def test_low_ante_fails_gate(self):
+        self.imit["mean_ante"] = 2.0
+        self.world.imitation = self.imit
+        self.ap("approve", "--eur", "5", "--round-cap", "5")
+        st = self.ticks(10)
+        self.assertNotEqual(st["status"], "done")
+
+
 if __name__ == "__main__":
     unittest.main()
+
