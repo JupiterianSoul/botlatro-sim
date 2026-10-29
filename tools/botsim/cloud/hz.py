@@ -469,7 +469,7 @@ def cloud_init(box, node, token, host_key=None, backup=None):
             "  - [sh, -c, 'systemctl disable --now unattended-upgrades.service apt-daily.timer apt-daily-upgrade.timer || true; apt-get remove -y -q needrestart || true']",
             "  - [sh, -c, 'systemctl daemon-reload && systemctl enable --now botsim-watchdog.timer botsim-stop.path botsim-backup.timer']",
             "  - [sh, -c, 'id botsim || useradd --system --create-home --home-dir /home/botsim --shell /usr/sbin/nologin botsim']",
-            "  - [sh, -c, 'if [ -f /etc/botsim/results_key ]; then chgrp botsim /etc/botsim/results_key && chmod 0640 /etc/botsim/results_key; fi']",
+            "  - [sh, -c, 'if [ -f /etc/botsim/results_key ]; then install -m 0600 -o botsim -g botsim /etc/botsim/results_key /etc/botsim/results_key.job; fi']",
             "  - [sh, -c, 'mkdir -p /opt/botsim/run /opt/botsim/repo /opt/botsim/jobs /opt/botsim/xfer /opt/botsim/work && chown botsim:botsim /opt/botsim/run /opt/botsim/xfer /opt/botsim/work && touch /etc/botsim/job.env']",
             "  - [sh, -c, 'DEBIAN_FRONTEND=noninteractive apt-get update -q && DEBIAN_FRONTEND=noninteractive apt-get install -y -q python3 rsync git gcc make libc6-dev']",
             "  - [sh, -c, 'systemctl enable botsim-dashboard.service']",
