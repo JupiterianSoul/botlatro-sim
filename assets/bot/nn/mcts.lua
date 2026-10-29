@@ -76,6 +76,7 @@ function M.new(net, opts)
     self.score_top = opts.score_top or 6
     self.score_temp = opts.score_temp or 4
     self.type_mass = (opts.type_mass or 0) > 0
+    self.tm_at = (opts.type_mass or 0) < 1 and opts.type_mass or 0.5
     self.tm = BUF.alloc(1024)
     self.tm_cap = 1024
     self.skip_pen = opts.skip_pen or 1
@@ -275,7 +276,7 @@ function M:mass_key(AB, na, prob, key)
         if t == 1 then mp = mp + prob[k] elseif t == 2 then md = md + prob[k] end
         if key[k] > key[bk] then bk = k end
     end
-    local win = md > mp and 2 or 1
+    local win = md > self.tm_at * (mp + md) and 2 or 1
     if ty[bk] > 2 or ty[bk] == win then return key end
     if self.tm_cap < na then
         self.tm_cap = AB.cap
