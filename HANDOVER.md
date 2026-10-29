@@ -65,6 +65,15 @@ Read this first, then tools/botsim/autopilot/DESIGN.md.
 - Attempt 4 (721e43-8) will fail the same way and the autopilot stops itself; nothing paid runs.
 - Next: check autopilot/log.md. If imitation failed again, read the run log (train.txt in out/). If it passed, expert runs on Hetzner by itself; report each round.
 
+## Morning 2026-10-29 (on main, 1577254)
+- Overnight nothing ran: imitation stopped 22:34 (shuffle check, 2 in a row), and I blocked on a question to Gabriel. Never ask at bedtime.
+- Why the imitation net was weak (mean ante 2.0): fair teacher records kept the chosen move plus the top 23 by nominal score. Discards score 0, so other discards never appeared as negatives and the net learned "discards are good". Fix: seer/teacher.lua defaults K=32 neg=16 (16 ranked, 16 random others, per-game LCG so records stay deterministic; games unchanged). A/B on the same 600 b_red white teacher games, 4000 steps, 30 BENCH seeds: old 1.37 mean ante (0 wins), new 4.87 (sims 0) / 5.03 (sims 32), 1-2 wins (runs 40838080953, 40839504118).
+- fair_shuffle.lua who=net: forced cash-out now advances the real state (was only the scrambled copy, so every game ended "stuck").
+- Net eval and the shuffle check now use the policy alone (`sims=0`): MCTS on the real state reads the hidden deck, so a searched net is not fair. The train job's own eval (TRAIN_EVAL_SIMS) still searches the real state; it only ranks rounds, the counted numbers come from the CI checks.
+- eval.lua writes `end` (why the game stopped) and `moves` per game line.
+- `autopilot.py redo STEP` goes back to an earlier step (teacher clears its artifacts, steps up to imitation clear best). Ran `redo teacher` 08:15; teacher round r20261029-081506 started on Hetzner (same 20000 seeds, new records). Spent 6.64 of 30 EUR before it.
+- Tests on 1577254: autopilot 38 OK, Cloud tests all ok, Seer 196/196, sim 504/504, scan fuzz 0 differ.
+
 ## Next
 0. Gabriel chose (2026-10-28 night): next session = autopilot rounds on the faster code plus the 3 old Cloud test failures (item 2). No more speed work for now.
 1. Watch autopilot/log.md in botlatro-results: fair_speed 721e43-4, then teacher (CI fan-out, 20000 games), imitation, expert (Hetzner, 30 EUR approved, round cap 4).
