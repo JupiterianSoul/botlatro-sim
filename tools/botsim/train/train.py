@@ -113,6 +113,7 @@ def main():
     ap.add_argument("--min-steps", type=int, default=100)
     ap.add_argument("--warmup", type=int, default=0)
     ap.add_argument("--threads", type=int, default=0)
+    ap.add_argument("--chosen", type=float, default=0.0)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--log-every", type=int, default=100)
     ap.add_argument("--mix-data", nargs="+", default=[])
@@ -122,6 +123,7 @@ def main():
     a = ap.parse_args()
     if a.threads:
         torch.set_num_threads(a.threads)
+    R.CHOSEN = a.chosen
     random.seed(a.seed)
     torch.manual_seed(a.seed)
     dims, runs, recs, val = load_data(a.data, a.window, a.val_every) if a.data else (None, [], [], [])

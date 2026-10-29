@@ -94,6 +94,8 @@ def train(py, data_files, w):
            "--window", env("WINDOW", "0"), "--threads", str(WORKERS), "--log-every", env("LOG_EVERY", "200")]
     if env("CFG"):
         cmd += ["--cfg", env("CFG")]
+    if env("CHOSEN"):
+        cmd += ["--chosen", env("CHOSEN")]
     if env("BATCH"):
         cmd += ["--batch", env("BATCH")]
     log = os.path.join(OUT, "train.txt")

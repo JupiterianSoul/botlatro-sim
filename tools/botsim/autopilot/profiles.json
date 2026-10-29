@@ -45,7 +45,7 @@
   "bench": {"budget": "lite", "prefix": "BENCH", "run_cap": 120, "per_job": 30, "timeout": 60, "min_white_rate": 0.0,
             "cells": [{"name": "white", "decks": "b_red", "stakes": "1", "seeds": 2}]},
   "shuffle": {"seeds": 1, "max_steps": 15, "decks": "b_red", "stakes": "1"},
-  "imitation": {"steps": 30, "eval_seeds": 2, "min_ante": 5.5, "decks": "b_red", "stakes": "1", "timeout": 60, "window": 0, "cfg": "E=64,H=256",
+  "imitation": {"steps": 30, "eval_seeds": 2, "min_ante": 5.5, "decks": "b_red", "stakes": "1", "timeout": 60, "window": 0, "cfg": "E=64,H=256", "chosen": 1.0,
                 "paid": {"job": "imitate", "types": "cpx02", "hours": 0.9, "spend_cap": 0.02, "env": {}, "wait_minutes": 20}},
   "paid": {"job": "imitate", "types": "cpx02", "hours": 0.9, "spend_cap": 0.02, "env": {}, "max_rounds": 1, "wait_minutes": 20, "precheck_timeout": 60}
  },
@@ -62,7 +62,7 @@
   "fair_speed": {"max_ratio": 1.5, "args": "", "cells": ["white"]},
   "teacher": {"games": 20000, "per_job": 60, "max_jobs": 40, "stop_ante": 0, "decks": "all", "stakes": "1,2", "prefix": "TEACH", "budget": "lite", "timeout": 330,
               "paid": {"job": "teacher", "types": "ccx63,ccx63", "hours": 1, "spend_cap": 4, "env": {}, "seeds_per_round": 9000, "wait_minutes": 0}},
-  "imitation": {"steps": 60000, "eval_seeds": 150, "min_ante": 5.5, "decks": "b_red", "stakes": "1", "timeout": 330, "window": 0, "cfg": "E=64,H=256",
+  "imitation": {"steps": 60000, "eval_seeds": 150, "min_ante": 5.5, "decks": "b_red", "stakes": "1", "timeout": 330, "window": 0, "cfg": "E=64,H=256", "chosen": 1.0,
                "paid": {"job": "imitate", "types": "ccx63", "hours": 3, "spend_cap": 5, "env": {}, "wait_minutes": 0}},
   "paid": {"job": "train", "types": "cpx62,ccx33", "hours": 6, "spend_cap": 4, "env": {"TRAIN_PLAYER": "fair", "TRAIN_GAMES": "300"}, "max_rounds": 30, "wait_minutes": 0, "precheck_timeout": 120},
   "ladder": {"stakes": [1, 2, 3, 4, 5, 6, 7, 8], "win_rate": 0.6, "final_bench": true, "final_seeds": 30, "final_timeout": 330}
