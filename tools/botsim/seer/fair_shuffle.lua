@@ -25,7 +25,7 @@ local b = F.BUDGETS[opt.budget] or F.BUDGETS.lite
 local sopts = {}
 for k, v in pairs(b.seer) do sopts[k] = v end
 
-local chooser
+local chooser, forced
 if opt.who == "fair" then
     chooser = function()
         local fo = F.new({budget = opt.budget})
@@ -45,6 +45,7 @@ elseif opt.who == "net" then
     local NET = require("bot.nn.net")
     local MC = require("bot.nn.mcts")
     local net = NET.new(WT.load(opt.weights))
+    forced = MC.advance_forced
     chooser = function()
         return function(view)
             MC.advance_forced(view)
@@ -77,6 +78,7 @@ local function run(setup, scrambled)
     local line = {}
     local dec = 0
     while #line < opt.max_steps do
+        if forced then forced(s) end
         if s.won == 1 or s.phase == "game_over" or s.phase == "win" then break end
         dec = dec + 1
         local view = scrambled and SC.shuffled(s, string.format("SHUF%s_%d_%d", setup.seed, dec, s.step)) or s

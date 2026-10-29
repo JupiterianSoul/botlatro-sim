@@ -32,35 +32,36 @@ local st = {}
 
 local function play(deck, stake, seed)
     local s = E.new_run({seed = seed, deck = deck, stake = stake})
-    local moves, econ_run = 0, 0
+    local moves, econ_run, why = 0, 0, "max_moves"
     while moves < opt.max_moves do
         MC.advance_forced(s)
-        if MC.terminal(s) then break end
+        if MC.terminal(s) then why = "end" break end
         local ph = s.phase
         if ph == "shop" or ph == "pack" then econ_run = econ_run + 1 else econ_run = 0 end
         if econ_run > opt.max_shop then
-            if not E.step(s, ph == "pack" and SKIP or LEAVE) then break end
+            if not E.step(s, ph == "pack" and SKIP or LEAVE) then why = "stuck_econ:" .. ph break end
         elseif mc then
             mc:search(s, opt.sims, {noise = 0, reuse = true, adaptive = true})
             local e = mc:choose(0)
-            if not e then break end
+            if not e then why = "no_edge:" .. ph break end
             mc:edge_action(e, step, s)
             mc:commit(e)
-            if not E.step(s, step) then break end
+            if not E.step(s, step) then why = "step_failed:" .. ph .. ":" .. tostring(step.type) break end
             moves = moves + 1
         else
             FE.state(s, F)
             local n = FE.list_actions(s, AB, F)
-            if n == 0 then break end
+            if n == 0 then why = "no_actions:" .. ph break end
             local a = POL.choose(s)
             local k = a and FE.find_action(AB, a, s) or -1
             if k < 0 then k = 0 end
-            if not E.step(s, FE.to_step(AB, k, st, s)) then break end
+            local fs = FE.to_step(AB, k, st, s)
+            if not E.step(s, fs) then why = "step_failed:" .. ph .. ":" .. tostring(fs.type) break end
             moves = moves + 1
         end
     end
     local won = s.won == 1 and 1 or 0
-    return won, won == 1 and s.win_ante + 1 or s.ante
+    return won, won == 1 and s.win_ante + 1 or s.ante, why, moves
 end
 
 local DECKS, STAKES = ES.parse(opt.decks, tostring(opt.stakes))
@@ -76,10 +77,10 @@ if opt.prefix ~= "" then
                 if (i - 1) % opt.parts == opt.part then
                     local seed = string.format("%s%04d", opt.prefix, k)
                     local t0 = os.clock()
-                    local w, a = play(d, stk, seed)
+                    local w, a, why, mv = play(d, stk, seed)
                     wins, antes, sq = wins + w, antes + a, sq + a * a
                     if jf then
-                        jf:write(string.format('{"deck":"%s","stake":%d,"seed":"%s","won":%d,"ante":%d,"time":%.2f}\n', d, stk, seed, w, a, os.clock() - t0))
+                        jf:write(string.format('{"deck":"%s","stake":%d,"seed":"%s","won":%d,"ante":%d,"time":%.2f,"end":"%s","moves":%d}\n', d, stk, seed, w, a, os.clock() - t0, why, mv))
                         jf:flush()
                     end
                 end
@@ -94,12 +95,12 @@ for i, c in ipairs(ES.cells(opt.per, DECKS, STAKES)) do
         local wins, antes, sq = 0, 0, 0
         for k = 1, c.per do
             local t0 = os.clock()
-            local w, a = play(c.deck, c.stake, ES.seed(c.deck, c.stake, k))
+            local w, a, why, mv = play(c.deck, c.stake, ES.seed(c.deck, c.stake, k))
             wins = wins + w
             antes = antes + a
             sq = sq + a * a
             if jf then
-                jf:write(string.format('{"deck":"%s","stake":%d,"seed":"%s","won":%d,"ante":%d,"time":%.2f}\n', c.deck, c.stake, ES.seed(c.deck, c.stake, k), w, a, os.clock() - t0))
+                jf:write(string.format('{"deck":"%s","stake":%d,"seed":"%s","won":%d,"ante":%d,"time":%.2f,"end":"%s","moves":%d}\n', c.deck, c.stake, ES.seed(c.deck, c.stake, k), w, a, os.clock() - t0, why, mv))
                 jf:flush()
             end
         end
