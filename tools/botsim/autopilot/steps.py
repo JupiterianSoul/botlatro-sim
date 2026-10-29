@@ -29,7 +29,7 @@ def leak_cmd(prof):
 
 def shuffle_cmd(prof, who, weights=None):
     s = prof["shuffle"]
-    w = " weights=%s" % weights if weights else ""
+    w = " weights=%s sims=0" % weights if weights else ""
     return quiet("luajit tools/botsim/seer/fair_shuffle.lua who=%s budget=lite%s prefix=%s first=1 seeds=%d decks=%s stakes=%s max_steps=%d out=$OUT/shuffle.json"
                  % (who, w, prof["bench"]["prefix"], s["seeds"], s["decks"], s["stakes"], s["max_steps"]), "shuffle.txt")
 
@@ -121,7 +121,7 @@ def imitation_jobs(ctx):
             dl.append("gh run download %s -p '%s-t*' -D data/%s || true" % (a["run"], a["tag"], a["run"]))
     w = "$OUT/imitation.bnnw"
     train = quiet("python3 tools/botsim/train/train.py --data $(find data -name '*.bspr' -size +0c) --out %s --steps %d" % (w, ip["steps"]), "train.txt")
-    ev = quiet("luajit tools/botsim/train/eval.lua who=net weights=%s prefix=%s first=1 seeds=%d decks=%s stakes=%s jsonl=$OUT/games.jsonl"
+    ev = quiet("luajit tools/botsim/train/eval.lua who=net weights=%s sims=0 prefix=%s first=1 seeds=%d decks=%s stakes=%s jsonl=$OUT/games.jsonl"
                % (w, b["prefix"], ip["eval_seeds"], ip["decks"], ip["stakes"]), "eval.txt")
     sh = shuffle_cmd(ctx.prof, "net", w)
     cmd = "; ".join(["mkdir -p data"] + dl + [train, ev, sh])
@@ -134,7 +134,7 @@ def final_jobs(ctx):
     out = []
     for d in all_decks():
         w = "ckpt/%s.bnnw" % name
-        ev = quiet("luajit tools/botsim/train/eval.lua who=net weights=%s prefix=%s first=1 seeds=%d decks=%s stakes=1,2,3,4,5,6,7,8 jsonl=$OUT/games.jsonl"
+        ev = quiet("luajit tools/botsim/train/eval.lua who=net weights=%s sims=0 prefix=%s first=1 seeds=%d decks=%s stakes=1,2,3,4,5,6,7,8 jsonl=$OUT/games.jsonl"
                    % (w, b["prefix"], lp.get("final_seeds", 30), d), "eval.txt")
         out.append(job("final-%s" % d, fetch_cmd(ctx.dir, name) + " && " + ev, lp.get("final_timeout", 330)))
     return out

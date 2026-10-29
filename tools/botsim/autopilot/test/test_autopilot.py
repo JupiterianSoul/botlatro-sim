@@ -225,6 +225,21 @@ class TestTiny(Base):
         self.assertIsNone(st["lock"])
         self.assertEqual(st["teacher"]["games"], 2)
 
+    def test_redo_teacher(self):
+        self.ap("init", "--profile", "tiny")
+        st = self.ticks()
+        self.assertEqual(st["status"], "done", st.get("reason"))
+        with self.assertRaises(SystemExit):
+            self.ap("redo", "nosuchstep")
+        self.ap("redo", "teacher")
+        st = self.state()
+        self.assertEqual((st["step"], st["status"], st["attempt"]), ("teacher", "running", 1))
+        self.assertEqual(st["teacher"]["games"], 0)
+        self.assertIsNone(st["best"]["name"])
+        st = self.ticks()
+        self.assertEqual(st["status"], "done", st.get("reason"))
+        self.assertEqual(st["teacher"]["games"], 2)
+
     def test_init_refuses_existing(self):
         self.ap("init", "--profile", "tiny")
         with self.assertRaises(SystemExit):
