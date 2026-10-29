@@ -548,6 +548,25 @@ def cmd_resume(ctx, a):
     return 0
 
 
+def cmd_redo(ctx, a):
+    def f(st):
+        steps = ctx.prof["steps"]
+        if a.step not in steps or steps.index(a.step) > steps.index(st["step"]):
+            raise SystemExit("redo goes back to an earlier step of %s, got %s" % (", ".join(steps), a.step))
+        if st.get("job"):
+            raise SystemExit("a job is live (%s); stop first" % (st["job"].get("tag") or st["job"].get("run")))
+        st["step"], st["attempt"], st["step_rounds"] = a.step, 1, 0
+        st["status"], st["reason"], st["lock"] = "running", "", None
+        st["gates"][a.step] = {"fails": 0, "last": {}}
+        if a.step == "teacher":
+            st["teacher"] = {"games": 0, "records": 0, "artifacts": [], "next": 1}
+        if "imitation" in steps and steps.index(a.step) <= steps.index("imitation"):
+            st["best"] = {"name": None, "path": None, "score": {}}
+            st["candidate"], st["prechecked"] = None, None
+    mutate(ctx, "redo %s" % a.step, f)
+    return 0
+
+
 def cmd_results(ctx, a):
     ctx.store.sync()
     if not ctx.load():
@@ -580,12 +599,14 @@ def parser():
     s = sub.add_parser("stop", parents=[common])
     s.add_argument("reason", nargs="*")
     sub.add_parser("resume", parents=[common])
+    s = sub.add_parser("redo", parents=[common])
+    s.add_argument("step")
     sub.add_parser("results", parents=[common])
     return p
 
 
 COMMANDS = {"init": cmd_init, "tick": tick, "status": cmd_status, "flag": cmd_flag, "approve": cmd_approve,
-            "stop": cmd_stop, "resume": cmd_resume, "results": cmd_results}
+            "stop": cmd_stop, "resume": cmd_resume, "redo": cmd_redo, "results": cmd_results}
 
 
 def main(argv=None, **kw):
