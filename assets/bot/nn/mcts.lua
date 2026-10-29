@@ -78,6 +78,8 @@ function M.new(net, opts)
     self.type_mass = (opts.type_mass or 0) > 0
     self.tm_at = (opts.type_mass or 0) < 1 and opts.type_mass or 0.5
     self.tm_plays = opts.tm_plays or 0
+    self.quick_clear = (opts.quick_clear or 0) > 0
+    self.cleared = 0
     self.tm_top = {}
     self.tm = BUF.alloc(1024)
     self.tm_cap = 1024
@@ -230,6 +232,7 @@ function M:expand(id, s, keep_src, value_only)
     if s.phase == "play" then key = self:play_priors(s, AB, na, prob, keep_src)
     elseif s.phase == "blind_select" then self:skip_prior(s, AB, na, prob) end
     if self.type_mass and s.phase == "play" then key = self:mass_key(AB, na, prob, key) end
+    if self.quick_clear and keep_src and s.phase == "play" then key = self:clear_key(s, AB, na, key) end
     local K = min(self.K, na)
     local top = self.topk
     local nt = 0
@@ -268,6 +271,35 @@ function M:expand(id, s, keep_src, value_only)
     self.ne = ef + nt - 1
     self.n_ef[id], self.n_ec[id] = ef, nt
     return v
+end
+
+function M:clear_key(s, AB, na, key)
+    local FAIR, PL = require("bot.seer.fair"), require("bot.seer.play")
+    local cs, v = PL.best_play(FAIR.sanitize(s))
+    if not cs or v < s.blind_chips - s.chips then return key end
+    local band, lshift = bit.band, bit.lshift
+    local want = 0
+    for i = 1, #cs do want = want + lshift(1, cs[i]) end
+    for k = 0, na - 1 do
+        if AB.type[k] == 1 and AB.nc[k] == #cs then
+            local m = 0
+            for i = 0, AB.nc[k] - 1 do m = m + lshift(1, AB.c[k * MS + i] + 1) end
+            if band(m, want) == want then
+                if key ~= self.tm then
+                    if self.tm_cap < na then
+                        self.tm_cap = AB.cap
+                        self.tm = BUF.alloc(AB.cap)
+                    end
+                    for j = 0, na - 1 do self.tm[j] = key[j] end
+                    key = self.tm
+                end
+                key[k] = key[k] + 32
+                self.cleared = self.cleared + 1
+                return key
+            end
+        end
+    end
+    return key
 end
 
 function M:mass_key(AB, na, prob, key)
