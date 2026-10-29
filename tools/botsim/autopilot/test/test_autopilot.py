@@ -233,6 +233,7 @@ class TestTiny(Base):
             self.ap("redo", "nosuchstep")
         self.ap("redo", "teacher")
         st = self.state()
+        self.assertTrue(all(st["gates"][k]["fails"] == 0 for k in st["gates"]))
         self.assertEqual((st["step"], st["status"], st["attempt"]), ("teacher", "running", 1))
         self.assertEqual(st["teacher"]["games"], 0)
         self.assertIsNone(st["best"]["name"])
