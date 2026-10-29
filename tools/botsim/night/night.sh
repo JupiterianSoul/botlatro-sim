@@ -132,6 +132,11 @@ run() {
     say "night finished, main at $(git rev-parse --short HEAD)"
 }
 
+if [ "${BN_GUARD_ONLY:-}" = "1" ]; then
+    say "guard only, ceiling $CEILING EUR, until $(date -d "@$(( END_AT + 3600 ))" +%H:%M)"
+    guard
+    exit 0
+fi
 if [ "${BN_INHIBITED:-}" != "1" ] && command -v systemd-inhibit >/dev/null; then
     [ -n "${BN_DIM:-}" ] && brightnessctl set 0 >/dev/null 2>&1
     BN_INHIBITED=1 exec systemd-inhibit --what=sleep:idle:handle-lid-switch --who="Bot-latro night" --why="Bot-latro night run" bash "$0" "$@"
