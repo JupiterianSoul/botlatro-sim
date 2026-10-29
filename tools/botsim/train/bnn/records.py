@@ -1,3 +1,4 @@
+import itertools
 import struct
 
 import numpy as np
@@ -145,10 +146,115 @@ def parse(data, lazy=False):
 
 
 CHOSEN = 0.0
+ALL_DISC = False
+DISC_CAP = 400
+C_DEBUFF, C_FLIPPED, C_FORCED = 33, 34, 35
+A_N, A_DEBUFF, A_FLIPPED, A_BIAS = 0, 20, 21, 22
+_SUBSETS = {}
+_RNG = np.random.default_rng(0)
+
+
+def _subsets(n, forced):
+    got = _SUBSETS.get((n, forced))
+    if got is None:
+        rows = [c for k in range(1, min(5, n) + 1) for c in itertools.combinations(range(n), k) if forced < 0 or forced in c]
+        m = np.zeros((len(rows), n), np.float32)
+        for i, c in enumerate(rows):
+            m[i, list(c)] = 1.0
+        got = (m, rows, {k: i for i, k in enumerate(rows)})
+        _SUBSETS[(n, forced)] = got
+    return got
+
+
+def discard_fa(sel, c, FA):
+    fa = np.zeros((sel.shape[0], FA), np.float32)
+    fa[np.arange(sel.shape[0]), A_N + sel.sum(1).astype(np.int64) - 1] = 1.0
+    fa[:, A_DEBUFF] = sel @ c[:, C_DEBUFF] / 5
+    fa[:, A_FLIPPED] = sel @ c[:, C_FLIPPED] / 5
+    fa[:, A_BIAS] = 1.0
+    return fa
+
+
+def all_discards(r):
+    at = r["atype"]
+    disc = np.nonzero(at == 1)[0]
+    c = r["c"]
+    nc = c.shape[0]
+    if len(disc) == 0 or nc == 0:
+        return r
+    FA = r["afa"].shape[1]
+    forced = np.nonzero(c[:, C_FORCED] > 0)[0]
+    sub, keys, pos = _subsets(nc, int(forced[0]) if len(forced) else -1)
+    have = {}
+    for a in disc:
+        have[tuple(int(i) for i in np.nonzero(r["asel"][a, :nc])[0])] = a
+    if len(keys) > DISC_CAP:
+        hit = sorted(pos[k] for k in have if k in pos)
+        pick = set(hit)
+        for i in _RNG.permutation(len(keys)):
+            if len(pick) >= DISC_CAP:
+                break
+            pick.add(int(i))
+        pick = sorted(pick)
+        sub = sub[pick]
+        keys = [keys[i] for i in pick]
+        pos = {k: i for i, k in enumerate(keys)}
+    extra = [a for k, a in have.items() if k not in pos]
+    keep = np.nonzero(at != 1)[0]
+    S, E = len(keys), len(extra)
+    na = len(keep) + S + E
+    W = r["asel"].shape[1]
+    out = dict(r)
+    out["atype"] = np.concatenate([at[keep], np.ones(S, np.int64), at[extra]])
+    sel = np.zeros((S, W), np.float32)
+    sel[:, :nc] = sub
+    out["asel"] = np.concatenate([r["asel"][keep], sel, r["asel"][extra]])
+    out["aitem"] = np.concatenate([r["aitem"][keep], np.zeros((S, r["aitem"].shape[1]), np.float32), r["aitem"][extra]])
+    out["ajok"] = np.concatenate([r["ajok"][keep], np.zeros((S, r["ajok"].shape[1]), np.float32), r["ajok"][extra]])
+    out["afa"] = np.concatenate([r["afa"][keep], discard_fa(sub, c, FA), r["afa"][extra]])
+    vis = np.zeros(S, np.float32)
+    pri = np.zeros(S, np.float32)
+    for k, a in have.items():
+        if k in pos:
+            vis[pos[k]] = r["visits"][a]
+            pri[pos[k]] = r["prior"][a]
+    out["visits"] = np.concatenate([r["visits"][keep], vis, r["visits"][extra]])
+    out["prior"] = np.concatenate([r["prior"][keep], pri, r["prior"][extra]])
+    ch = r["chosen"]
+    if at[ch] != 1:
+        out["chosen"] = int(np.nonzero(keep == ch)[0][0])
+    else:
+        k = tuple(int(i) for i in np.nonzero(r["asel"][ch, :nc])[0])
+        out["chosen"] = len(keep) + pos[k] if k in pos else len(keep) + S + extra.index(ch)
+    assert out["atype"].shape[0] == na
+    return out
+
+
+def check_discards(recs, n):
+    checked, bad, missing = 0, 0, 0
+    for r in recs[:n]:
+        r = r.load() if isinstance(r, Lazy) else r
+        at = r["atype"]
+        disc = np.nonzero(at == 1)[0]
+        if len(disc) == 0:
+            continue
+        nc = r["c"].shape[0]
+        sel = r["asel"][disc, :nc]
+        fa = discard_fa(sel, r["c"], r["afa"].shape[1])
+        checked += len(disc)
+        bad += int((np.abs(fa - r["afa"][disc]).max(1) > 1e-6).sum())
+        x = all_discards(r)
+        if x["visits"].sum() != r["visits"].sum() or x["visits"][x["chosen"]] != r["visits"][r["chosen"]]:
+            missing += 1
+        if x["atype"][x["chosen"]] != at[r["chosen"]] or not np.array_equal(x["asel"][x["chosen"]], r["asel"][r["chosen"]]):
+            missing += 1
+    return checked, bad, missing
 
 
 def collate(recs, dims, dtype=torch.float32):
     recs = [r.load() if isinstance(r, Lazy) else r for r in recs]
+    if ALL_DISC:
+        recs = [all_discards(r) for r in recs]
     B = len(recs)
     C = max(1, max(r["c"].shape[0] for r in recs))
     J = max(1, max(r["j"].shape[0] for r in recs))
