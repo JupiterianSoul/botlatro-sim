@@ -11,6 +11,17 @@ local T = {}
 local F = FE.new_state_buf(true)
 local AB = FE.new_action_buf(1024, true)
 
+local rng_x = 1
+
+function T.reseed(seed)
+    rng_x = math.floor(seed or 1) % 2147483646 + 1
+end
+
+function T.rand(n)
+    rng_x = (rng_x * 48271) % 2147483647
+    return math.floor(rng_x / 2147483647 * n) + 1
+end
+
 function T.encode(s, a, opts, soft)
     if not FE.PHASES[s.phase] then return nil, s.phase end
     FE.state(s, F)
@@ -37,12 +48,19 @@ function T.encode(s, a, opts, soft)
         return x < y
     end)
     local K = math.min(opts.K or 24, n, 255)
+    local neg = math.min(opts.neg or 0, K - 1)
+    local top = K - 1 - neg
+    for i = top + 1, K - 1 do
+        local j = i + T.rand(#others - i + 1) - 1
+        others[i], others[j] = others[j], others[i]
+    end
     local picks = {{k = chosen, visits = vis[chosen], prior = 1 / K}}
     for i = 1, K - 1 do picks[#picks + 1] = {k = others[i], visits = vis[others[i]] or 0, prior = 1 / K} end
     return REC.encode_choice(F, AB, picks, {chosen = 1, phase = FE.PHASES[s.phase], n_sims = opts.n_sims or 800})
 end
 
 function T.solved(setup, opts, index)
+    T.reseed(index)
     local seer = S.new(opts.seer)
     local r = seer:solve(setup, {max_lines = opts.max_lines, time_limit = opts.time_limit})
     local s = E.new_run(setup)
@@ -79,6 +97,7 @@ function T.net_proposer(path, sims)
 end
 
 function T.fair(setup, opts, index)
+    T.reseed(index)
     local FA = require("bot.seer.fair")
     local b = FA.BUDGETS[opts.budget or "lite"] or FA.BUDGETS.lite
     local fo = FA.new({budget = opts.budget or "lite", seer = b.seer,
@@ -107,6 +126,7 @@ end
 
 function T.run(setup, opts, index)
     opts = opts or {}
+    T.reseed(index)
     if opts.mode == "solve" then return T.solved(setup, opts, index) end
     if opts.mode == "fair" then return T.fair(setup, opts, index) end
     local seer = S.new(opts.seer)
@@ -134,7 +154,7 @@ function T.run(setup, opts, index)
 end
 
 if arg and arg[0] and arg[0]:match("teacher%.lua$") then
-    local opt = {seeds = 4, decks = "b_red", stakes = "1", out = "tools/botsim/train/out/seer_teacher.bspr", prefix = "TEACH", K = 24, n_sims = 800, stop_ante = 0, start = 1,
+    local opt = {seeds = 4, decks = "b_red", stakes = "1", out = "tools/botsim/train/out/seer_teacher.bspr", prefix = "TEACH", K = 32, neg = 16, n_sims = 800, stop_ante = 0, start = 1,
         mode = "play", max_lines = 8, time_limit = 0, wins_only = 0, budget = "lite", jsonl = "", weights = "", net_sims = 16}
     for _, a in ipairs(arg) do
         local k, v = a:match("^%-*([%w_]+)=(.*)$")
@@ -153,7 +173,7 @@ if arg and arg[0] and arg[0]:match("teacher%.lua$") then
             for i = opt.start, opt.start + opt.seeds - 1 do
                 n = n + 1
                 local setup = {seed = string.format("%s%04d", opt.prefix, i), deck = d, stake = st}
-                local blob, info = T.run(setup, {K = opt.K, n_sims = opt.n_sims, stop_ante = opt.stop_ante > 0 and opt.stop_ante or nil,
+                local blob, info = T.run(setup, {K = opt.K, neg = opt.neg, n_sims = opt.n_sims, stop_ante = opt.stop_ante > 0 and opt.stop_ante or nil,
                     mode = opt.mode, budget = opt.budget, max_lines = opt.max_lines, time_limit = opt.time_limit, weights = opt.weights, net_sims = opt.net_sims}, n)
                 if opt.wins_only == 0 or info.won == 1 then
                     fh:write(blob)

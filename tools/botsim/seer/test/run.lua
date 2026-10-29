@@ -193,6 +193,28 @@ do
     print(string.format("note: fair teacher %d records, %d with world votes on several moves", #run.recs, soft))
 end
 
+current = "fair teacher records: random negatives"
+do
+    local opts = {mode = "fair", budget = "lite", stop_ante = 1, K = 32, neg = 16, n_sims = 800}
+    local b1, i1 = TE.run({seed = "TEACHF01", deck = "b_red", stake = 1}, opts, 2)
+    local b2 = TE.run({seed = "TEACHF01", deck = "b_red", stake = 1}, opts, 2)
+    ok(b1 == b2, "same seed gives the same records")
+    local run = REC.decode(REC.file_header() .. b1).runs[1]
+    local plays, with_disc, chosen_ok = 0, 0, true
+    for _, r in ipairs(run.recs) do
+        if r.acts[r.chosen + 1].visits <= 0 then chosen_ok = false end
+        if r.na == 32 then
+            local nd = 0
+            for _, a in ipairs(r.acts) do if a.type == 2 then nd = nd + 1 end end
+            plays = plays + 1
+            if nd >= 2 then with_disc = with_disc + 1 end
+        end
+    end
+    ok(chosen_ok, "chosen action always has visits")
+    ok(plays > 0 and with_disc == plays, "every full play record carries several discards as negatives")
+    print(string.format("note: %d full records, %d of them with discard negatives", plays, with_disc))
+end
+
 current = "fair teacher with a net proposing moves"
 do
     local opts = {mode = "fair", budget = "lite", stop_ante = 1, K = 24, n_sims = 800, weights = "tools/botsim/train/start/r2_gen_0001.bnnw", net_sims = 8}
