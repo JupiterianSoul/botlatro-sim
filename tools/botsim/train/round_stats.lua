@@ -6,7 +6,7 @@ local PL = require("bot.seer.play")
 local json = require("bot.sim.json")
 
 local opt = {who = "net", weights = "", deck = "b_red", stake = 1, prefix = "BENCH", first = 1, seeds = 1, list = "", out = "",
-    budget = "lite", K = 24, max_moves = 3000, type_mass = 0, tm_plays = 0}
+    budget = "lite", K = 24, max_moves = 3000, type_mass = 0, tm_plays = 0, score_prior = 0, score_top = 6, score_temp = 4}
 for _, a in ipairs(arg or {}) do
     local k, v = a:match("^([%w_]+)=(.*)$")
     if k then opt[k] = tonumber(v) or v end
@@ -23,7 +23,7 @@ local function net_player()
     local WT = require("bot.nn.weights")
     local NET = require("bot.nn.net")
     local MC = require("bot.nn.mcts")
-    local mc = MC.new(NET.new(WT.load(opt.weights)), {K = opt.K, seed = 99991, alpha = 0.5, score_prior = 0, skip_pen = 1, skip_ante = 1, type_mass = opt.type_mass, tm_plays = opt.tm_plays, nodes = 2, full = true})
+    local mc = MC.new(NET.new(WT.load(opt.weights)), {K = opt.K, seed = 99991, alpha = 0.5, score_prior = opt.score_prior, score_top = opt.score_top, score_temp = opt.score_temp, skip_pen = 1, skip_ante = 1, type_mass = opt.type_mass, tm_plays = opt.tm_plays, nodes = 2, full = true})
     return function(setup, on_action)
         local s = E.new_run(setup)
         local step = {type = "play", cards = {}}
