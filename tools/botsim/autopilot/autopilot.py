@@ -557,7 +557,8 @@ def cmd_redo(ctx, a):
             raise SystemExit("a job is live (%s); stop first" % (st["job"].get("tag") or st["job"].get("run")))
         st["step"], st["attempt"], st["step_rounds"] = a.step, 1, 0
         st["status"], st["reason"], st["lock"] = "running", "", None
-        st["gates"][a.step] = {"fails": 0, "last": {}}
+        for later in steps[steps.index(a.step):]:
+            st["gates"][later] = {"fails": 0, "last": {}}
         if a.step == "teacher":
             st["teacher"] = {"games": 0, "records": 0, "artifacts": [], "next": 1}
         if "imitation" in steps and steps.index(a.step) <= steps.index("imitation"):
