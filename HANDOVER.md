@@ -96,6 +96,13 @@ Read this first, then tools/botsim/autopilot/DESIGN.md.
 - Not measured yet: old net Lua ms/move on the same seeds, Fair Seer expert s/game with the new net.
 - Bug found on the way: making results_key 0640 for the job broke root's backup push (ssh refuses group-readable keys). Fixed: root keeps 0600, the job gets /etc/botsim/results_key.job.
 
+### Early deaths found (2026-10-29 21:45): the net discards everything first
+- Trace (tools/botsim/train/trace_net.lua, CI run 40951115121) of the 20 games the 5.30 net lost in ante 1-2: in 55 of 60 rounds it spends every discard before playing, and 17 of those discards threw away a straight, flush, full house or three of a kind worth 150+. The teacher reached ante 6-8 on the 4 of those seeds it was checked on (the other 16 were lost: each fair.lua call overwrote the same out file).
+- Cause: fair teacher records use per-world votes as the policy target (T.encode with fo.scores). Each world knows its own draws, so a discard that is lucky in one world wins that world's vote; the teacher's real move (best average over worlds) gets only its own votes.
+- Fix: train.py --chosen W blends the target toward the teacher's actual move (records store it at index 0). Full profile imitation uses chosen 1.0. lazy_check verifies it on real records (CI run 40951683646 all passed). No new teacher games needed.
+- Round r20261029-204808 (same data, E=64 H=256, chosen 1.0) started 21:48. Check its imitation line in runs/<run>/metrics.jsonl: mean ante vs 5.30, and rerun the trace on the new weights if it is not over 5.5.
+- Autopilot paid tracker still says 16.50 spent of the 30 EUR approval, but rounds r20261029-192050 (failed start, about 1.64), r20261029-192717 (3.28) and r20261029-204808 were not added (stop before finish, failed start). Real spend under the approval is about 21.4 before this round. Fix the counting (finish on stop and on failed start) before relying on it.
+
 ## Earlier plan (kept for reference): make the imitation net reach mean ante 5.5 (free, CI only)
 Try in this order, each measured on the same 150 b_red white BENCH seeds with sims=0, one change at a time:
 1. Data window: train.py keeps only the last 2,000,000 records (`--window`), and the 20000 teacher games have more (summary said records 2000000 = the cap). Raise the window so every record is used.
