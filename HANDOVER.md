@@ -74,6 +74,21 @@ Read this first, then tools/botsim/autopilot/DESIGN.md.
 - `autopilot.py redo STEP` goes back to an earlier step (teacher clears its artifacts, steps up to imitation clear best). Ran `redo teacher` 08:15; teacher round r20261029-081506 started on Hetzner (same 20000 seeds, new records). Spent 6.64 of 30 EUR before it.
 - Tests on 1577254: autopilot 38 OK, Cloud tests all ok, Seer 196/196, sim 504/504, scan fuzz 0 differ.
 
+## Afternoon 2026-10-29 (on main, 8d6a551)
+- Teacher redo done 10:30: 20000 games with the new records, two rounds 6.57 + 3.28 EUR. Round 1 ran 76 min and was billed 2 started hours on both boxes, over the 5 EUR round cap: find out why it ran twice as long as last night's 9000-seed round (37 min) and why the round cap did not stop it. Spent 16.50 of 30 EUR.
+- Imitation on the new records, net alone (sims=0), 150 b_red white BENCH seeds: 20000 steps mean ante 4.95, 12 wins; 60000 steps 5.05, 12 wins. Teacher (Fair Seer lite) on the same seeds: 5.62, 25 wins. Gate 5.50.
+- Gabriel chose: keep the 5.50 bar, improve imitation first, no spend. Retry 721e43-11 (same settings) was running at 18:38; expect a fail and a stop.
+- `redo` now resets the gate counts of every later step (it used to leave imitation at 2 fails).
+
+## Next session: make the imitation net reach mean ante 5.5 (free, CI only)
+Try in this order, each measured on the same 150 b_red white BENCH seeds with sims=0, one change at a time:
+1. Data window: train.py keeps only the last 2,000,000 records (`--window`), and the 20000 teacher games have more (summary said records 2000000 = the cap). Raise the window so every record is used.
+2. Model size: E=32 H=128 (323k weights). Try H=256 and E=64 via `--cfg`; check CPU torch time per step and the Lua inference speed (eval s/game), since the net also runs inside Fair Seer in expert.
+3. Steps vs epochs: 20000 to 60000 steps gained only 0.1 ante; watch val policy loss for overfitting before adding more.
+4. More teacher games on free CI (teacher step fan-out, 60 seeds per job, 40 jobs) on new seeds, merged with the current 20000.
+5. Fair inference help that is still "net alone": MC score_prior (mix nominal score into play priors) at sims=0.
+Add a progress line to the imitation job output (train.py step lines are only in train.txt, uploaded at the end), so a running job can be checked live.
+
 ## Next
 0. Gabriel chose (2026-10-28 night): next session = autopilot rounds on the faster code plus the 3 old Cloud test failures (item 2). No more speed work for now.
 1. Watch autopilot/log.md in botlatro-results: fair_speed 721e43-4, then teacher (CI fan-out, 20000 games), imitation, expert (Hetzner, 30 EUR approved, round cap 4).
