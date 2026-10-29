@@ -88,6 +88,14 @@ Read this first, then tools/botsim/autopilot/DESIGN.md.
 - Measure: mean ante on the 150 b_red white BENCH seeds (sims=0) and Lua seconds per decision vs the current net. Bar stays 5.5.
 - Fair Seer calls the net in expert only where the sampled worlds disagree, so a 3-4x slower net costs little there; confirm with s/game on the BENCH white cell.
 
+### Result (2026-10-29 21:32): E=64 H=256 on Hetzner, mean ante 5.30 of 5.5
+- Job `cloud/jobs/imitate` + `imitation.paid` in the full profile (ccx63, 3 h, 5 EUR cap). Round r20261029-192717, 3.28 EUR, box gone. Autopilot stopped after it (a retry would repeat the same seed and settings).
+- 2116107 records from 20000 games (window off), 1005813 weights, 60000 steps = 7.3 epochs, 4155 samples/s on 48 threads (CI small net: 6835), 63 min training.
+- BENCH b_red white sims=0: mean ante 5.30, 19 wins of 150 (old net 5.05, 12 wins). Lua 0.45 ms per move, 0.057 s per game. Leak 323 passed, shuffle 8/8 identical.
+- Val at the end: policy 1.139 (train 1.075), value 0.715 (train 0.165): the value head overfits badly, policy a little. More data or fewer epochs before more steps.
+- Not measured yet: old net Lua ms/move on the same seeds, Fair Seer expert s/game with the new net.
+- Bug found on the way: making results_key 0640 for the job broke root's backup push (ssh refuses group-readable keys). Fixed: root keeps 0600, the job gets /etc/botsim/results_key.job.
+
 ## Earlier plan (kept for reference): make the imitation net reach mean ante 5.5 (free, CI only)
 Try in this order, each measured on the same 150 b_red white BENCH seeds with sims=0, one change at a time:
 1. Data window: train.py keeps only the last 2,000,000 records (`--window`), and the 20000 teacher games have more (summary said records 2000000 = the cap). Raise the window so every record is used.
