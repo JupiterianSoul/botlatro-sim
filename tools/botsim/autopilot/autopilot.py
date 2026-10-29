@@ -501,7 +501,7 @@ def cmd_status(ctx, a):
     if job:
         say("job: %s %s" % (job["kind"], job.get("tag") or job.get("run")))
     p = st["paid"]
-    say("paid: %.2f of %.2f EUR approved, round cap %.2f" % (p["spent_eur"], p["approved_eur"], p["round_cap_eur"]))
+    say("paid: %.2f of %.2f EUR approved, round cap %.2f" % (paid.used(p, paid.spent(ctx) if not ctx.dry else None), p["approved_eur"], p["round_cap_eur"]))
     say("best: %s" % (st["best"].get("name") or "none"))
     return 0
 
@@ -523,6 +523,11 @@ def cmd_approve(ctx, a):
         st["paid"]["approved_eur"] = a.eur
         st["paid"]["round_cap_eur"] = a.round_cap
         st["paid"]["approved_at"] = ctx.now()
+        led = paid.spent(ctx) if not ctx.dry else None
+        if a.already_spent is not None:
+            st["paid"]["spent_eur"] = a.already_spent
+        if led is not None:
+            st["paid"]["ledger_base"] = round(led - st["paid"].get("spent_eur", 0), 4)
         if st["status"] == "waiting":
             st["status"], st["reason"] = "running", ""
     mutate(ctx, "approve %.2f EUR, round cap %.2f" % (a.eur, a.round_cap), f)
@@ -597,6 +602,7 @@ def parser():
     s = sub.add_parser("approve", parents=[common])
     s.add_argument("--eur", type=float, required=True)
     s.add_argument("--round-cap", type=float, required=True)
+    s.add_argument("--already-spent", type=float, default=None)
     s = sub.add_parser("stop", parents=[common])
     s.add_argument("reason", nargs="*")
     sub.add_parser("resume", parents=[common])

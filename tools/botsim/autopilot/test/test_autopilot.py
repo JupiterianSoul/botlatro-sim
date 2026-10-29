@@ -339,6 +339,21 @@ class TestPaid(Base):
         self.assertIn("used up", st["reason"])
         self.assertFalse(self.ups())
 
+    def test_ledger_spend_outside_rounds_counts(self):
+        self.world.spent = 10.0
+        self.ap("approve", "--eur", "5", "--round-cap", "1")
+        self.world.spent = 14.8
+        st = self.ticks(4)
+        self.assertIn("used up", st["reason"])
+        self.assertFalse(self.ups())
+
+    def test_already_spent_sets_base(self):
+        self.world.spent = 40.0
+        self.ap("approve", "--eur", "30", "--round-cap", "5", "--already-spent", "24.7")
+        st = self.state()
+        self.assertAlmostEqual(st["paid"]["ledger_base"], 15.3)
+        self.assertAlmostEqual(st["paid"]["spent_eur"], 24.7)
+
     def test_refused_over_total_cap(self):
         self.world.spent = 99.8
         self.ap("approve", "--eur", "5", "--round-cap", "1")

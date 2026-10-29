@@ -93,6 +93,14 @@ def boxes(ctx):
     return j
 
 
+def used(pd, ledger):
+    base = pd.get("ledger_base")
+    own = pd.get("spent_eur", 0)
+    if base is None or ledger is None:
+        return own
+    return max(own, ledger - base)
+
+
 def budget_problem(ctx, cost):
     pd = ctx.st["paid"]
     if cost is None:
@@ -101,14 +109,14 @@ def budget_problem(ctx, cost):
         return None
     if pd.get("approved_eur", 0) <= 0:
         return "no approved budget for paid rounds"
-    left = pd["approved_eur"] - pd.get("spent_eur", 0)
-    if left < cost:
-        return "approved budget used up: %.2f EUR left, round costs %.2f" % (left, cost)
     if cost > pd.get("round_cap_eur", 0):
         return "round costs %.2f EUR, over the per-round cap %.2f" % (cost, pd.get("round_cap_eur", 0))
     s = spent(ctx)
     if s is None:
         return "cannot read the shared ledger (hz.py spend --json failed)"
+    left = pd["approved_eur"] - used(pd, s)
+    if left < cost:
+        return "approved budget used up: %.2f EUR left, round costs %.2f" % (left, cost)
     if s + cost > CAP_EUR:
         return "shared ledger %.2f + round %.2f EUR is over the %.0f EUR cap" % (s, cost, CAP_EUR)
     return None
@@ -359,7 +367,7 @@ def finish(ctx, why, lines):
         cost = max(0.0, after - job["spent_before"])
     else:
         cost = job.get("round_cost_eur") or 0.0
-    ctx.st["paid"]["spent_eur"] = round(ctx.st["paid"].get("spent_eur", 0) + cost, 4)
+    ctx.st["paid"]["spent_eur"] = round(max(ctx.st["paid"].get("spent_eur", 0) + cost, used(ctx.st["paid"], after)), 4)
     rec = {"run": run, "step": job["step"], "started": job["started"], "ended": ctx.now(), "cost_eur": round(cost, 4), "why": why}
     ctx.st["rounds"].append(rec)
     if not gone:
