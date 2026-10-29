@@ -1,0 +1,7 @@
+{
+  "apt": ["python3-venv", "python3-pip"],
+  "pip": ["torch==2.14.1", "numpy"],
+  "index": "https://download.pytorch.org/whl/cpu",
+  "venv": "/opt/botsim/venv",
+  "probe": "import torch, numpy"
+}

@@ -1,0 +1,194 @@
+#!/usr/bin/env python3
+import glob
+import gzip
+import json
+import os
+import shutil
+import subprocess
+import time
+
+RUN_DIR = os.environ.get("BOTSIM_RUN_DIR", "run")
+METRICS = os.environ.get("BOTSIM_METRICS", os.path.join(RUN_DIR, "metrics.jsonl"))
+STOP = os.environ.get("BOTSIM_STOP_FILE", os.path.join(RUN_DIR, "STOP"))
+WORKERS = max(1, int(os.environ.get("BOTSIM_WORKERS") or os.cpu_count() or 1))
+ETC = os.environ.get("BOTSIM_ETC", "/etc/botsim")
+OUT = os.path.join(RUN_DIR, "imitation")
+WORK = os.path.join(os.environ.get("TMPDIR", "/tmp"), "botsim-imitate")
+REMOTE = os.environ.get("IMIT_REMOTE", "git@github.com:JupiterianSoul/botlatro-results.git")
+FAKE = os.environ.get("IMIT_FAKE") == "1"
+
+
+def env(k, d=""):
+    return os.environ.get("IMIT_" + k) or d
+
+
+def emit(**kw):
+    kw["t"] = time.time()
+    with open(METRICS, "a") as f:
+        f.write(json.dumps(kw) + "\n")
+
+
+def stopped():
+    return os.path.exists(STOP)
+
+
+def venv_python():
+    for p in (os.environ.get("TRAIN_PY"), "/opt/botsim/venv/bin/python"):
+        if p and os.path.exists(p):
+            return p
+    return "python3"
+
+
+def git_env():
+    e = dict(os.environ)
+    key, known = os.path.join(ETC, "results_key"), os.path.join(ETC, "github_known_hosts")
+    e["GIT_SSH_COMMAND"] = "ssh -i %s -o IdentitiesOnly=yes -o UserKnownHostsFile=%s -o StrictHostKeyChecking=yes" % (key, known)
+    return e
+
+
+def fetch(runs, data):
+    clone = os.path.join(WORK, "results")
+    if env("LOCAL_RESULTS"):
+        clone = env("LOCAL_RESULTS")
+    else:
+        p = subprocess.run(["git", "clone", "--depth", "1", REMOTE, clone], env=git_env(), capture_output=True, text=True, timeout=1800)
+        if p.returncode != 0:
+            raise RuntimeError("clone failed: " + (p.stderr or "")[-300:])
+    n = 0
+    for run in runs:
+        src = os.path.join(clone, "runs", run, "teacher")
+        dst = os.path.join(data, run)
+        os.makedirs(dst, exist_ok=True)
+        for first in sorted(glob.glob(os.path.join(src, "w*.bspr.gz.000"))):
+            stem = first[:-len(".gz.000")]
+            out = os.path.join(dst, os.path.basename(stem))
+            blob = b"".join(open(part, "rb").read() for part in sorted(glob.glob(stem + ".gz.*")))
+            with open(out, "wb") as o:
+                o.write(gzip.decompress(blob))
+            n += 1
+    return n
+
+
+def run_logged(cmd, log, timeout=None):
+    with open(log, "a") as f:
+        return subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT, timeout=timeout).returncode
+
+
+def parse_games(paths):
+    games = []
+    for p in paths:
+        if not os.path.exists(p):
+            continue
+        with open(p) as f:
+            for line in f:
+                try:
+                    games.append(json.loads(line))
+                except ValueError:
+                    pass
+    return games
+
+
+def train(py, data_files, w):
+    steps = env("STEPS", "60000")
+    cmd = [py, "-u", "tools/botsim/train/train.py", "--data"] + data_files + ["--out", w, "--steps", steps,
+           "--window", env("WINDOW", "0"), "--threads", str(WORKERS), "--log-every", env("LOG_EVERY", "200")]
+    if env("CFG"):
+        cmd += ["--cfg", env("CFG")]
+    if env("BATCH"):
+        cmd += ["--batch", env("BATCH")]
+    log = os.path.join(OUT, "train.txt")
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    last, sps = 0, 0
+    with open(log, "w") as f:
+        for line in p.stdout:
+            f.write(line)
+            f.flush()
+            if "samples/s" in line:
+                try:
+                    sps = float(line.split("samples/s")[0].split()[-1])
+                except ValueError:
+                    pass
+            if time.time() - last > 60:
+                emit(type="log", level="info", msg="imitation train: " + line.strip()[-160:])
+                last = time.time()
+            if stopped():
+                p.terminate()
+    p.wait()
+    return p.returncode, sps
+
+
+def evaluate(w):
+    seeds, first = int(env("EVAL_SEEDS", "150")), 1
+    procs, files = [], []
+    for i in range(WORKERS):
+        k = seeds // WORKERS + (1 if i < seeds % WORKERS else 0)
+        if k <= 0:
+            continue
+        j = os.path.join(WORK, "eval%03d.jsonl" % i)
+        files.append(j)
+        cmd = ["luajit", "tools/botsim/train/eval.lua", "who=net", "weights=" + w, "sims=0", "prefix=" + env("PREFIX", "BENCH"),
+               "first=%d" % first, "seeds=%d" % k, "decks=" + env("DECKS", "b_red"), "stakes=" + env("STAKES", "1"), "jsonl=" + j]
+        first += k
+        log = open(os.path.join(WORK, "eval%03d.log" % i), "w")
+        procs.append(subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT))
+    for p in procs:
+        p.wait()
+    games = parse_games(files)
+    with open(os.path.join(OUT, "games.jsonl"), "w") as f:
+        for g in games:
+            f.write(json.dumps(g) + "\n")
+    return games, any(p.returncode not in (0, None) for p in procs)
+
+
+def checks(w):
+    leak = ["luajit", "tools/botsim/seer/test/fair_test.lua"] + env("LEAK_ARGS").split()
+    rc1 = run_logged(leak, os.path.join(OUT, "leak.txt"), 3600)
+    shuf = ["luajit", "tools/botsim/seer/fair_shuffle.lua", "who=net", "budget=lite", "weights=" + w, "sims=0", "prefix=" + env("PREFIX", "BENCH"),
+            "first=1", "seeds=" + env("SHUFFLE_SEEDS", "4"), "decks=" + env("SHUFFLE_DECKS", "b_red"), "stakes=" + env("SHUFFLE_STAKES", "1,2"),
+            "max_steps=" + env("SHUFFLE_STEPS", "400"), "out=" + os.path.join(OUT, "shuffle.json")]
+    run_logged(shuf, os.path.join(OUT, "shuffle.txt"), 3600)
+    return rc1 == 0
+
+
+def main():
+    os.makedirs(OUT, exist_ok=True)
+    shutil.rmtree(WORK, ignore_errors=True)
+    os.makedirs(WORK)
+    runs = [r for r in env("RUNS").split(",") if r]
+    w = os.path.join(OUT, "imitation.bnnw")
+    emit(type="state", state="running", msg="imitation: fetching teacher runs %s, %d threads" % (",".join(runs), WORKERS))
+    t0 = time.time()
+    try:
+        data = os.path.join(WORK, "data")
+        n = fetch(runs, data)
+        files = sorted(f for f in glob.glob(os.path.join(data, "*", "*.bspr")) if os.path.getsize(f) > 0)
+        if not files:
+            emit(type="state", state="failed", msg="imitation: no teacher records fetched")
+            return 1
+        emit(type="log", level="info", msg="imitation: %d record files, %.1f MB" % (len(files), sum(os.path.getsize(f) for f in files) / 1048576.0))
+        rc, sps = train(venv_python(), files, w)
+        if rc != 0 or not os.path.exists(w):
+            emit(type="state", state="failed", msg="imitation: training exited %s" % rc)
+            return 1
+        shutil.rmtree(data, ignore_errors=True)
+        t1 = time.time()
+        emit(type="log", level="info", msg="imitation: trained in %d s at %.0f samples/s, evaluating" % (t1 - t0, sps))
+        games, bad = evaluate(w)
+        leak_ok = checks(w)
+        stake1 = [g for g in games if int(g.get("stake") or 1) == 1]
+        ante = sum(float(g.get("ante") or 0) for g in stake1)
+        tsum = sum(float(g.get("time") or 0) for g in stake1)
+        emit(type="imitation", games=len(games), wins=sum(1 for g in stake1 if g.get("won")), mean_ante=(ante / len(stake1)) if stake1 else 0.0,
+             sec_per_game=(tsum / len(stake1)) if stake1 else 0.0, samples_per_s=sps, train_secs=round(t1 - t0), eval_secs=round(time.time() - t1),
+             leak_ok=leak_ok, eval_failed=bad, threads=WORKERS, bytes=os.path.getsize(w), stopped=stopped())
+        emit(type="state", state="failed" if bad or not games else "done", msg="imitation: %d eval games, mean ante %.2f" % (len(games), (ante / len(stake1)) if stake1 else 0.0))
+        return 1 if bad or not games else 0
+    except Exception as e:
+        emit(type="state", state="failed", msg="imitation: %s" % e)
+        return 1
+    finally:
+        shutil.rmtree(WORK, ignore_errors=True)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -6,6 +6,7 @@ import sys
 
 import ci
 import gates
+import steps
 from steps import REPO
 
 HZ = os.path.join(REPO, "tools", "botsim", "cloud", "hz.py")
@@ -55,8 +56,8 @@ def restore(ctx, run):
 
 def pconf(ctx, step=None):
     step = step or ctx.st.get("step")
-    if step == "teacher" and (ctx.prof.get("teacher") or {}).get("paid"):
-        return ctx.prof["teacher"]["paid"]
+    if step in ("teacher", "imitation") and (ctx.prof.get(step) or {}).get("paid"):
+        return ctx.prof[step]["paid"]
     return ctx.prof["paid"]
 
 
@@ -136,12 +137,28 @@ def teacher_env(ctx):
             "TEACH_STOP_ANTE": str(tp.get("stop_ante") or 0), "TEACH_LEAK_ARGS": ctx.prof.get("leak_args", "")}
 
 
+def imitation_env(ctx):
+    ip, b = ctx.prof["imitation"], ctx.prof["bench"]
+    sh = ctx.prof["shuffle"]
+    runs = [a["hz_run"] for a in ctx.st["teacher"].get("artifacts", []) if a.get("hz_run")]
+    env = {"IMIT_RUNS": ",".join(runs), "IMIT_STEPS": str(ip["steps"]), "IMIT_EVAL_SEEDS": str(ip["eval_seeds"]),
+           "IMIT_DECKS": ip["decks"], "IMIT_STAKES": str(ip["stakes"]), "IMIT_PREFIX": b["prefix"], "IMIT_WINDOW": str(ip.get("window", 0)),
+           "IMIT_LEAK_ARGS": ctx.prof.get("leak_args", ""), "IMIT_SHUFFLE_SEEDS": str(sh["seeds"]), "IMIT_SHUFFLE_DECKS": sh["decks"],
+           "IMIT_SHUFFLE_STAKES": str(sh["stakes"]), "IMIT_SHUFFLE_STEPS": str(sh["max_steps"])}
+    if ip.get("cfg"):
+        env["IMIT_CFG"] = ip["cfg"]
+    return env
+
+
 def env_for(ctx, step):
     p = pconf(ctx, step)
     env = {"BOTSIM_DELETE_WHEN_DONE": "1", "TRAIN_PATIENCE": "4"}
     env.update(p.get("env") or {})
     if step == "teacher":
         env.update(teacher_env(ctx))
+        return env
+    if step == "imitation":
+        env.update(imitation_env(ctx))
         return env
     if ctx.st["best"].get("path") and not dry(ctx):
         env["TRAIN_WEIGHTS"] = START_W
@@ -173,7 +190,7 @@ def start(ctx, step):
     ctx.push("round %s up" % run)
     if not checked(ctx, "up", rc, out):
         return abort(ctx, "hz.py up failed: " + tail(out))
-    if ctx.st["best"].get("path") and not dry(ctx) and step != "teacher":
+    if ctx.st["best"].get("path") and not dry(ctx) and step not in ("teacher", "imitation"):
         ctx.store.copy_out(ctx.st["best"]["path"], os.path.join(REPO, START_W))
     rc, out = hz(ctx, "deploy", "--for-job", p["job"])
     keep(ctx, run)
@@ -352,6 +369,8 @@ def finish(ctx, why, lines):
         return gates.result(True, "", dry=True, improved=False)
     if job["step"] == "teacher":
         return finish_teacher(ctx, run, lines)
+    if job["step"] == "imitation":
+        return finish_imitation(ctx, run, lines)
     if last_state(lines) in ("failed", "killed"):
         return gates.result(False, "round job %s" % last_state(lines))
     stake = ctx.st["stake"] if job["step"] == "ladder" else None
@@ -394,6 +413,22 @@ def finish_teacher(ctx, run, lines):
     if t["games"] < tp["games"]:
         return gates.result(True, "", more=True, games=t["games"], records=t["records"])
     return gates.teacher(t["games"], t["records"], tp["games"], t["leak_ok"])
+
+
+def finish_imitation(ctx, run, lines):
+    sums = [m for m in lines if m.get("type") == "imitation"]
+    if not sums:
+        return gates.result(False, "imitation round %s wrote no summary (job %s)" % (run, last_state(lines)))
+    m = sums[-1]
+    root = ctx.store.path("runs/%s/imitation" % run)
+    if m.get("stopped"):
+        return gates.result(False, "imitation round %s was stopped before it finished" % run)
+    w = os.path.join(root, "imitation.bnnw")
+    if not os.path.exists(w):
+        return gates.result(False, "imitation round %s kept no checkpoint" % run)
+    ctx.event("imitation on the box: %.0f samples/s on %s threads, %s s train, %.1f s/game" % (
+        m.get("samples_per_s") or 0, m.get("threads"), m.get("train_secs"), m.get("sec_per_game") or 0))
+    return steps.finish_imitation(ctx, root, run, wfile=w, done=m)
 
 
 def watchdog(ctx):

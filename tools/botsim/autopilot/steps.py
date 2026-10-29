@@ -12,7 +12,7 @@ FLAG_OF = {"fair_speed": "fair_speed_ok", "expert": "expert_ok", "ladder": "expe
 
 
 def on_hetzner(prof, step):
-    return step == "teacher" and bool((prof.get("teacher") or {}).get("paid"))
+    return step in ("teacher", "imitation") and bool((prof.get(step) or {}).get("paid"))
 
 
 def job(label, cmd, timeout, torch=False):
@@ -237,15 +237,17 @@ def finish_teacher(ctx, root, run_id):
     return gates.teacher(t["games"], t["records"], tp["games"], t.get("leak_ok"))
 
 
-def finish_imitation(ctx, root, run_id):
-    _, sh = checks(root)
+def finish_imitation(ctx, root, run_id, run=None, wfile=None, done=None):
+    lk, sh = checks(root)
     games = games_of(ctx, root)
+    if done is not None and not done.get("leak_ok"):
+        return gates.result(False, "leak test failed on the imitation box")
     fair = bool(sh["ok"] and ctx.st.get("leak_ok"))
     ctx.add_rows(ctx.res.aggregate(games, t=ctx.now(), step="imitation", checkpoint="imitation", who="net",
                                    set="BENCH", fair=fair, ci_run=run_id))
     w, n, ante = white(games)
     mean = ante / n if n else 0.0
-    ws = ci.files(root, "imitation.bnnw")
+    ws = [wfile] if wfile else ci.files(root, "imitation.bnnw")
     if ws and sh["ok"]:
         ctx.store.copy_in(ws[0], "%s/checkpoints/imitation.bnnw" % ctx.dir)
         ctx.st["best"] = {"name": "imitation", "path": "%s/checkpoints/imitation.bnnw" % ctx.dir,
