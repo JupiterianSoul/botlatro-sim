@@ -41,7 +41,10 @@ def venv_python():
 
 def git_env():
     e = dict(os.environ)
-    key, known = os.path.join(ETC, "results_key"), os.path.join(ETC, "github_known_hosts")
+    key, known = os.path.join(WORK, "results_key"), os.path.join(ETC, "github_known_hosts")
+    if not os.path.exists(key):
+        shutil.copyfile(os.path.join(ETC, "results_key"), key)
+        os.chmod(key, 0o600)
     e["GIT_SSH_COMMAND"] = "ssh -i %s -o IdentitiesOnly=yes -o UserKnownHostsFile=%s -o StrictHostKeyChecking=yes" % (key, known)
     return e
 
