@@ -45,7 +45,7 @@
   "bench": {"budget": "lite", "prefix": "BENCH", "run_cap": 120, "per_job": 30, "timeout": 60, "min_white_rate": 0.0,
             "cells": [{"name": "white", "decks": "b_red", "stakes": "1", "seeds": 2}]},
   "shuffle": {"seeds": 1, "max_steps": 15, "decks": "b_red", "stakes": "1"},
-  "imitation": {"steps": 30, "eval_seeds": 2, "min_ante": 5.5, "decks": "b_red", "stakes": "1", "timeout": 60, "window": 0, "cfg": "E=64,H=256", "chosen": 1.0,
+  "imitation": {"steps": 30, "eval_seeds": 2, "min_ante": 5.5, "decks": "b_red", "stakes": "1", "timeout": 60, "window": 0, "cfg": "E=64,H=256", "chosen": 1.0, "all_discards": 400,
                 "paid": {"job": "imitate", "types": "cpx02", "hours": 0.9, "spend_cap": 0.02, "env": {}, "wait_minutes": 20}},
   "paid": {"job": "imitate", "types": "cpx02", "hours": 0.9, "spend_cap": 0.02, "env": {}, "max_rounds": 1, "wait_minutes": 20, "precheck_timeout": 60}
  },

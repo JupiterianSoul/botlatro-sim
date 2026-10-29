@@ -510,6 +510,7 @@ class TestImitationPaid(Base):
         self.assertIn("IMIT_RUNS=", run)
         self.assertIn("IMIT_CFG=E=64,H=256", run)
         self.assertIn("IMIT_CHOSEN=1.0", run)
+        self.assertIn("IMIT_ALL_DISC=400", run)
         self.assertEqual(st["best"]["name"], "imitation")
         self.assertEqual(self.world.boxes, [])
         self.assertFalse(self.world.dispatches())

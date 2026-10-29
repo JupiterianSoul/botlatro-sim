@@ -120,7 +120,8 @@ def imitation_jobs(ctx):
         else:
             dl.append("gh run download %s -p '%s-t*' -D data/%s || true" % (a["run"], a["tag"], a["run"]))
     w = "$OUT/imitation.bnnw"
-    train = quiet("python3 tools/botsim/train/train.py --data $(find data -name '*.bspr' -size +0c) --out %s --steps %d" % (w, ip["steps"]), "train.txt")
+    extra = " --all-discards %d" % ip["all_discards"] if ip.get("all_discards") else ""
+    train = quiet("python3 tools/botsim/train/train.py --data $(find data -name '*.bspr' -size +0c) --out %s --steps %d%s" % (w, ip["steps"], extra), "train.txt")
     ev = quiet("luajit tools/botsim/train/eval.lua who=net weights=%s sims=0 prefix=%s first=1 seeds=%d decks=%s stakes=%s jsonl=$OUT/games.jsonl"
                % (w, b["prefix"], ip["eval_seeds"], ip["decks"], ip["stakes"]), "eval.txt")
     sh = shuffle_cmd(ctx.prof, "net", w)

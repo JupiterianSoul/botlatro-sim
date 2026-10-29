@@ -75,6 +75,9 @@ function M.new(net, opts)
     self.score_prior = opts.score_prior or 0
     self.score_top = opts.score_top or 6
     self.score_temp = opts.score_temp or 4
+    self.type_mass = (opts.type_mass or 0) > 0
+    self.tm = BUF.alloc(1024)
+    self.tm_cap = 1024
     self.skip_pen = opts.skip_pen or 1
     self.skip_ante = opts.skip_ante or 1
     self.pw_c = opts.pw_c or 0
@@ -223,6 +226,7 @@ function M:expand(id, s, keep_src, value_only)
     local key = prob
     if s.phase == "play" then key = self:play_priors(s, AB, na, prob, keep_src)
     elseif s.phase == "blind_select" then self:skip_prior(s, AB, na, prob) end
+    if self.type_mass and s.phase == "play" then key = self:mass_key(AB, na, prob, key) end
     local K = min(self.K, na)
     local top = self.topk
     local nt = 0
@@ -261,6 +265,25 @@ function M:expand(id, s, keep_src, value_only)
     self.ne = ef + nt - 1
     self.n_ef[id], self.n_ec[id] = ef, nt
     return v
+end
+
+function M:mass_key(AB, na, prob, key)
+    local ty = AB.type
+    local mp, md, bk = 0, 0, 0
+    for k = 0, na - 1 do
+        local t = ty[k]
+        if t == 1 then mp = mp + prob[k] elseif t == 2 then md = md + prob[k] end
+        if key[k] > key[bk] then bk = k end
+    end
+    local win = md > mp and 2 or 1
+    if ty[bk] > 2 or ty[bk] == win then return key end
+    if self.tm_cap < na then
+        self.tm_cap = AB.cap
+        self.tm = BUF.alloc(AB.cap)
+    end
+    local tm = self.tm
+    for k = 0, na - 1 do tm[k] = ty[k] == win and key[k] + 8 or key[k] end
+    return tm
 end
 
 function M:play_priors(s, AB, na, prob, exact)
