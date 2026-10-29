@@ -103,6 +103,13 @@ Read this first, then tools/botsim/autopilot/DESIGN.md.
 - Round r20261029-204808 (same data, E=64 H=256, chosen 1.0) started 21:48. Check its imitation line in runs/<run>/metrics.jsonl: mean ante vs 5.30, and rerun the trace on the new weights if it is not over 5.5.
 - Autopilot paid tracker still says 16.50 spent of the 30 EUR approval, but rounds r20261029-192050 (failed start, about 1.64), r20261029-192717 (3.28) and r20261029-204808 were not added (stop before finish, failed start). Real spend under the approval is about 21.4 before this round. Fix the counting (finish on stop and on failed start) before relying on it.
 
+### Chosen-move target did not help (2026-10-29 22:55): 5.16, hypothesis wrong
+- Round r20261029-204808 (chosen 1.0, otherwise identical): mean ante 5.16, 16 wins, 22 deaths in ante 1-2 (votes run: 5.30, 19 wins, 20 deaths). 13 of the early-death seeds are the same in both runs. The difference between the runs is within noise (about 0.19 ante standard error per 150 games), but the early deaths did not go away, so the votes were not the cause.
+- Full profile is back on the votes target (chosen removed); the --chosen flag stays for later tests.
+- Autopilot stopped. Paid spend under the 30 EUR approval is about 24.7 (the autopilot tracker still says 16.50, see above). About 5 EUR left: one more round at most.
+- Next, free on CI: check whether the teacher itself discards first. Fair Seer judges each candidate in sampled worlds that know their own draws, so the teacher's own choice may overvalue discards too, and the net copies it but without the teacher's skill at picking which discard. Trace Fair Seer lite on the 20 death seeds (fair.lua writes one `out=` per call, so give each seed its own file this time) and count rounds that discard before playing, next to the net's 55 of 60.
+- If the teacher also discards first: the data is the cause. Options: a hand-strength rule in the record filter (drop or down-weight discard labels when a play clears the blind or scores far above the average needed per hand), or score_prior at sims=0, or more search (sims 32 gave about +0.15 in the A/B).
+
 ## Earlier plan (kept for reference): make the imitation net reach mean ante 5.5 (free, CI only)
 Try in this order, each measured on the same 150 b_red white BENCH seeds with sims=0, one change at a time:
 1. Data window: train.py keeps only the last 2,000,000 records (`--window`), and the 20000 teacher games have more (summary said records 2000000 = the cap). Raise the window so every record is used.
