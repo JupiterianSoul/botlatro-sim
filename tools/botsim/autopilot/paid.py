@@ -157,6 +157,8 @@ def imitation_env(ctx):
         env["IMIT_CFG"] = ip["cfg"]
     if ip.get("chosen"):
         env["IMIT_CHOSEN"] = str(ip["chosen"])
+    if ip.get("all_discards"):
+        env["IMIT_ALL_DISC"] = str(ip["all_discards"])
     return env
 
 
