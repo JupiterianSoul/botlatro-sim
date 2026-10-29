@@ -114,6 +114,7 @@ def main():
     ap.add_argument("--warmup", type=int, default=0)
     ap.add_argument("--threads", type=int, default=0)
     ap.add_argument("--chosen", type=float, default=0.0)
+    ap.add_argument("--all-discards", type=int, default=0)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--log-every", type=int, default=100)
     ap.add_argument("--mix-data", nargs="+", default=[])
@@ -144,6 +145,10 @@ def main():
         sys.exit("no records")
     if len(val) > a.val_max:
         val = random.Random(a.seed).sample(val, a.val_max)
+    if a.all_discards:
+        assert dims["CF"] == 39 and dims["FA"] == 35 and dims["types"].split(",")[1] == "discard", "feature layout changed"
+        R.ALL_DISC, R.DISC_CAP = True, a.all_discards
+        print("discard check %d actions %d differ %d bad expansions" % R.check_discards(random.Random(a.seed + 1).sample(recs, min(len(recs), 5000)), 5000))
     if a.epochs > 0:
         a.steps = min(a.steps, max(a.min_steps, math.ceil(a.epochs * len(recs) / a.batch)))
     model = Net.from_file(a.init) if a.init else Net(parse_cfg(a.cfg, dims))
