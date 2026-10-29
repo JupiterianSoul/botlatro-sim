@@ -77,6 +77,8 @@ function M.new(net, opts)
     self.score_temp = opts.score_temp or 4
     self.type_mass = (opts.type_mass or 0) > 0
     self.tm_at = (opts.type_mass or 0) < 1 and opts.type_mass or 0.5
+    self.tm_plays = opts.tm_plays or 0
+    self.tm_top = {}
     self.tm = BUF.alloc(1024)
     self.tm_cap = 1024
     self.skip_pen = opts.skip_pen or 1
@@ -271,11 +273,28 @@ end
 function M:mass_key(AB, na, prob, key)
     local ty = AB.type
     local mp, md, bk = 0, 0, 0
+    local N, xe, bt, nb = self.tm_plays, AB.xe, self.tm_top, 0
     for k = 0, na - 1 do
         local t = ty[k]
-        if t == 1 then mp = mp + prob[k] elseif t == 2 then md = md + prob[k] end
+        if t == 1 then
+            if N > 0 then
+                local x = xe[k]
+                if nb < N or x > xe[bt[nb]] then
+                    local j = nb < N and nb + 1 or nb
+                    while j > 1 and xe[bt[j - 1]] < x do
+                        bt[j] = bt[j - 1]
+                        j = j - 1
+                    end
+                    bt[j] = k
+                    if nb < N then nb = nb + 1 end
+                end
+            else
+                mp = mp + prob[k]
+            end
+        elseif t == 2 then md = md + prob[k] end
         if key[k] > key[bk] then bk = k end
     end
+    for j = 1, nb do mp = mp + prob[bt[j]] end
     local win = md > self.tm_at * (mp + md) and 2 or 1
     if ty[bk] > 2 or ty[bk] == win then return key end
     if self.tm_cap < na then
