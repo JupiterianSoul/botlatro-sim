@@ -80,7 +80,15 @@ Read this first, then tools/botsim/autopilot/DESIGN.md.
 - Gabriel chose: keep the 5.50 bar, improve imitation first, no spend. Retry 721e43-11 (same settings) was running at 18:38; expect a fail and a stop.
 - `redo` now resets the gate counts of every later step (it used to leave imitation at 2 fails).
 
-## Next session: make the imitation net reach mean ante 5.5 (free, CI only)
+## Gabriel's decision (2026-10-29 evening): bigger net, trained on Hetzner
+- Net size: E=64, H=256 (about 1.2M weights, check the real count; current E=32 H=128 is 323k). `--cfg E=64,H=256` in train.py.
+- Train it on Hetzner, not CI: CPU torch on a CCX63 (48 dedicated cores, about 1.64 EUR/h) instead of the 4-core runner. Paid but inside the 30 EUR approval (16.50 spent, 13.50 left, round cap 5). Plan at most 96 dedicated cores.
+- Remove the 2M record window first so all 20000 teacher games are used.
+- There is no Hetzner job for imitation yet (the `train` job is self-play/fair rounds). Add one (or a `train` mode that only runs train.py on the teacher records in the results repo plus the eval), wire the autopilot imitation step to it with a profile switch, test it with the cloud fakes, then run it. Torch threads: set torch.set_num_threads to the box's cores; check samples/s against CI's 6835.
+- Measure: mean ante on the 150 b_red white BENCH seeds (sims=0) and Lua seconds per decision vs the current net. Bar stays 5.5.
+- Fair Seer calls the net in expert only where the sampled worlds disagree, so a 3-4x slower net costs little there; confirm with s/game on the BENCH white cell.
+
+## Earlier plan (kept for reference): make the imitation net reach mean ante 5.5 (free, CI only)
 Try in this order, each measured on the same 150 b_red white BENCH seeds with sims=0, one change at a time:
 1. Data window: train.py keeps only the last 2,000,000 records (`--window`), and the 20000 teacher games have more (summary said records 2000000 = the cap). Raise the window so every record is used.
 2. Model size: E=32 H=128 (323k weights). Try H=256 and E=64 via `--cfg`; check CPU torch time per step and the Lua inference speed (eval s/game), since the net also runs inside Fair Seer in expert.
