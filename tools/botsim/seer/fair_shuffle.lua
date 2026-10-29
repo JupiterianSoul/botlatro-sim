@@ -7,7 +7,7 @@ local PL = require("bot.seer.play")
 local SC = require("botsim.seer.scramble")
 
 local opt = {who = "fair", budget = "lite", weights = "", prefix = "BENCH", first = 1, seeds = 1, decks = "b_red", stakes = "1",
-    max_steps = 4000, out = "", sims = 32, K = 24}
+    max_steps = 4000, out = "", sims = 32, K = 24, quick_clear = 0, type_mass = 0, tm_plays = 0}
 for _, a in ipairs(arg or {}) do
     local k, v = a:match("^%-*([%w_]+)=(.*)$")
     if k then
@@ -50,7 +50,8 @@ elseif opt.who == "net" then
         return function(view)
             MC.advance_forced(view)
             if MC.terminal(view) then return nil end
-            local mc = MC.new(net, {K = opt.K, seed = 99991, alpha = 0.5, nodes = opt.sims + 2, full = true})
+            local mc = MC.new(net, {K = opt.K, seed = 99991, alpha = 0.5, nodes = opt.sims + 2, full = true, quick_clear = opt.quick_clear,
+                type_mass = opt.type_mass, tm_plays = opt.tm_plays})
             mc:search(view, opt.sims, {noise = 0, reuse = false, adaptive = true})
             local e = mc:choose(0)
             if not e then return nil end

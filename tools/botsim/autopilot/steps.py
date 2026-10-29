@@ -27,9 +27,10 @@ def leak_cmd(prof):
     return quiet("luajit tools/botsim/seer/test/fair_test.lua %s" % prof.get("leak_args", ""), "leak.txt").replace("  ", " ")
 
 
-def shuffle_cmd(prof, who, weights=None):
+def shuffle_cmd(prof, who, weights=None, args=""):
     s = prof["shuffle"]
     w = " weights=%s sims=0" % weights if weights else ""
+    w += " " + args if args else ""
     return quiet("luajit tools/botsim/seer/fair_shuffle.lua who=%s budget=lite%s prefix=%s first=1 seeds=%d decks=%s stakes=%s max_steps=%d out=$OUT/shuffle.json"
                  % (who, w, prof["bench"]["prefix"], s["seeds"], s["decks"], s["stakes"], s["max_steps"]), "shuffle.txt")
 
@@ -122,9 +123,10 @@ def imitation_jobs(ctx):
     w = "$OUT/imitation.bnnw"
     extra = " --all-discards %d" % ip["all_discards"] if ip.get("all_discards") else ""
     train = quiet("python3 tools/botsim/train/train.py --data $(find data -name '*.bspr' -size +0c) --out %s --steps %d%s" % (w, ip["steps"], extra), "train.txt")
-    ev = quiet("luajit tools/botsim/train/eval.lua who=net weights=%s sims=0 prefix=%s first=1 seeds=%d decks=%s stakes=%s jsonl=$OUT/games.jsonl"
-               % (w, b["prefix"], ip["eval_seeds"], ip["decks"], ip["stakes"]), "eval.txt")
-    sh = shuffle_cmd(ctx.prof, "net", w)
+    ea = ip.get("eval_args", "")
+    ev = quiet("luajit tools/botsim/train/eval.lua who=net weights=%s sims=0 prefix=%s first=1 seeds=%d decks=%s stakes=%s jsonl=$OUT/games.jsonl%s"
+               % (w, b["prefix"], ip["eval_seeds"], ip["decks"], ip["stakes"], " " + ea if ea else ""), "eval.txt")
+    sh = shuffle_cmd(ctx.prof, "net", w, ea)
     cmd = "; ".join(["mkdir -p data"] + dl + [train, ev, sh])
     return [job("imitation", cmd, ip["timeout"], torch=True)]
 

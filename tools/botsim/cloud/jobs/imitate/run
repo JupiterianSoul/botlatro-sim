@@ -131,7 +131,7 @@ def evaluate(w):
         j = os.path.join(WORK, "eval%03d.jsonl" % i)
         files.append(j)
         cmd = ["luajit", "tools/botsim/train/eval.lua", "who=net", "weights=" + w, "sims=0", "prefix=" + env("PREFIX", "BENCH"),
-               "first=%d" % first, "seeds=%d" % k, "decks=" + env("DECKS", "b_red"), "stakes=" + env("STAKES", "1"), "jsonl=" + j]
+               "first=%d" % first, "seeds=%d" % k, "decks=" + env("DECKS", "b_red"), "stakes=" + env("STAKES", "1"), "jsonl=" + j] + env("EVAL_ARGS").split()
         first += k
         log = open(os.path.join(WORK, "eval%03d.log" % i), "w")
         procs.append(subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT))
@@ -149,7 +149,7 @@ def checks(w):
     rc1 = run_logged(leak, os.path.join(OUT, "leak.txt"), 3600)
     shuf = ["luajit", "tools/botsim/seer/fair_shuffle.lua", "who=net", "budget=lite", "weights=" + w, "sims=0", "prefix=" + env("PREFIX", "BENCH"),
             "first=1", "seeds=" + env("SHUFFLE_SEEDS", "4"), "decks=" + env("SHUFFLE_DECKS", "b_red"), "stakes=" + env("SHUFFLE_STAKES", "1,2"),
-            "max_steps=" + env("SHUFFLE_STEPS", "400"), "out=" + os.path.join(OUT, "shuffle.json")]
+            "max_steps=" + env("SHUFFLE_STEPS", "400"), "out=" + os.path.join(OUT, "shuffle.json")] + env("EVAL_ARGS").split()
     run_logged(shuf, os.path.join(OUT, "shuffle.txt"), 3600)
     return rc1 == 0
 
