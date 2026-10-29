@@ -144,6 +144,9 @@ def parse(data, lazy=False):
     return dims, runs, recs
 
 
+CHOSEN = 0.0
+
+
 def collate(recs, dims, dtype=torch.float32):
     recs = [r.load() if isinstance(r, Lazy) else r for r in recs]
     B = len(recs)
@@ -185,6 +188,9 @@ def collate(recs, dims, dtype=torch.float32):
         am[b, :na] = 1
         tot = r["visits"].sum()
         pi[b, :na] = r["visits"] / tot if tot > 0 else 1.0 / na
+        if CHOSEN > 0 and r["chosen"] < na:
+            pi[b, :na] *= 1.0 - CHOSEN
+            pi[b, r["chosen"]] += CHOSEN
         won[b] = r["won"]
         ante[b] = r["final_ante"] / 8.0
         nsims[b] = r["n_sims"]

@@ -147,6 +147,8 @@ def imitation_env(ctx):
            "IMIT_SHUFFLE_STAKES": str(sh["stakes"]), "IMIT_SHUFFLE_STEPS": str(sh["max_steps"])}
     if ip.get("cfg"):
         env["IMIT_CFG"] = ip["cfg"]
+    if ip.get("chosen"):
+        env["IMIT_CHOSEN"] = str(ip["chosen"])
     return env
 
 
