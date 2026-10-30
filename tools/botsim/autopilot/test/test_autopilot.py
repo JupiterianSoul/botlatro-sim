@@ -480,10 +480,11 @@ class TestTeacherPaid(Base):
         self.assertTrue(self.world.dispatches())
         self.assertEqual([a["hz_run"][:3] for a in st["teacher"]["artifacts"]], ["r1", "ci-"])
 
-    def test_imitation_round_on_hetzner(self):
+    def test_full_imitation_on_ci(self):
         import steps
         prof = self.profiles["full"]
-        self.assertTrue(steps.on_hetzner(prof, "imitation"))
+        self.assertFalse(steps.on_hetzner(prof, "imitation"))
+        self.assertTrue(steps.on_hetzner(self.profiles["tiny-imit"], "imitation"))
         self.assertEqual(prof["imitation"]["cfg"], "E=64,H=256")
 
     def test_imitation_fetches_hetzner_records(self):
@@ -494,8 +495,21 @@ class TestTeacherPaid(Base):
         cmd = steps.imitation_jobs(ctx)[0]["cmd"]
         self.assertIn("fetchdir runs/r9/teacher data/r9", cmd)
         self.assertIn("--window 0 --cfg E=64,H=256 --value-weight 0.25", cmd)
-        self.assertIn("quick_clear=1 pace=1.25", cmd)
+        self.assertIn("sims=32 fair=1 search_ph=shop,pack,blind_select quick_clear=1 pace=1.25", cmd)
+        self.assertIn("seeds=1000", cmd)
+        self.assertEqual(cmd.count("eval.lua"), 4)
+        self.assertIn("part=3 parts=4 jsonl=$OUT/eval3.jsonl", cmd)
+        self.assertIn("cat $OUT/eval[0-9].jsonl > $OUT/games.jsonl", cmd)
         self.assertIn('${f%.gz.000}', cmd)
+
+    def test_final_bench_uses_player_args(self):
+        import steps
+        ctx = type("C", (), {})()
+        ctx.prof, ctx.dir = self.profiles["full"], "d"
+        ctx.st = {"best": {"name": "imitation"}}
+        cmd = steps.final_jobs(ctx)[0]["cmd"]
+        self.assertIn("stakes=1,2,3,4,5,6,7,8", cmd)
+        self.assertIn("search_ph=shop,pack,blind_select", cmd)
 
 
 class TestPieces(unittest.TestCase):

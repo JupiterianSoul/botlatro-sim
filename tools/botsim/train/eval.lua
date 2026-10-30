@@ -11,7 +11,7 @@ local ES = require("botsim.train.evalset")
 local json = require("bot.sim.json")
 
 local opt = {who = "greedy", weights = "", sims = 32, K = 24, per = 6, decks = "", stakes = "", part = 0, parts = 1, out = "", max_moves = 3000, max_shop = 40,
-    mix = -1, score_prior = 0, score_top = 6, score_temp = 4, skip_pen = 1, skip_ante = 1, type_mass = 0, tm_plays = 0, quick_clear = 0, pace = 0, pace_net = 0, prefix = "", first = 1, seeds = 10, jsonl = "", fair = 0, search_ph = ""}
+    mix = -1, score_prior = 0, score_top = 6, score_temp = 4, skip_pen = 1, skip_ante = 1, type_mass = 0, tm_plays = 0, quick_clear = 0, pace = 0, pace_net = 0, prefix = "", first = 1, seeds = 10, jsonl = "", fair = 0, search_ph = "", rec = ""}
 for _, a in ipairs(arg or {}) do
     local k, v = a:match("^([%w_]+)=(.*)$")
     if k then opt[k] = tonumber(v) or v end
@@ -25,6 +25,9 @@ if opt.who == "net" then
 end
 POL.shop = true
 local FAIR = opt.fair > 0 and require("bot.seer.fair") or nil
+local REC = opt.rec ~= "" and mc and require("botsim.train.records") or nil
+local rf, nrun = REC and assert(io.open(opt.rec, "wb")), 0
+if rf then rf:write(REC.file_header()) end
 
 local LEAVE, SKIP = {type = "leave"}, {type = "skip"}
 local step = {type = "play", cards = {}}
@@ -34,6 +37,7 @@ local st = {}
 local function play(deck, stake, seed)
     local s = E.new_run({seed = seed, deck = deck, stake = stake})
     local moves, econ_run, why = 0, 0, "max_moves"
+    local recs = rf and {}
     while moves < opt.max_moves do
         MC.advance_forced(s)
         if MC.terminal(s) then why = "end" break end
@@ -49,6 +53,7 @@ local function play(deck, stake, seed)
             mc:search(view, sims, {noise = 0, reuse = not FAIR, adaptive = true})
             local e = mc:choose(0)
             if not e then why = "no_edge:" .. ph break end
+            if recs then recs[#recs + 1] = REC.encode_record(mc.F_root, mc, e, sims, FE.PHASES[ph] or 0) end
             mc:edge_action(e, step, view)
             if not FAIR then mc:commit(e) end
             if not E.step(s, step) then why = "step_failed:" .. ph .. ":" .. tostring(step.type) break end
@@ -66,7 +71,12 @@ local function play(deck, stake, seed)
         end
     end
     local won = s.won == 1 and 1 or 0
-    return won, won == 1 and s.win_ante + 1 or s.ante, why, moves
+    local ante = won == 1 and s.win_ante + 1 or s.ante
+    if recs then
+        nrun = nrun + 1
+        rf:write(REC.encode_run(recs, won, math.min(ante, 255), FE.DECK_IDX[deck] or 0, stake, nrun))
+    end
+    return won, ante, why, moves
 end
 
 local DECKS, STAKES = ES.parse(opt.decks, tostring(opt.stakes))
@@ -115,4 +125,5 @@ for i, c in ipairs(ES.cells(opt.per, DECKS, STAKES)) do
 end
 end
 if jf then jf:close() end
+if rf then rf:close() end
 if fh ~= io.stdout then fh:close() end
