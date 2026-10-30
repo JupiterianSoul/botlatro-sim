@@ -11,7 +11,7 @@ local ES = require("botsim.train.evalset")
 local json = require("bot.sim.json")
 
 local opt = {who = "greedy", weights = "", sims = 32, K = 24, per = 6, decks = "", stakes = "", part = 0, parts = 1, out = "", max_moves = 3000, max_shop = 40,
-    mix = -1, score_prior = 0, score_top = 6, score_temp = 4, skip_pen = 1, skip_ante = 1, type_mass = 0, tm_plays = 0, quick_clear = 0, pace = 0, pace_net = 0, prefix = "", first = 1, seeds = 10, jsonl = "", fair = 0, search_ph = "", rec = ""}
+    mix = -1, score_prior = 0, score_top = 6, score_temp = 4, skip_pen = 1, skip_ante = 1, type_mass = 0, tm_plays = 0, quick_clear = 0, pace = 0, pace_net = 0, prefix = "", first = 1, seeds = 10, jsonl = "", fair = 0, search_ph = "", rec = "", solver = "", solver_qc = 0}
 for _, a in ipairs(arg or {}) do
     local k, v = a:match("^([%w_]+)=(.*)$")
     if k then opt[k] = tonumber(v) or v end
@@ -25,6 +25,8 @@ if opt.who == "net" then
 end
 POL.shop = true
 local FAIR = opt.fair > 0 and require("bot.seer.fair") or nil
+local PL = require("bot.seer.play")
+local SOLVER = FAIR and opt.solver ~= "" and FAIR.new({budget = opt.solver, quick_clear = opt.solver_qc > 0}) or nil
 local REC = opt.rec ~= "" and mc and require("botsim.train.records") or nil
 local rf, nrun = REC and assert(io.open(opt.rec, "wb")), 0
 if rf then rf:write(REC.file_header()) end
@@ -45,6 +47,13 @@ local function play(deck, stake, seed)
         if ph == "shop" or ph == "pack" then econ_run = econ_run + 1 else econ_run = 0 end
         if econ_run > opt.max_shop then
             if not E.step(s, ph == "pack" and SKIP or LEAVE) then why = "stuck_econ:" .. ph break end
+        elseif SOLVER and ph == "play" then
+            local acts = SOLVER:decide(s)
+            if not acts or not acts[1] or not E.step(s, acts[1]) then
+                local fb = PL.fast_action(s)
+                if not fb or not E.step(s, fb) then why = "step_failed:play:solver" break end
+            end
+            moves = moves + 1
         elseif mc then
             local view = s
             if FAIR then view = FAIR.world(FAIR.sanitize(s), string.format("FW%s_%d", seed, moves)) end
