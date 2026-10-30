@@ -26,7 +26,7 @@ def parse_cfg(text, dims):
     return cfg
 
 
-def load_data(paths, window, val_every=0):
+def load_data(paths, window, val_every=0, stakes=None):
     files = []
     for p in paths:
         if os.path.isdir(p):
@@ -41,12 +41,14 @@ def load_data(paths, window, val_every=0):
             dims = d
         key = ("GF", "CF", "JF", "IF", "FA", "types")
         assert all(d[k] == dims[k] for k in key), f
-        runs += r
+        runs += [run for run in r if not stakes or run["stake"] in stakes]
         pos = 0
         for run in r:
-            nrun += 1
             part = x[pos:pos + run["n"]]
             pos += run["n"]
+            if stakes and run["stake"] not in stakes:
+                continue
+            nrun += 1
             (val if val_every and nrun % val_every == 1 else recs).extend(part)
         recs += x[pos:]
     if window and len(recs) > window:
@@ -122,13 +124,15 @@ def main():
     ap.add_argument("--mix", type=float, default=0.0)
     ap.add_argument("--mix-smooth", type=float, default=0.0)
     ap.add_argument("--mix-window", type=int, default=2000000)
+    ap.add_argument("--stakes", default="")
     a = ap.parse_args()
     if a.threads:
         torch.set_num_threads(a.threads)
     R.CHOSEN = a.chosen
     random.seed(a.seed)
     torch.manual_seed(a.seed)
-    dims, runs, recs, val = load_data(a.data, a.window, a.val_every) if a.data else (None, [], [], [])
+    stakes = {int(k) for k in a.stakes.split(",") if k}
+    dims, runs, recs, val = load_data(a.data, a.window, a.val_every, stakes) if a.data else (None, [], [], [])
     mix = []
     if a.mix_data and (a.mix > 0 or not a.data):
         mdims, mruns, mix, mval = load_data(a.mix_data, a.mix_window, 0 if a.data else a.val_every)
