@@ -11,7 +11,7 @@ local ES = require("botsim.train.evalset")
 local json = require("bot.sim.json")
 
 local opt = {who = "greedy", weights = "", sims = 32, K = 24, per = 6, decks = "", stakes = "", part = 0, parts = 1, out = "", max_moves = 3000, max_shop = 40,
-    mix = -1, score_prior = 0, score_top = 6, score_temp = 4, skip_pen = 1, skip_ante = 1, type_mass = 0, tm_plays = 0, quick_clear = 0, pace = 0, pace_net = 0, prefix = "", first = 1, seeds = 10, jsonl = "", fair = 0, search_ph = "", rec = "", solver = "", solver_qc = 0}
+    mix = -1, score_prior = 0, score_top = 6, score_temp = 4, skip_pen = 1, skip_ante = 1, type_mass = 0, tm_plays = 0, quick_clear = 0, pace = 0, pace_net = 0, prefix = "", first = 1, seeds = 10, jsonl = "", fair = 0, search_ph = "", rec = "", solver = "", solver_qc = 0, set = "", curve = 0}
 for _, a in ipairs(arg or {}) do
     local k, v = a:match("^([%w_]+)=(.*)$")
     if k then opt[k] = tonumber(v) or v end
@@ -39,12 +39,24 @@ local st = {}
 
 local function play(deck, stake, seed)
     local s = E.new_run({seed = seed, deck = deck, stake = stake})
+    for k, v in tostring(opt.set):gmatch("([%w_]+):(-?[%d%.]+)") do s[k] = tonumber(v) end
     local moves, econ_run, why = 0, 0, "max_moves"
+    local curve, curve_ante = {}, 0
     local recs = rf and {}
     while moves < opt.max_moves do
         MC.advance_forced(s)
         if MC.terminal(s) then why = "end" break end
         local ph = s.phase
+        if opt.curve > 0 and s.ante ~= curve_ante then
+            curve_ante = s.ante
+            local rent, dead, et = 0, 0, 0
+            for k = 1, s.n_jok do
+                rent = rent + s.j_rental[k]
+                et = et + s.j_eternal[k]
+                if s.j_perish[k] == 0 then dead = dead + 1 end
+            end
+            curve[#curve + 1] = string.format("%d:%d:%d:%d:%d:%d", s.ante, s.money, s.n_jok, rent, dead, et)
+        end
         if ph == "shop" or ph == "pack" then econ_run = econ_run + 1 else econ_run = 0 end
         if econ_run > opt.max_shop then
             if not E.step(s, ph == "pack" and SKIP or LEAVE) then why = "stuck_econ:" .. ph break end
@@ -91,11 +103,12 @@ local function play(deck, stake, seed)
         nrun = nrun + 1
         rf:write(REC.encode_run(recs, won, math.min(ante, 255), FE.DECK_IDX[deck] or 0, stake, nrun))
     end
+    s.eval_curve = table.concat(curve, ",")
     return won, ante, why, moves, s
 end
 
 local function death_fields(s)
-    return string.format(',"blind":%d,"chips":%.0f,"need":%.0f,"money":%d,"n_jok":%d,"disc_left":%d', s.blind, s.chips, s.blind_chips, s.money, s.n_jok, s.discards_left)
+    return string.format(',"blind":%d,"chips":%.0f,"need":%.0f,"money":%d,"n_jok":%d,"disc_left":%d', s.blind, s.chips, s.blind_chips, s.money, s.n_jok, s.discards_left) .. (opt.curve > 0 and string.format(',"curve":"%s"', s.eval_curve) or "")
 end
 
 local DECKS, STAKES = ES.parse(opt.decks, tostring(opt.stakes))
