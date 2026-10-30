@@ -11,7 +11,7 @@ local ES = require("botsim.train.evalset")
 local json = require("bot.sim.json")
 
 local opt = {who = "greedy", weights = "", sims = 32, K = 24, per = 6, decks = "", stakes = "", part = 0, parts = 1, out = "", max_moves = 3000, max_shop = 40,
-    mix = -1, score_prior = 0, score_top = 6, score_temp = 4, skip_pen = 1, skip_ante = 1, type_mass = 0, tm_plays = 0, quick_clear = 0, pace = 0, pace_net = 0, prefix = "", first = 1, seeds = 10, jsonl = "", fair = 0, search_ph = "", rec = "", solver = "", solver_qc = 0, set = "", curve = 0, leaf_money = 0, leaf_rent = 0, leaf_dead = 0, rent_prior = 1, sell_dead = 0}
+    mix = -1, score_prior = 0, score_top = 6, score_temp = 4, skip_pen = 1, skip_ante = 1, type_mass = 0, tm_plays = 0, quick_clear = 0, pace = 0, pace_net = 0, prefix = "", first = 1, seeds = 10, jsonl = "", fair = 0, search_ph = "", rec = "", solver = "", solver_qc = 0, set = "", curve = 0, leaf_money = 0, leaf_rent = 0, leaf_dead = 0, rent_prior = 1, rent_from = 0, sell_dead = 0, c_puct = 1.5, worlds = 1}
 for _, a in ipairs(arg or {}) do
     local k, v = a:match("^([%w_]+)=(.*)$")
     if k then opt[k] = tonumber(v) or v end
@@ -21,7 +21,7 @@ local mc
 if opt.who == "net" then
     local W = WT.load(opt.weights)
     mc = MC.new(NET.new(W), {K = opt.K, seed = 99991, alpha = 0.5, mix = opt.mix >= 0 and opt.mix or nil,
-        score_prior = opt.score_prior, score_top = opt.score_top, score_temp = opt.score_temp, skip_pen = opt.skip_pen, skip_ante = opt.skip_ante, type_mass = opt.type_mass, tm_plays = opt.tm_plays, quick_clear = opt.quick_clear, pace = opt.pace, pace_net = opt.pace_net, leaf_money = opt.leaf_money, leaf_rent = opt.leaf_rent, leaf_dead = opt.leaf_dead, rent_prior = opt.rent_prior, nodes = opt.sims + 2, full = true})
+        score_prior = opt.score_prior, score_top = opt.score_top, score_temp = opt.score_temp, skip_pen = opt.skip_pen, skip_ante = opt.skip_ante, type_mass = opt.type_mass, tm_plays = opt.tm_plays, quick_clear = opt.quick_clear, pace = opt.pace, pace_net = opt.pace_net, leaf_money = opt.leaf_money, leaf_rent = opt.leaf_rent, leaf_dead = opt.leaf_dead, rent_prior = opt.rent_prior, rent_from = opt.rent_from, c_puct = opt.c_puct, nodes = opt.sims + 2, full = true})
 end
 POL.shop = true
 local FAIR = opt.fair > 0 and require("bot.seer.fair") or nil
@@ -84,6 +84,22 @@ local function play(deck, stake, seed)
             if opt.search_ph ~= "" and not ("," .. opt.search_ph .. ","):find("," .. ph .. ",", 1, true) then sims = 0 end
             mc:search(view, sims, {noise = 0, reuse = not FAIR, adaptive = true})
             local e = mc:choose(0)
+            if FAIR and sims > 0 and opt.worlds > 1 and e then
+                local ef, ec = mc:root_edges()
+                local sum = {}
+                for i = 0, ec - 1 do sum[i] = mc.e_N[ef + i] end
+                for w = 2, opt.worlds do
+                    view = FAIR.world(FAIR.sanitize(s), string.format("FW%s_%d_%d", seed, moves, w))
+                    mc:search(view, sims, {noise = 0, reuse = false, adaptive = true})
+                    ef, ec = mc:root_edges()
+                    for i = 0, ec - 1 do sum[i] = (sum[i] or 0) + mc.e_N[ef + i] end
+                end
+                local bi = 0
+                for i = 1, ec - 1 do
+                    if sum[i] > sum[bi] then bi = i end
+                end
+                e = ef + bi
+            end
             if not e then why = "no_edge:" .. ph break end
             if recs then recs[#recs + 1] = REC.encode_record(mc.F_root, mc, e, sims, FE.PHASES[ph] or 0) end
             mc:edge_action(e, step, view)
