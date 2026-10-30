@@ -1,6 +1,6 @@
 # Handover 2026-10-28 (night)
 
-Read this first, then tools/botsim/autopilot/DESIGN.md.
+Read this first, then tools/botsim/autopilot/DESIGN.md. Newest state: the section "Night 2026-10-30, session 3" and its "Next" list further down; the State list right below is from 2026-10-28.
 
 ## State
 - Autopilot `autopilot` dir is stopped at fair_bench (16.7% white on b_red only vs a 25% bar set from a 5-deck mix). Fixed: the white cell now runs 5 decks x 30 seeds. Re-init `full` once the speed work below is merged.
@@ -164,6 +164,37 @@ All numbers: 150 b_red white BENCH seeds, sims=0, mean ante / wins / deaths in a
 3. Anaglyph slowness in the fair teacher (see above): find the exploding decision or add a clean per-game cap in fair mode.
 4. Value head: weight 0.25 helped; also try 0.1 and dropout, and check sims>0 again once the value head generalizes (search still loses to sims=0 + pace).
 5. More real-deck teacher data is cheap now (21160 games in under two hours of free CI): `extend teacher --games N --ci --hold` again when the new round says data helps.
+
+### Night 2026-10-30, session 3: the big net trains on free CI, anaglyph fixed, stake ladder (on main, 448a7f3)
+All imitation numbers: sims=0 with quick_clear=1 pace=1.25, mean ante / wins / deaths in ante 1-2. Gate = BENCH 1-150 b_red white, held-out = BENCH 151-1150 b_red white, decks = 15 decks x stakes 1 and 4 x 60 seeds.
+- **E=64 H=256 trains on a free 4-core CI runner at about 4950 samples/s, faster than the paid ccx63 (4155 on 48 threads).** 20000 steps take about 20 minutes. So the paid Hetzner imitation round buys nothing over CI.
+- CI imitation run 41005619660 (tools/botsim/results/s3/imit_exp3.py, all 41160 teacher games, window 0, artifacts `s3exp-imit-<label>` with net.bnnw, kept 30 days):
+  - big E=64 H=256, 20000 steps, value weight 0.25: gate **5.70 / 21 / 9**, held-out **5.58 / 140 / 85**, decks 5.08, plain gate 5.08.
+  - big, 60000 steps (the full profile's recipe, what the held paid round would train): BIG60
+  - small E=32 H=128, value weight 0.1: 20000 steps held-out 5.48 (vs 5.54 with 0.25, paired -0.06, z -1.2); 40000 steps held-out **5.63 / 142 / 69** (vs 5.46 with 0.25, +0.17, z 3.0), gate 5.81 / 24 / 8, decks 5.09. Mixed: value weight 0.1 vs 0.25 is inside run-to-run noise.
+- **Anaglyph slowness fixed.** Cause (tools/botsim/seer/fair_trace.lua, run 41005752280): b_anaglyph hands out a Double Tag after every boss, Double Tags cannot copy each other, so the teacher carries 5-8 of them by ante 6-8. Skipping a blind for a Juggle Tag then gives 8 Juggle Tags, +24 hand size, and PL.scan enumerates every 1-5 card subset of a 32-card hand (about 240000 instead of 218). Single decisions took 773, 597, 316 s. Fix (assets/bot/seer/play.lua): hands above `PL.MAX_SCAN_HAND` 16 scan the subsets of 12 picked cards (forced card, the 5 best of the commonest suit, then by rank count and chips). Hands of 16 or fewer are unchanged (the C scan covers up to 16, fuzz compares up to 14). TEACH14263 1835 s -> 8.0 s (still a win), TEACH14098 1576 s -> 12.8 s. Seer tests 200/200 (new big hand test), fair tests 323/323, normal teacher output byte-identical (run 41009226288).
+- Safety net: teacher.lua `game_cap` (default 600 CPU s, fair mode) drops a game that runs longer and logs `capped` (run 41006095803: capped path works, 6 normal games byte-identical with and without).
+- **Stake ladder** (run 41008324709, 41007734739, 41008364235; b_red, BENCH seeds; net = the 5.30 big net with quick_clear + pace, 1000 games per stake; teacher = Fair Seer lite, 200 games, 300 at gold):
+
+  | stake | net ante / win % | teacher ante / win % |
+  | --- | --- | --- |
+  | 1 white | 5.53 / 12.9 | (5.89 / 22.7 on 150) |
+  | 2 red | 5.07 / 8.7 | 4.89 / 13.0 |
+  | 3 green | 4.20 / 1.1 | 4.24 / 3.5 |
+  | 4 black | 4.12 / 1.1 | 4.13 / 3.0 |
+  | 5 blue | 3.87 / 0.6 | 3.88 / 1.0 |
+  | 6 purple | 3.62 / 0 | 3.54 / 0 |
+  | 7 orange | 3.34 / 0 | 3.37 / 0 |
+  | 8 gold | 3.07 / 0 | 3.10 / 0 (std budget 3.19 / 0 of 160, 13.9 s/game) |
+
+  The net equals its teacher at every stake. Wins collapse at green stake (faster blind scaling) and are zero from purple up, for the teacher too. Imitating Fair Seer cannot reach Gold Stake wins; the next lever is a stronger player at high stakes (the expert step: search plus the net, trained on its own games), not more imitation.
+- Paid: none. The ledger was 45.78 EUR and the night runner's guard deletes any box at 46.14, so no round could run.
+- The autopilot's paid tracker gap (failed starts not added) is cosmetic: budget_problem uses max(tracker, ledger - ledger_base).
+
+#### Next (after session 3)
+1. Morning decision: run imitation on CI instead of Hetzner. `imitation_hold` only holds the paid path; removing `imitation.paid` from the full profile makes the autopilot train the same E=64 H=256 recipe on free CI (about an hour for 60000 steps). The results above say it is at least as good as the paid round.
+2. Gold Stake plan: measure what the expert step (Fair Seer with the net as proposer, or MCTS with the net at sims > 0 on sanitized states) does at stakes 3-8 before spending on it; the teacher itself wins 0% from stake 6.
+3. Gate noise (unchanged): 150 seeds give about 0.15 ante standard error; the held-out 1000 numbers above are the ones to trust.
 
 ### Plan: 20000 more teacher games on free CI (backlog item 7, built in session 2, see above)
 - State today: teacher.games 20000, next 10001 (seeds TEACH0001-10000, stakes 1 and 2), artifacts are the two hz runs. The CI teacher path already exists (steps.teacher_jobs: 40 jobs x 60 seeds per batch, finish_teacher appends `{run, tag}` artifacts, imitation_jobs downloads both kinds).
