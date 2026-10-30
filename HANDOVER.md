@@ -286,6 +286,18 @@ All numbers: economy-only fair search player (`sims=32 fair=1 search_ph=shop,pac
 2. Gate noise: fresh-seed re-measures move a round's number by about 0.05-0.1, so a round winning at z 1.3-1.5 should be re-measured on fresh seeds before anyone relies on it.
 3. Paid ladder stays off (`ladder_ok`). Nothing measured says a paid round would help.
 
+### Gold Stake plan (Gabriel, 2026-10-30 afternoon)
+Replaces the older Next lists. Free CI only, in order, one change at a time. Measure each with paired games on the ladder (stakes 1-8), per stake, and fresh seeds before relying on a win. Teacher and net are level at every stake (stake 8: 3.10 and 3.08 mean ante, 0 wins), so more imitation or the same fine-tunes are not the lever.
+1. Read r23 (Next item 0 above) and finish the two measurements already started: where games die at stakes 6-8 (blind, boss, money, jokers, chips against need) and the hybrid `solver=` (Fair Seer plays hands, net runs the economy). Say plainly whether stake 8 deaths are mainly economy, shop choices or hand play.
+2. Upper bound: run the cheating Seer (reads the seed) on stakes 6-8. It never counts toward the goal, it only shows whether Gold is winnable with this planner. If it also fails, the planner's build choices are the problem. Keep it apart from fair results.
+3. Check the sim's stake rules against the real game code: score scaling at green and purple, blue discard, eternal, perishable and rental stickers and their shop odds. An ante 3 average at Gold could partly be a bug. Fix any difference and re-baseline.
+4. Fix what 1-3 point at in the search: score leaves by survival, money and build strength against the next antes, not win chance, which is about zero at high stakes. Several worlds per decision, at shop and pack choices first.
+5. Teach the net from the improved search. Check that stake really changes its play; if not, give it stronger stake input or per-stake value heads. Train with mixed stakes so low stakes do not lose what they have.
+6. Curriculum: move up one stake at a time from where it wins, the next stake only after a measured gain on the current one.
+7. All 15 decks at the stakes that improved, since the goal is every deck on Gold.
+
+Paid rounds stay off. Write in the report when a free result would justify one (a clear paired gain at stake 6 or above, and data volume as the limit) and what it would cost: 29.64 of 40 EUR approved for the autopilot, ledger 45.78 of the 56.14 ceiling, 100 EUR hard cap. Gabriel decides. If the plan ends with no gain at stakes 6-8, say so plainly and name what limits it.
+
 ### Plan: 20000 more teacher games on free CI (backlog item 7, built in session 2, see above)
 - State today: teacher.games 20000, next 10001 (seeds TEACH0001-10000, stakes 1 and 2), artifacts are the two hz runs. The CI teacher path already exists (steps.teacher_jobs: 40 jobs x 60 seeds per batch, finish_teacher appends `{run, tag}` artifacts, imitation_jobs downloads both kinds).
 - Build: an autopilot command `extend teacher --games N --ci` that keeps st.teacher (games, next, artifacts), stores a target `st.teacher.target = games + N` and `st.teacher.ci = true`, goes back to step teacher and clears the imitation gate and best. teacher_jobs/finish_teacher read the target from state when set; steps.paid_step returns False for teacher when `st.teacher.ci`.

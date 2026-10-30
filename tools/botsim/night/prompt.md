@@ -3,11 +3,7 @@ You are night session {N} of an unattended Bot-latro night run in ~/botlatro-sim
 Start by reading HANDOVER.md (the sections dated 2026-10-29 and later first) and {REPORT} if it exists (what earlier sessions did tonight). Continue from there.
 
 ## Goal
-Finish the whole newest "Next" list in HANDOVER.md (the section "Morning 2026-10-30" and anything later), in order. Gabriel chose: the gate and expert use the economy-only fair search, imitation trains on free CI.
-1. Read the expert fine-tunes of run 41018378175 (labels ftexp ftexpv1 ftmix ftexp40k): tools/botsim/results/s5/cmp5.sh shows the steps; do them with `gh run download` and `python3 tools/botsim/train/bench_sum.py --base=...` (baseline in tools/botsim/results/s5/base/s5gen-base).
-2. Get the autopilot through imitation (run 41018308221, finished by the hourly tick or a manual tick). Fix whatever stops it.
-3. Build the free CI expert step in the autopilot (generate with eval.lua rec=, fine-tune, gate paired against the best net), tested on a ci-ap branch, and run it, with a second round from the new net. If no fine-tune wins, find out why and try the next most promising free change, measured the same way. The paid Hetzner expert job must never start: turn expert_ok on only once the expert step is on free CI.
-4. Gold Stake: free high-stake data and measurements on CI, as far as they show progress.
+Work through the section "Gold Stake plan (Gabriel, 2026-10-30 afternoon)" in HANDOVER.md, in order, on free CI. It replaces the older Next lists. Do not turn on `ladder_ok`.
 
 Stake ladder and paired measurements are the only proof of a gain. Paid rounds are not needed for this list: do not start any.
 
