@@ -72,6 +72,10 @@ function M.new(net, opts)
     self.c_puct = opts.c_puct or 1.5
     self.alpha = opts.alpha or 0.5
     self.mix = opts.mix
+    self.leaf_money = opts.leaf_money or 0
+    self.leaf_rent = opts.leaf_rent or 0
+    self.leaf_dead = opts.leaf_dead or 0
+    self.rent_prior = opts.rent_prior or 1
     self.score_prior = opts.score_prior or 0
     self.score_top = opts.score_top or 6
     self.score_temp = opts.score_temp or 4
@@ -131,9 +135,37 @@ function M:reserve(nodes)
     return true
 end
 
+local T_BUY = 0
+for i, name in ipairs(FE.TYPES) do
+    if name == "buy" then T_BUY = i end
+end
+
+function M:leaf_econ(s)
+    local v = 0
+    if self.leaf_money ~= 0 then
+        local m = s.money
+        if m < 0 then m = 0 elseif m > 25 then m = 25 end
+        v = v + self.leaf_money * m / 25
+    end
+    if self.leaf_rent ~= 0 or self.leaf_dead ~= 0 then
+        for k = 1, s.n_jok do
+            if s.j_rental[k] == 1 then v = v - self.leaf_rent end
+            if s.j_perish[k] == 0 then v = v - self.leaf_dead end
+        end
+    end
+    return v
+end
+
 function M:value_of(s, p, ante_hat)
     local wa = s.win_ante > 0 and s.win_ante or 8
     if s.won == 1 then return 1 end
+    if s.phase ~= "game_over" and (self.leaf_money ~= 0 or self.leaf_rent ~= 0 or self.leaf_dead ~= 0) then
+        return self:value_base(s, p, ante_hat, wa) + self:leaf_econ(s)
+    end
+    return self:value_base(s, p, ante_hat, wa)
+end
+
+function M:value_base(s, p, ante_hat, wa)
     local m = self.mix
     if m then
         if s.phase == "game_over" then return m * (min(s.ante, wa) - 1) / wa end
@@ -231,6 +263,11 @@ function M:expand(id, s, keep_src, value_only)
         self.prob = BUF.alloc(AB.cap)
     end
     local prob = NET.softmax(AB.logit, na, self.prob)
+    if self.rent_prior ~= 1 and s.phase == "shop" then
+        for k = 0, na - 1 do
+            if AB.type[k] == T_BUY and s.sj_rent[AB.arg[k]] == 1 then prob[k] = prob[k] * self.rent_prior end
+        end
+    end
     local key = prob
     if s.phase == "play" then key = self:play_priors(s, AB, na, prob, keep_src)
     elseif s.phase == "blind_select" then self:skip_prior(s, AB, na, prob) end
