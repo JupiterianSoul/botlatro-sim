@@ -225,6 +225,11 @@ All imitation numbers: sims=0 with quick_clear=1 pace=1.25, mean ante / wins / d
 3. Play decisions: the value head steers hands and discards badly. Several worlds per decision or a better value head before searching in play again.
 4. Gold Stake is still at 0 wins from stake 6 up for every player measured.
 
+### Night 2026-10-30, session 5 (short, started 07:28; on main)
+- Backlog 1-6 were already done by sessions 1-4 (goal 5.5 reached in session 1, score_prior and ms per move measured in session 2, phase C closed on 2026-10-28). The ledger is at 45.78 EUR, under the 46.14 stop, so no paid round could run.
+- Which economy phase the search helps in, with the 5.30 net (fair_search.py `split`, run 41014391956, sims=32 fair=1 quick_clear + pace, b_red white BENCH 1-400, paired with the same net at sims=0): sims=0 5.58 / 54 wins / 34 early, 0.06 s/game; shop+pack+blind 5.64 / 55 / 30 (+0.07, z 0.9), shop only 5.62 / 55 / 28 (+0.04), pack only 5.63 / 57 / 34 (+0.05, z 1.2), blind select only 5.57 / 53 / 34 (-0.01). With this net's value head the economy search gains little; the +0.24 of session 4 came from the 60000-step CI net (value weight 0.25). So the value head quality decides it, and blind select search adds nothing.
+- Next is unchanged from session 4's list. Stale remote branches from earlier sessions (ci-bench-fairspeed1-4, ci-bench-fixes1-2, ci-ap-nodash, ci-ap-teacher, ci-ap-base) were left alone: check them before deleting.
+
 ### Plan: 20000 more teacher games on free CI (backlog item 7, built in session 2, see above)
 - State today: teacher.games 20000, next 10001 (seeds TEACH0001-10000, stakes 1 and 2), artifacts are the two hz runs. The CI teacher path already exists (steps.teacher_jobs: 40 jobs x 60 seeds per batch, finish_teacher appends `{run, tag}` artifacts, imitation_jobs downloads both kinds).
 - Build: an autopilot command `extend teacher --games N --ci` that keeps st.teacher (games, next, artifacts), stores a target `st.teacher.target = games + N` and `st.teacher.ci = true`, goes back to step teacher and clears the imitation gate and best. teacher_jobs/finish_teacher read the target from state when set; steps.paid_step returns False for teacher when `st.teacher.ci`.
