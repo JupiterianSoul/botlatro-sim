@@ -231,6 +231,9 @@ All imitation numbers: sims=0 with quick_clear=1 pace=1.25, mean ante / wins / d
 - Same split with the 60000-step net (run 41014805688, net copied on a temp branch, deleted): sims=0 5.83 / 67 / 26, 0.05 s/game; shop+pack+blind **6.08 / 83 / 25 (+0.25, z 3.5)**, 0.33 s/game; shop only 5.93 / 77 / 26 (+0.10, z 1.4); pack only 5.88 / 69 / 26 (+0.05, z 1.5); blind select only 5.83 / 67 / 26 (+0.00, every game the same). Shop and pack alone add up to +0.15, together with the blind select they give +0.25: the phases help each other (money saved in one is spent better in the next), so keep the full list. fair_search.py (in the gitignored results folder) has the `split` and `split net60` modes.
 - Next is unchanged from session 4's list. Stale remote branches from earlier sessions (ci-bench-fairspeed1-4, ci-bench-fixes1-2, ci-ap-nodash, ci-ap-teacher, ci-ap-base) were left alone: check them before deleting.
 
+### Night 2026-10-30, session 6 (started 07:35, notes only)
+- Too late for any CI measurement before the 07:45 cutoff. No code changes, no paid rounds, the ledger is still 45.78 EUR. Next is unchanged from session 5.
+
 ### Plan: 20000 more teacher games on free CI (backlog item 7, built in session 2, see above)
 - State today: teacher.games 20000, next 10001 (seeds TEACH0001-10000, stakes 1 and 2), artifacts are the two hz runs. The CI teacher path already exists (steps.teacher_jobs: 40 jobs x 60 seeds per batch, finish_teacher appends `{run, tag}` artifacts, imitation_jobs downloads both kinds).
 - Build: an autopilot command `extend teacher --games N --ci` that keeps st.teacher (games, next, artifacts), stores a target `st.teacher.target = games + N` and `st.teacher.ci = true`, goes back to step teacher and clears the imitation gate and best. teacher_jobs/finish_teacher read the target from state when set; steps.paid_step returns False for teacher when `st.teacher.ci`.
