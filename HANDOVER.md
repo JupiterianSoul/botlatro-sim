@@ -1,6 +1,6 @@
 # Handover 2026-10-28 (night)
 
-Read this first, then tools/botsim/autopilot/DESIGN.md. Newest state: the section "Night 2026-10-30, session 3" and its "Next" list further down; the State list right below is from 2026-10-28.
+Read this first, then tools/botsim/autopilot/DESIGN.md. Newest state: the section "Morning 2026-10-30: imitation on CI, expert step started on CI" and its "Next" list further down; the State list right below is from 2026-10-28.
 
 ## State
 - Autopilot `autopilot` dir is stopped at fair_bench (16.7% white on b_red only vs a 25% bar set from a 5-deck mix). Fixed: the white cell now runs 5 decks x 30 seeds. Re-init `full` once the speed work below is merged.
@@ -233,6 +233,26 @@ All imitation numbers: sims=0 with quick_clear=1 pace=1.25, mean ante / wins / d
 
 ### Night 2026-10-30, session 6 (started 07:35, notes only)
 - Too late for any CI measurement before the 07:45 cutoff. No code changes, no paid rounds, the ledger is still 45.78 EUR. Next is unchanged from session 5.
+
+### Morning 2026-10-30: imitation on CI, expert step started on CI (on main, ae0ae47)
+Gabriel's decisions (2026-10-30 morning): imitation trains on free CI (no paid Hetzner round); the gate and the expert both use the economy-only fair search (`sims=32 fair=1 search_ph=shop,pack,blind_select quick_clear=1 pace=1.25`); the gate goes from 150 to 1000 seeds (BENCH 1-1000 b_red white, bar still 5.5).
+- Why Hetzner was not faster: train.py picks and collates each 256-record batch in Python on one core; the matrix work of a 1M-weight net is small, so 48 threads mostly wait. Measured: ccx63 78 min round start to gate result (63 min training), 3.28 EUR; CI 68 min for the whole job including all evals, free.
+- Full profile: `imitation.paid` removed, `eval_seeds` 1000, `eval_args` = the economy search string above; `ladder.eval_args` the same (final bench). steps.imitation_jobs runs the gate eval as 4 parallel eval.lua slices (part/parts) and cats them into games.jsonl. Unit 47 OK, Cloud tests OK (run 41017513277). `imitation_hold` is off (it only ever held the paid path).
+- Autopilot: tick at 07:09 UTC dispatched CI imitation `721e43-17-imitation-main` (60000 steps, E=64 H=256, window 0, value weight 0.25, all 41160 teacher games). The hourly scheduled tick finishes it. If the gate passes, the autopilot moves to expert and waits on `expert_ok` (off; the profile's expert is still the paid Hetzner train job, do not turn it on before the CI expert results below are read).
+- eval.lua `rec=FILE` writes BSPR records of every decision (searched economy decisions carry n_sims 32 and visit counts, unsearched play decisions n_sims 0). Games identical with and without it (24 games, run 41017041267).
+- Expert games (run 41017109627, branch ci-bench-expert, which carries the 60000-step net as tools/botsim/ci_nets/big60kvw.bnnw): economy-search player with the 60000-step net, prefix EXPT, all 15 decks x stakes 1-8 x 200 seeds = 24000 games, 16 jobs x 4 slices, about 80 s per job, records 183 MB per job (2.9 GB total), mean ante 4.33 over all cells.
+- Baseline, the 60000-step net with the economy search (artifact s5gen-base of run 41017109627): gate BENCH 1-1000 **5.96 / 192 wins**, held-out BENCH 1001-2000 **5.97 / 196**, ladder 200 seeds b_red: stake 2 5.16 / 23, 3 4.38 / 5, 4 4.23 / 3, 5 3.92 / 2, 6 3.62 / 0, 7 3.35 / 0, 8 3.10 / 0. (Session 4 measured 5.93 / 188 on seeds 1-1000 with a different job split: MCTS carries its RNG across games, so the split moves single games; compare nets only on the same split.)
+- Expert training, running (run 41018378175, tag s5train): four fine-tunes of the 60000-step net on the expert records, all `--policy-min-sims 1` (policy learns only from searched economy decisions and teacher records, value from every decision): `ftexp` 20000 steps value weight 0.25; `ftexpv1` value weight 1; `ftmix` plus teacher records as mix 0.5; `ftexp40k` 40000 steps. Each job evaluates its net on the same gate, held-out and ladder sets with the same player.
+- Read the results: `bash tools/botsim/results/s5/cmp5.sh ftexp ftexpv1 ftmix ftexp40k` (downloads each artifact, prints the train tail and paired diffs against the baseline per set and per ladder stake). Dispatcher: tools/botsim/results/s5/expert_exp.py (gitignored, modes `gen REF SEEDS` and `train REF GENRUN`).
+- Night runner: the ceiling now lives in one file (`$LOGS/ceiling`, `~/.local/state/botlatro-night/current` points at the running night). The guard reads it every loop and each session prompt gets {CEILING}, {LEDGER} and {LEFT} at start. Change it during a night with `bash tools/botsim/night/night.sh ceiling 56.14`; no second guard-only unit. The 07:41 second start last night was bash reading night.sh after session 1 had rewritten it in place (cb504b5): the top-level block is now one `{ ...; exit; }`. Rehearsed with fakes (old script: "unexpected EOF" after the run; new: ceiling change reached the guard and session 2's prompt, money stop at 56.14, session 3 told free CI only).
+- Branches: ci-bench-fairspeed1-4, ci-bench-fixes1-2, ci-ap-nodash, ci-ap-teacher, ci-ap-base deleted (everything in them was already on main or was a ci_bench.txt measurement list). ci-bench-expert stays until the expert work is done.
+- Paid: none. Ledger 45.78 EUR, 29.64 of the 40 EUR approval used.
+
+#### Next (after this morning)
+1. Run cmp5.sh on run 41018378175. A fine-tune is better only if its paired diff is positive on the held-out set and does not lose on the gate or the ladder.
+2. Check the autopilot's imitation result (log.md in the results repo, or `gh workflow run botsim-autopilot.yml -f command=status -f dir=autopilot`): gate mean ante on 1000 seeds with the search, shuffle check. The same recipe gave 5.96 here.
+3. If an expert fine-tune wins: build a CI expert step in the autopilot (generate with eval.lua rec=, fine-tune, gate paired against the best net) instead of the paid Hetzner train job, test it on a ci-ap branch, then ask Gabriel before turning expert_ok on. Try a second round (games from the new net) to see whether it keeps improving.
+4. Gold Stake: no player wins anything from stake 6 up yet. Generation is cheap (24000 games in a few minutes), so more high-stake data is free if the fine-tunes show the value head learns from it.
 
 ### Plan: 20000 more teacher games on free CI (backlog item 7, built in session 2, see above)
 - State today: teacher.games 20000, next 10001 (seeds TEACH0001-10000, stakes 1 and 2), artifacts are the two hz runs. The CI teacher path already exists (steps.teacher_jobs: 40 jobs x 60 seeds per batch, finish_teacher appends `{run, tag}` artifacts, imitation_jobs downloads both kinds).
