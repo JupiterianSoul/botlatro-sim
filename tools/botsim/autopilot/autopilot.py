@@ -348,7 +348,7 @@ def handle(ctx, res, phase=None):
     g["last"]["t"] = ctx.now()
     if not res.get("ok"):
         return fail(ctx, step, phase, res.get("why") or "gate failed")
-    if phase != "precheck":
+    if phase not in ("precheck", "gen"):
         g["fails"] = 0
     if res.get("more"):
         ctx.event("batch done, %d of %d teacher games" % (st["teacher"]["games"], ctx.prof["teacher"]["games"]))
