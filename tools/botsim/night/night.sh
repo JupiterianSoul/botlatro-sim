@@ -15,7 +15,8 @@ CLAUDE="${BN_CLAUDE:-claude}"
 HZ="${BN_HZ:-python3 tools/botsim/cloud/hz.py}"
 AP="${BN_AP:-python3 tools/botsim/autopilot/autopilot.py}"
 DAY="$(date +%Y-%m-%d)"
-LOGS="${BN_LOGS:-$HOME/.local/state/botlatro-night/$(date +%m%d_%H%M)}"
+STATE="${BN_STATE:-$HOME/.local/state/botlatro-night}"
+LOGS="${BN_LOGS:-$STATE/$(date +%m%d_%H%M)}"
 REPORT="tools/botsim/night/REPORT-$DAY.md"
 GIT=(git -c user.name="Gabriel Quart" -c user.email="gabriel.quart.15@gmail.com")
 TOOLS=(Read Edit Write Glob Grep
@@ -24,7 +25,7 @@ TOOLS=(Read Edit Write Glob Grep
     "Bash(sed:*)" "Bash(sort:*)" "Bash(diff:*)" "Bash(cut:*)" "Bash(cd:*)" "Bash(chmod:*)" "Bash(ps:*)" "Bash(until:*)")
 KEEP=(tools/botsim/cloud/spend.json tools/botsim/cloud/SPEND.md)
 
-mkdir -p "$LOGS"
+[ "${1:-}" = "ceiling" ] || mkdir -p "$LOGS"
 cd "$REPO" || exit 1
 say() { echo "[$(date +%H:%M:%S)] $*" | tee -a "$LOGS/night.log"; }
 now() { date +%s; }
@@ -37,15 +38,22 @@ for l in reversed(sys.stdin.read().splitlines()):
     except Exception: pass'
 }
 
+ceiling() {
+    local c
+    c="$(cat "$LOGS/ceiling" 2>/dev/null)"
+    echo "${c:-$CEILING}"
+}
+
 over() {
-    local s="$1"
-    [ -n "$CEILING" ] && [ -n "$s" ] && python3 -c "import sys; sys.exit(0 if float('$s') >= float('$CEILING') else 1)"
+    local s="$1" c
+    c="$(ceiling)"
+    [ -n "$c" ] && [ -n "$s" ] && python3 -c "import sys; sys.exit(0 if float('$s') >= float('$c') else 1)"
 }
 
 money_stop() {
-    say "MONEY: ledger $1 EUR reached the ceiling $CEILING, deleting every box and stopping the autopilot"
+    say "MONEY: ledger $1 EUR reached the ceiling $(ceiling), deleting every box and stopping the autopilot"
     touch "$LOGS/NO_PAID"
-    $AP stop "night ceiling $CEILING EUR reached (ledger $1)" >>"$LOGS/night.log" 2>&1
+    $AP stop "night ceiling $(ceiling) EUR reached (ledger $1)" >>"$LOGS/night.log" 2>&1
     for i in 1 2 3; do
         $HZ down >>"$LOGS/night.log" 2>&1
         $HZ list 2>/dev/null | grep -q "no botsim servers" && break
@@ -85,19 +93,25 @@ tidy() {
 }
 
 session() {
-    local n="$1" secs prompt paid="yes"
+    local n="$1" secs prompt paid="yes" c s left="unknown"
     secs=$(( END_AT - $(now) ))
     [ "$secs" -gt $(( SESSION_HOURS * 3600 )) ] && secs=$(( SESSION_HOURS * 3600 ))
+    c="$(ceiling)"
+    s="$(ledger)"
+    [ -n "$c" ] && [ -n "$s" ] && left="$(python3 -c "print('%.2f' % max(0.0, float('$c') - float('$s')))")"
     [ -f "$LOGS/NO_PAID" ] && paid="no, the money ceiling was reached: free CI work only"
     prompt="$(sed -e "s#{END}#$(date -d "@$END_AT" +%H:%M)#g" -e "s#{STOP}#$(date -d "@$(( $(now) + secs - 900 ))" +%H:%M)#g" \
-        -e "s#{CEILING}#${CEILING:-none}#g" -e "s#{PAID}#$paid#g" -e "s#{REPORT}#$REPORT#g" -e "s#{N}#$n#g" tools/botsim/night/prompt.md)"
-    say "session $n starts, up to $(( secs / 60 )) min"
+        -e "s#{CEILING}#${c:-none}#g" -e "s#{LEDGER}#${s:-unknown}#g" -e "s#{LEFT}#$left#g" \
+        -e "s#{PAID}#$paid#g" -e "s#{REPORT}#$REPORT#g" -e "s#{N}#$n#g" tools/botsim/night/prompt.md)"
+    say "session $n starts, up to $(( secs / 60 )) min, ceiling ${c:-none} EUR, ledger ${s:-unknown} EUR"
     timeout "$secs" "$CLAUDE" -p "$prompt" --model "$MODEL" --permission-mode acceptEdits --allowedTools "${TOOLS[@]}" \
         --output-format text >"$LOGS/session-$n.log" 2>&1
     say "session $n ended (exit $?), log $LOGS/session-$n.log"
 }
 
 run() {
+    [ -n "$CEILING" ] && echo "$CEILING" >"$LOGS/ceiling"
+    ln -sfn "$LOGS" "$STATE/current"
     say "night starts, ends $(date -d "@$END_AT" '+%a %H:%M'), ceiling ${CEILING:-none} EUR, logs $LOGS"
     [ -n "$CEILING" ] || say "WARNING: no BN_CEILING set"
     guard &
@@ -124,7 +138,7 @@ run() {
     {
         echo
         echo "## Runner summary"
-        echo "- Sessions: $n. Ledger at the end: ${s:-unknown} EUR (ceiling ${CEILING:-none})."
+        echo "- Sessions: $n. Ledger at the end: ${s:-unknown} EUR (ceiling $(ceiling))."
         echo "- Boxes: $($HZ list 2>/dev/null | head -1)"
         echo "- Logs: $LOGS"
     } >>"$REPORT"
@@ -132,13 +146,30 @@ run() {
     say "night finished, main at $(git rev-parse --short HEAD)"
 }
 
-if [ "${BN_GUARD_ONLY:-}" = "1" ]; then
-    say "guard only, ceiling $CEILING EUR, until $(date -d "@$(( END_AT + 3600 ))" +%H:%M)"
-    guard
+set_ceiling() {
+    local cur="$STATE/current" old
+    [ -n "${1:-}" ] && python3 -c "float('$1')" 2>/dev/null || { echo "usage: night.sh ceiling EUR"; return 1; }
+    [ -d "$cur" ] || { echo "no night run found at $cur"; return 1; }
+    old="$(cat "$cur/ceiling" 2>/dev/null)"
+    echo "$1" >"$cur/ceiling"
+    echo "[$(date +%H:%M:%S)] ceiling changed from ${old:-none} to $1 EUR (guard and next session prompts)" | tee -a "$cur/night.log"
+}
+
+{
+    if [ "${1:-}" = "ceiling" ]; then
+        set_ceiling "${2:-}"
+        exit $?
+    fi
+    if [ "${BN_GUARD_ONLY:-}" = "1" ]; then
+        [ -n "$CEILING" ] && echo "$CEILING" >"$LOGS/ceiling"
+        say "guard only, ceiling $CEILING EUR, until $(date -d "@$(( END_AT + 3600 ))" +%H:%M)"
+        guard
+        exit 0
+    fi
+    if [ "${BN_INHIBITED:-}" != "1" ] && command -v systemd-inhibit >/dev/null; then
+        [ -n "${BN_DIM:-}" ] && brightnessctl set 0 >/dev/null 2>&1
+        BN_LOGS="$LOGS" BN_INHIBITED=1 exec systemd-inhibit --what=sleep:idle:handle-lid-switch --who="Bot-latro night" --why="Bot-latro night run" bash "$0" "$@"
+    fi
+    run
     exit 0
-fi
-if [ "${BN_INHIBITED:-}" != "1" ] && command -v systemd-inhibit >/dev/null; then
-    [ -n "${BN_DIM:-}" ] && brightnessctl set 0 >/dev/null 2>&1
-    BN_INHIBITED=1 exec systemd-inhibit --what=sleep:idle:handle-lid-switch --who="Bot-latro night" --why="Bot-latro night run" bash "$0" "$@"
-fi
-run
+}

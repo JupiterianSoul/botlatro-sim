@@ -19,9 +19,9 @@ Free backlog, all on CI, for whatever time is left (take them in order, skip wha
 
 ## Money: the only hard limit
 - Paid rounds allowed tonight: {PAID}.
-- The 30 EUR approval is enforced by the autopilot (it reads the shared ledger) and by the night runner, which deletes every box and stops the autopilot when the ledger reaches {CEILING} EUR.
+- The approval is enforced by the autopilot (it reads the shared ledger) and by the night runner, which deletes every box and stops the autopilot when the ledger reaches {CEILING} EUR. The ledger was {LEDGER} EUR when this session started, so {LEFT} EUR is left before the ceiling.
 - Never run `autopilot.py approve`, never raise a cap or a ceiling, never call `hz.py up`, `run`, `smoke` or `bench` yourself. Paid work only goes through the autopilot.
-- About 15 EUR is left under the approval (Gabriel added 10 EUR on 2026-10-29): about four imitation rounds at 3.3 EUR. Spend it only on changes that CI measurements say are better, and start a round only if it can finish 15 minutes before {END}.
+- Spend it only on changes that CI measurements say are better, and start a round only if its cost fits in the {LEFT} EUR left and it can finish 15 minutes before {END}.
 - If something is blocked only by money, do every free thing first and write the paid decision in the report for the morning.
 
 ## Rules
