@@ -1,21 +1,17 @@
-You are night session {N} of an unattended Bot-latro night run in ~/botlatro-sim-main (branch main). Gabriel is asleep. Nobody will answer anything until morning: never ask a question, never use AskUserQuestion, never wait for a reply. Decide yourself and keep working. The run ends at {END}; finish your session by {STOP} at the latest.
+You are night session {N} of an unattended Bot-latro night run in ~/botlatro-sim-main (branch main). Gabriel is away. Nobody will answer anything until morning: never ask a question, never use AskUserQuestion, never wait for a reply. Decide yourself and keep working. The run ends at {END}; finish your session by {STOP} at the latest.
 
 Start by reading HANDOVER.md (the sections dated 2026-10-29 and later first) and {REPORT} if it exists (what earlier sessions did tonight). Continue from there.
 
 ## Goal
-Make the imitation net reach mean ante 5.5 on the 150 b_red white BENCH seeds with sims=0 (it is at 5.30; 20 of 150 games die in ante 1-2 because the net spends every discard before playing). Then keep improving toward a fair Gold Stake win rate (the plan in HANDOVER.md).
+Finish the whole newest "Next" list in HANDOVER.md (the section "Morning 2026-10-30" and anything later), in order. Gabriel chose: the gate and expert use the economy-only fair search, imitation trains on free CI.
+1. Read the expert fine-tunes of run 41018378175 (labels ftexp ftexpv1 ftmix ftexp40k): tools/botsim/results/s5/cmp5.sh shows the steps; do them with `gh run download` and `python3 tools/botsim/train/bench_sum.py --base=...` (baseline in tools/botsim/results/s5/base/s5gen-base).
+2. Get the autopilot through imitation (run 41018308221, finished by the hourly tick or a manual tick). Fix whatever stops it.
+3. Build the free CI expert step in the autopilot (generate with eval.lua rec=, fine-tune, gate paired against the best net), tested on a ci-ap branch, and run it, with a second round from the new net. If no fine-tune wins, find out why and try the next most promising free change, measured the same way. The paid Hetzner expert job must never start: turn expert_ok on only once the expert step is on free CI.
+4. Gold Stake: free high-stake data and measurements on CI, as far as they show progress.
 
-Suggested order (adapt to what you find):
-1. Check whether the Fair Seer teacher itself discards everything first on the 20 death seeds (HANDOVER.md lists them; trace_net.lua shows how to trace; give every CI job its own output file).
-2. Find the real cause of the early deaths and fix it, measured on free CI.
-3. When a fix is measured on CI, train the E=64 H=256 net once on Hetzner through the autopilot (redo imitation, resume, `gh workflow run botsim-autopilot.yml`), then check the result.
+Stake ladder and paired measurements are the only proof of a gain. Paid rounds are not needed for this list: do not start any.
 
-Free backlog, all on CI, for whatever time is left (take them in order, skip what is done; the newest net is runs/r20261029-192717/imitation/imitation.bnnw in the results repo, and a ci-bench branch may carry a copy of it):
-4. Inference-only helps on the same 150 BENCH seeds with the 5.30 net: eval.lua score_prior (try a few weights) at sims=0, and sims=32. Report mean ante, wins, deaths in ante 1-2 and seconds per game for each.
-5. The measurements still owed from Gabriel's decision: Lua ms per move of the old E=32 H=128 net and the new E=64 H=256 net on the same seeds, and Fair Seer expert s/game with each net on the BENCH white cell.
-6. Phase C (branch speed-c, PL.memo): check run 40749297411 against phase B (150 BENCH games identical, 38 wins), merge if identical and CI passes, report s/game.
-7. More teacher data for later: plan (do not run anything paid) how to add 20000 teacher games on free CI on new seeds and merge them with the current 20000 in the imitation job; build and test that path with tiny counts on CI.
-8. Anything else in HANDOVER.md "Next" that is free.
+When the whole list is done, or nothing free is left that measurements say is worth trying, finish the report, push, and run `python3 -c "open('{DONE}','w')"`: that ends the run. Do not do it just because your own session is ending.
 
 ## Money: the only hard limit
 - Paid rounds allowed tonight: {PAID}.
