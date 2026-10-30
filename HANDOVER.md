@@ -286,6 +286,8 @@ All numbers: economy-only fair search player (`sims=32 fair=1 search_ph=shop,pac
 2. Gate noise: fresh-seed re-measures move a round's number by about 0.05-0.1, so a round winning at z 1.3-1.5 should be re-measured on fresh seeds before anyone relies on it.
 3. Paid ladder stays off (`ladder_ok`). Nothing measured says a paid round would help.
 
+**Required, Gabriel-facing:** Before any result with rollouts (`ro=`) counts as fair: add `ro=` to tools/botsim/seer/fair_shuffle.lua and pass the shuffle check on CI, with the leak check, at the settings measured. Say in the report that results before that are unproven.
+
 ### Stopped 2026-10-30 14:15 (Gabriel turned the PC off)
 Session 2 was stopped by hand, no paid rounds, ledger 45.78 EUR. Read these first:
 - Run 41057540772 (tag s5strain): three fine-tunes on 12000 games with the solver's play decisions (labels m50s40, m75, m50), all finished. Not read yet. Helpers are the gitignored tools/botsim/results/s5/ scripts (expert_exp.py, cmp_solver.py, cmp_conf.py).
