@@ -76,7 +76,11 @@ local function play(deck, stake, seed)
         nrun = nrun + 1
         rf:write(REC.encode_run(recs, won, math.min(ante, 255), FE.DECK_IDX[deck] or 0, stake, nrun))
     end
-    return won, ante, why, moves
+    return won, ante, why, moves, s
+end
+
+local function death_fields(s)
+    return string.format(',"blind":%d,"chips":%.0f,"need":%.0f,"money":%d,"n_jok":%d,"disc_left":%d', s.blind, s.chips, s.blind_chips, s.money, s.n_jok, s.discards_left)
 end
 
 local DECKS, STAKES = ES.parse(opt.decks, tostring(opt.stakes))
@@ -92,10 +96,10 @@ if opt.prefix ~= "" then
                 if (i - 1) % opt.parts == opt.part then
                     local seed = string.format("%s%04d", opt.prefix, k)
                     local t0 = os.clock()
-                    local w, a, why, mv = play(d, stk, seed)
+                    local w, a, why, mv, fs = play(d, stk, seed)
                     wins, antes, sq = wins + w, antes + a, sq + a * a
                     if jf then
-                        jf:write(string.format('{"deck":"%s","stake":%d,"seed":"%s","won":%d,"ante":%d,"time":%.2f,"end":"%s","moves":%d}\n', d, stk, seed, w, a, os.clock() - t0, why, mv))
+                        jf:write(string.format('{"deck":"%s","stake":%d,"seed":"%s","won":%d,"ante":%d,"time":%.2f,"end":"%s","moves":%d%s}\n', d, stk, seed, w, a, os.clock() - t0, why, mv, death_fields(fs)))
                         jf:flush()
                     end
                 end
