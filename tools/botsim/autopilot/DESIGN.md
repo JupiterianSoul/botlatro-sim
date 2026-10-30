@@ -65,7 +65,7 @@ ledger/spend.json              shared Hetzner ledger, union of every machine (hz
 autopilot.py init --profile tiny|tiny-paid|full [--dir autopilot] [--from-ci RUN_ID]   new state; refuses if one exists unless --reset
 autopilot.py tick                    one tick (what the workflow runs)
 autopilot.py status [--json]
-autopilot.py flag NAME on|off        fair_speed_ok, expert_ok
+autopilot.py flag NAME on|off        fair_speed_ok, expert_ok, ladder_ok
 autopilot.py approve --eur X --round-cap Y    after Gabriel's OK in the picker
 autopilot.py stop [reason] | resume  stop also runs hz.py down when a round is live
 autopilot.py results                 re-render RESULTS.md
@@ -91,8 +91,8 @@ Global options: `--dir`, `--store-local PATH` (tests), `--dry-run` (prints what 
 | `fair_speed` | CI, needs `fair_speed_ok` | same seeds as the white baseline, plus leak and shuffle checks | mean s/game at most `max_ratio` (1.5 in `full`) times the fair_bench white mean, measured the same way (4 games per runner), and wins not worse than baseline (one-sided two-proportion z, p < 0.05). A fixed `max_s` still works. The old 60 s bar came from one-game-at-a-time profiles and could not pass on CI, where the baseline itself is about 82 s |
 | `teacher` | CI fan-out | `teacher.lua mode=fair` batches until `games` reached (`teacher.target` after `extend`); each batch's records go to `runs/ci-<run>/teacher/` in the results repo, the same layout as a Hetzner round | games and records reached, leak test passed on this commit |
 | `imitation` | CI (CPU torch) | `train.py` on the teacher artifacts, then net-alone eval on the fixed seeds, shuffle check of the net | white mean ante >= 5.5 / >= 1, shuffle identical |
-| `expert` | Hetzner, needs `expert_ok` and budget | rounds of the `train` job with `TRAIN_PLAYER=fair` (net-guided Fair Seer games instead of self-play) from the current best | round best beats the previous best on its fixed eval, shuffle check of the new best passes on CI; stops after `stale_gens >= 4` |
-| `ladder` | Hetzner | as `expert` with `TRAIN_STAKES` at the current rung | promote at the profile's win rate (white 60%), next stake; after Gold, full benchmark on every deck, then `done` |
+| `expert` | CI in `full` (`expert.ci`), needs `expert_ok`: phase gen plays games with eval.lua rec=, phase train fine-tunes the best net on them mixed with teacher records and plays the candidate and the best net on the same seeds; see the README table for the gate. Hetzner in the paid test profiles: | rounds of the `train` job with `TRAIN_PLAYER=fair` (net-guided Fair Seer games instead of self-play) from the current best | round best beats the previous best on its fixed eval, shuffle check of the new best passes on CI; stops after `stale_gens >= 4` |
+| `ladder` | Hetzner, needs `ladder_ok` | as `expert` with `TRAIN_STAKES` at the current rung | promote at the profile's win rate (white 60%), next stake; after Gold, full benchmark on every deck, then `done` |
 
 Before every `up` (paid.py): free precheck passed for this checkpoint, `paid.approved_eur - paid.spent_eur >= round cost`, `round cost <= paid.round_cap_eur`, shared ledger total + round cost <= 100 EUR (hz.py refuses too), then `hz.py doctor`, `up --types T --hours H --spend-cap C --yes`, `deploy`, `run <job> --env ... --env BOTSIM_DELETE_WHEN_DONE=1 --env TRAIN_PATIENCE=4 --json`. Any failure after `up`: `hz.py down`, verify `list`, alert. The run state file goes to `<dir>/hz/<run>.json`.
 
