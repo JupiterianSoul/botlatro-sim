@@ -21,7 +21,7 @@ F.BUDGETS = {
         solve = {beam = 4, plays = 2, discards = 4}},
 }
 
-F.DEFAULTS = {worlds = 4, eval_h = 1, max_cands = 3, sampler_seed = "FAIR", run_cap = 0, quick_clear = false, fast_top = 0}
+F.DEFAULTS = {worlds = 4, eval_h = 1, max_cands = 3, sampler_seed = "FAIR", run_cap = 0, game_cap = 0, quick_clear = false, fast_top = 0}
 
 F.REVEAL = {reroll = true, open = true, use = true, buy_and_use = true, pick = true, reroll_boss = true, skip = true,
     select = true, play = true, discard = true, cash_out = true, leave = true}
@@ -362,6 +362,10 @@ function F:play(setup, on_action, stop_ante)
     for _ = 1, 4000 do
         if s.won == 1 or s.phase == "game_over" or s.phase == "win" then break end
         if stop_ante and s.ante > stop_ante then break end
+        if self.o.game_cap > 0 and os.clock() - t0 > self.o.game_cap then
+            self.cut = true
+            break
+        end
         local n = self.o.worlds
         if self.o.run_cap > 0 and os.clock() - t0 > self.o.run_cap then
             n = 1

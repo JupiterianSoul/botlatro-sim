@@ -100,11 +100,15 @@ function T.fair(setup, opts, index)
     T.reseed(index)
     local FA = require("bot.seer.fair")
     local b = FA.BUDGETS[opts.budget or "lite"] or FA.BUDGETS.lite
-    local fo = FA.new({budget = opts.budget or "lite", seer = b.seer,
+    local fo = FA.new({budget = opts.budget or "lite", seer = b.seer, game_cap = opts.game_cap or 0,
         net_propose = opts.weights and opts.weights ~= "" and T.net_proposer(opts.weights, opts.net_sims or 16) or nil})
     local t0 = os.clock()
     local line, fs = fo:play(setup, nil, opts.stop_ante)
     local tm = os.clock() - t0
+    if fo.cut then
+        return "", {records = 0, skipped = {game_cap = 1}, won = 0, final_ante = fs.ante, line = line, state = fs, time = tm,
+            decisions = fo.decisions, searched = fo.searched, net_picks = fo.net_picks, capped = true}
+    end
     local s = E.new_run(setup)
     local recs, skipped = {}, {}
     for i = 1, #line do
@@ -155,7 +159,7 @@ end
 
 if arg and arg[0] and arg[0]:match("teacher%.lua$") then
     local opt = {seeds = 4, decks = "b_red", stakes = "1", out = "tools/botsim/train/out/seer_teacher.bspr", prefix = "TEACH", K = 32, neg = 16, n_sims = 800, stop_ante = 0, start = 1,
-        mode = "play", max_lines = 8, time_limit = 0, wins_only = 0, budget = "lite", jsonl = "", weights = "", net_sims = 16}
+        mode = "play", max_lines = 8, time_limit = 0, wins_only = 0, budget = "lite", jsonl = "", weights = "", net_sims = 16, game_cap = 600}
     for _, a in ipairs(arg) do
         local k, v = a:match("^%-*([%w_]+)=(.*)$")
         if k then opt[k] = tonumber(v) or v end
@@ -176,19 +180,22 @@ if arg and arg[0] and arg[0]:match("teacher%.lua$") then
                 local deck = d == "all" and ALL[(i - 1) % #ALL + 1] or d
                 local setup = {seed = string.format("%s%04d", opt.prefix, i), deck = deck, stake = st}
                 local blob, info = T.run(setup, {K = opt.K, neg = opt.neg, n_sims = opt.n_sims, stop_ante = opt.stop_ante > 0 and opt.stop_ante or nil,
-                    mode = opt.mode, budget = opt.budget, max_lines = opt.max_lines, time_limit = opt.time_limit, weights = opt.weights, net_sims = opt.net_sims}, n)
-                if opt.wins_only == 0 or info.won == 1 then
+                    mode = opt.mode, budget = opt.budget, max_lines = opt.max_lines, time_limit = opt.time_limit, weights = opt.weights, net_sims = opt.net_sims,
+                    game_cap = opt.game_cap}, n)
+                if not info.capped and (opt.wins_only == 0 or info.won == 1) then
                     fh:write(blob)
                     tot_rec = tot_rec + info.records
                 end
                 if jf then
-                    jf:write(string.format('{"deck":"%s","stake":%d,"seed":"%s","won":%d,"ante":%d,"time":%.2f,"records":%d,"dec":%d,"searched":%d,"net_picks":%d}\n',
-                        deck, st, setup.seed, info.won, info.final_ante, info.time or 0, info.records, info.decisions or 0, info.searched or 0, info.net_picks or 0))
+                    jf:write(string.format('{"deck":"%s","stake":%d,"seed":"%s","won":%d,"ante":%d,"time":%.2f,"records":%d,"dec":%d,"searched":%d,"net_picks":%d,"capped":%s}\n',
+                        deck, st, setup.seed, info.won, info.final_ante, info.time or 0, info.records, info.decisions or 0, info.searched or 0, info.net_picks or 0,
+                        info.capped and "true" or "false"))
                     jf:flush()
                 end
                 wins = wins + info.won
                 for k, v in pairs(info.skipped) do tot_skip[k] = (tot_skip[k] or 0) + v end
-                print(string.format("run %d %s stake %d seed %s ante %d won %d records %d", n, deck, st, setup.seed, info.final_ante, info.won, info.records))
+                print(string.format("run %d %s stake %d seed %s ante %d won %d records %d%s", n, deck, st, setup.seed, info.final_ante, info.won, info.records,
+                    info.capped and string.format(" capped after %.0fs", info.time) or ""))
             end
         end
     end
