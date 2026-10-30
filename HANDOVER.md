@@ -143,6 +143,8 @@ All numbers: 150 b_red white BENCH seeds, sims=0, mean ante / wins / deaths in a
   - new only, 20000 steps: held-out 5.30, gate 5.30, all decks 4.96. About the same as the old data with fewer games, so the deck mismatch is not what holds b_red back.
   - mixed, 20000 steps: held-out 5.40, gate 5.52, all decks 4.92. Value overfit gone (val 0.373 vs train 0.362).
   - mixed, 20000 steps, `--value-weight 0.25`: held-out **5.52** (vs mixed +0.12, z 2.3), gate **5.64 / 19 / 11**, plain 5.34 on the gate, all decks 4.95. Equal to the big net on old data (5.55 held-out).
+  - all 41160 games (run 41002689972, from main), 20000 steps, weight 0.25: held-out **5.54 / 128 / 66** (equal to the big net), gate 5.43 / 16 / 10, plain held-out 5.03, all decks 5.02 (best), val policy 1.221 vs train 1.242.
+  - all 41160 games, 40000 steps, weight 0.25: held-out 5.46 / 133 / 99, gate **5.76 / 27 / 12**, all decks **5.08 / 157** (+0.19 over the big net, z 5.0), val policy 1.154 vs train 1.164. Nets kept as artifacts s2exp-imit-all-all20kvw / -all40kvw of run 41002689972 (30 days).
   - mixed, 40000 steps, weight 1: held-out 5.35, gate 5.60 / 20 / 10, all decks 5.01 (+0.09, z 2.3 over 20000 steps); val policy 1.208 vs 1.259.
   - sims=32 on these nets (unfair reference): 5.39 and 5.59 on the gate, still no better than sims=0 with pace.
 - New profile key `imitation.value_weight` (train.py `--value-weight`, IMIT_VALUE_W on Hetzner); the full profile uses 0.25.
@@ -157,10 +159,11 @@ All numbers: 150 b_red white BENCH seeds, sims=0, mean ante / wins / deaths in a
 - The existing big net already passes the gate with pace (5.56 gate, 5.55 held-out) but the autopilot has no way to adopt it without a round.
 
 #### Next
-1. Morning decision (Gabriel): release the paid imitation round (`gh workflow run botsim-autopilot.yml -R JupiterianSoul/botlatro-sim --ref main -f command=flag -f args="imitation_hold off"`), or train the small net on CI for free (see the full-data CI run below), or adopt the existing big net.
-2. Anaglyph slowness in the fair teacher (see above): find the exploding decision or add a clean per-game cap in fair mode.
-3. Value head: weight 0.25 helped; also try 0.1 and dropout, and check sims>0 again once the value head generalizes (search still loses to sims=0 + pace).
-4. More real-deck teacher data is cheap now (21160 games in under two hours of free CI): `extend teacher --games N --ci --hold` again when the new round says data helps.
+1. Morning decision (Gabriel): release the paid imitation round (`gh workflow run botsim-autopilot.yml -R JupiterianSoul/botlatro-sim --ref main -f command=flag -f args="imitation_hold off"`), or train the small net on CI for free (see the full-data CI run above), or adopt the existing big net. Release only after the night runner's money guard has ended (09:00): it deletes any box once the ledger reaches 46.14 EUR.
+2. Gate noise: 150 seeds give about 0.15 ante standard error; the same nets are 5.43-5.64 on the gate and 5.52-5.55 on 1000 held-out seeds. `imitation.eval_seeds` 1000 costs 20 seconds at sims=0. Gabriel decides (the bar was defined on 150 seeds).
+3. Anaglyph slowness in the fair teacher (see above): find the exploding decision or add a clean per-game cap in fair mode.
+4. Value head: weight 0.25 helped; also try 0.1 and dropout, and check sims>0 again once the value head generalizes (search still loses to sims=0 + pace).
+5. More real-deck teacher data is cheap now (21160 games in under two hours of free CI): `extend teacher --games N --ci --hold` again when the new round says data helps.
 
 ### Plan: 20000 more teacher games on free CI (backlog item 7, built in session 2, see above)
 - State today: teacher.games 20000, next 10001 (seeds TEACH0001-10000, stakes 1 and 2), artifacts are the two hz runs. The CI teacher path already exists (steps.teacher_jobs: 40 jobs x 60 seeds per batch, finish_teacher appends `{run, tag}` artifacts, imitation_jobs downloads both kinds).
