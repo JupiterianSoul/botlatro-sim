@@ -7,6 +7,8 @@ Work through the section "Gold Stake plan (Gabriel, 2026-10-30 afternoon)" in HA
 
 Before any result with rollouts (`ro=`) counts as fair: add `ro=` to tools/botsim/seer/fair_shuffle.lua and pass the shuffle check on CI, with the leak check, at the settings measured. Say in the report that results before that are unproven.
 
+**Plan change (Gabriel, 2026-10-30 night), applies once the rollout shuffle check passes:** step 5 becomes a repeating loop, not one step. Play games with rollouts and `rec=`, fine-tune the net on those records mixed with teacher records, gate it, then play the new rollout player (new net inside the rollouts) paired against the previous rollout player on fresh seeds. Repeat while a round wins on the ladder at stakes 6-8, and stop after 2 rounds in a row without a gain. Judge each round by the rollout player, not only by the net alone. Run a small sample on other decks early (b_blue, b_yellow, b_black, b_plasma at stakes 2 and 8) instead of waiting for step 7. Step 6 waits until the loop stops gaining.
+
 Stake ladder and paired measurements are the only proof of a gain. Paid rounds are not needed for this list: do not start any.
 
 When the whole list is done, or nothing free is left that measurements say is worth trying, finish the report, push, and run `python3 -c "open('{DONE}','w')"`: that ends the run. Do not do it just because your own session is ending.
