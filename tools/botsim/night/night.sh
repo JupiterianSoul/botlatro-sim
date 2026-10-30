@@ -102,7 +102,7 @@ session() {
     [ -f "$LOGS/NO_PAID" ] && paid="no, the money ceiling was reached: free CI work only"
     prompt="$(sed -e "s#{END}#$(date -d "@$END_AT" +%H:%M)#g" -e "s#{STOP}#$(date -d "@$(( $(now) + secs - 900 ))" +%H:%M)#g" \
         -e "s#{CEILING}#${c:-none}#g" -e "s#{LEDGER}#${s:-unknown}#g" -e "s#{LEFT}#$left#g" \
-        -e "s#{PAID}#$paid#g" -e "s#{REPORT}#$REPORT#g" -e "s#{N}#$n#g" tools/botsim/night/prompt.md)"
+        -e "s#{DONE}#$LOGS/DONE#g" -e "s#{PAID}#$paid#g" -e "s#{REPORT}#$REPORT#g" -e "s#{N}#$n#g" tools/botsim/night/prompt.md)"
     say "session $n starts, up to $(( secs / 60 )) min, ceiling ${c:-none} EUR, ledger ${s:-unknown} EUR"
     timeout "$secs" "$CLAUDE" -p "$prompt" --model "$MODEL" --permission-mode acceptEdits --allowedTools "${TOOLS[@]}" \
         --output-format text >"$LOGS/session-$n.log" 2>&1
@@ -123,6 +123,10 @@ run() {
         t0=$(now)
         session "$n"
         tidy "$n"
+        if [ -f "$LOGS/DONE" ]; then
+            say "session $n marked the work done, stopping"
+            break
+        fi
         if [ $(( $(now) - t0 )) -lt 180 ]; then
             quick=$(( quick + 1 ))
             say "session $n was short ($quick in a row), waiting $(( quick * QUICK_WAIT )) s"
