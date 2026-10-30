@@ -31,7 +31,8 @@ gh workflow run botsim-autopilot.yml --ref main -f command=tick
 | `flag expert_ok on` | let the expert step run (net-guided Fair Seer exists) |
 | `approve --eur X --round-cap Y` | the budget for paid rounds, only after you said yes in the picker |
 | `redo STEP` | go back to an earlier step and run it again from scratch |
-| `extend teacher --games N [--ci]` | play N more teacher games on new seeds next to the ones already kept, then train imitation again on all of them; `--ci` plays them on free CI even when the profile has a paid teacher |
+| `extend teacher --games N [--ci] [--hold]` | play N more teacher games on new seeds next to the ones already kept, then train imitation again on all of them; `--ci` plays them on free CI even when the profile has a paid teacher, `--hold` turns `imitation_hold` on |
+| `flag imitation_hold on/off` | while on, a paid imitation round waits instead of starting |
 | `results` | re-render RESULTS.md |
 
 Global options: `--dir`, `--store-local PATH`, `--dry-run`.

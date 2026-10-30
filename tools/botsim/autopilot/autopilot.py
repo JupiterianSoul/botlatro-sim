@@ -22,7 +22,7 @@ import store as storemod
 LOCK_STALE = 45 * 60
 POLL_S = 30
 LOST_S = 30 * 60
-FLAGS = ("fair_speed_ok", "expert_ok")
+FLAGS = ("fair_speed_ok", "expert_ok", "imitation_hold")
 
 
 def say(*a):
@@ -267,6 +267,8 @@ def start(ctx):
     if flag and not st["flags"].get(flag):
         return ctx.wait("flag %s is off (autopilot.py flag %s on)" % (flag, flag))
     if steps.on_hetzner(ctx.prof, step, st):
+        if step == "imitation" and st["flags"].get("imitation_hold"):
+            return ctx.wait("imitation_hold is on, the paid imitation round waits (autopilot.py flag imitation_hold off)")
         return start_round(ctx, step)
     if step in steps.CI_STEPS:
         return dispatch(ctx, step, "main")
@@ -587,6 +589,8 @@ def cmd_extend(ctx, a):
         t = st["teacher"]
         t["target"] = int(t.get("games", 0)) + a.games
         t["ci"] = bool(a.ci)
+        if a.hold:
+            st["flags"]["imitation_hold"] = True
         st["step"], st["attempt"], st["step_rounds"] = "teacher", 1, 0
         st["status"], st["reason"], st["lock"] = "running", "", None
         for later in steps[steps.index("teacher"):]:
@@ -636,6 +640,7 @@ def parser():
     s.add_argument("step")
     s.add_argument("--games", type=int, required=True)
     s.add_argument("--ci", action="store_true")
+    s.add_argument("--hold", action="store_true")
     sub.add_parser("results", parents=[common])
     return p
 
