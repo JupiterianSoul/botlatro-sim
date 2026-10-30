@@ -76,6 +76,7 @@ function M.new(net, opts)
     self.leaf_rent = opts.leaf_rent or 0
     self.leaf_dead = opts.leaf_dead or 0
     self.rent_prior = opts.rent_prior or 1
+    self.rent_from = opts.rent_from or 0
     self.score_prior = opts.score_prior or 0
     self.score_top = opts.score_top or 6
     self.score_temp = opts.score_temp or 4
@@ -263,7 +264,7 @@ function M:expand(id, s, keep_src, value_only)
         self.prob = BUF.alloc(AB.cap)
     end
     local prob = NET.softmax(AB.logit, na, self.prob)
-    if self.rent_prior ~= 1 and s.phase == "shop" then
+    if self.rent_prior ~= 1 and s.phase == "shop" and s.n_jok >= self.rent_from then
         for k = 0, na - 1 do
             if AB.type[k] == T_BUY and s.sj_rent[AB.arg[k]] == 1 then prob[k] = prob[k] * self.rent_prior end
         end
