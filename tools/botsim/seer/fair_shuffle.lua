@@ -7,7 +7,7 @@ local PL = require("bot.seer.play")
 local SC = require("botsim.seer.scramble")
 
 local opt = {who = "fair", budget = "lite", weights = "", prefix = "BENCH", first = 1, seeds = 1, decks = "b_red", stakes = "1",
-    max_steps = 4000, out = "", sims = 32, K = 24, quick_clear = 0, pace = 0, pace_net = 0, type_mass = 0, tm_plays = 0}
+    max_steps = 4000, out = "", sims = 32, K = 24, quick_clear = 0, pace = 0, pace_net = 0, type_mass = 0, tm_plays = 0, fair = 0, search_ph = ""}
 for _, a in ipairs(arg or {}) do
     local k, v = a:match("^%-*([%w_]+)=(.*)$")
     if k then
@@ -47,16 +47,21 @@ elseif opt.who == "net" then
     local net = NET.new(WT.load(opt.weights))
     forced = MC.advance_forced
     chooser = function()
+        local n = 0
         return function(view)
             MC.advance_forced(view)
             if MC.terminal(view) then return nil end
+            n = n + 1
+            local w = opt.fair > 0 and F.world(F.sanitize(view), "FW_" .. n) or view
+            local sims = opt.sims
+            if opt.search_ph ~= "" and not ("," .. opt.search_ph .. ","):find("," .. view.phase .. ",", 1, true) then sims = 0 end
             local mc = MC.new(net, {K = opt.K, seed = 99991, alpha = 0.5, nodes = opt.sims + 2, full = true, quick_clear = opt.quick_clear,
                 type_mass = opt.type_mass, tm_plays = opt.tm_plays, pace = opt.pace, pace_net = opt.pace_net})
-            mc:search(view, opt.sims, {noise = 0, reuse = false, adaptive = true})
+            mc:search(w, sims, {noise = 0, reuse = false, adaptive = true})
             local e = mc:choose(0)
             if not e then return nil end
             local st = {type = "play", cards = {}}
-            mc:edge_action(e, st, view)
+            mc:edge_action(e, st, w)
             return {S.copy_action(st)}
         end
     end
