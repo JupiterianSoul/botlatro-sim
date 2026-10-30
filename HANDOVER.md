@@ -197,6 +197,33 @@ All imitation numbers: sims=0 with quick_clear=1 pace=1.25, mean ante / wins / d
 2. Gold Stake plan: measure what the expert step (Fair Seer with the net as proposer, or MCTS with the net at sims > 0 on sanitized states) does at stakes 3-8 before spending on it; the teacher itself wins 0% from stake 6.
 3. Gate noise (unchanged): 150 seeds give about 0.15 ante standard error; the held-out 1000 numbers above are the ones to trust.
 
+### Night 2026-10-30, session 4: fair search helps in the economy, hurts in play (on main)
+- eval.lua `fair=1`: every decision searches a fair world instead of the real state (F.world(F.sanitize(s), "FW<seed>_<move>"), hidden cards reshuffled by a key the real seed does not decide), no tree reuse. At sims=0 it gives exactly the plain result (5.30 big net, gate, quick_clear + pace: 5.56 / 24 / 14, same as before), so the features read nothing hidden.
+- 5.30 big net, sims=32 fair=1 quick_clear=1 pace=1.25, b_red BENCH 1-200 per stake, paired against the sims=0 ladder on the same seeds (run 41012661948, ladder run 41008324709):
+
+  | stake | sims=0 ante / wins / early | fair sims=32 | paired diff |
+  | --- | --- | --- | --- |
+  | 1 | 5.47 / 28 / 20 | 5.28 / 30 / 25 | -0.20 (z -1.2) |
+  | 2 | 5.04 / 18 / 25 | 4.68 / 12 / 36 | -0.35 (z -2.3) |
+  | 3 | 4.22 / 1 / 27 | 3.87 / 2 / 44 | -0.35 (z -3.2) |
+  | 4 | 4.18 / 2 / 27 | 3.79 / 1 / 41 | -0.39 (z -3.7) |
+  | 5 | 3.94 / 3 / 36 | 3.75 / 2 / 43 | -0.19 (z -1.8) |
+  | 6 | 3.63 / 0 / 45 | 3.38 / 0 / 53 | -0.25 (z -3.1) |
+  | 7 | 3.35 / 0 / 45 | 3.31 / 0 / 51 | -0.04 (z -0.5) |
+  | 8 | 3.10 / 0 / 55 | 2.97 / 0 / 61 | -0.13 (z -1.8) |
+
+  0.19-0.45 s/game. Search on one sampled world with this value head loses everywhere and adds early deaths: the expert step needs a better value head or several worlds per decision before it can beat the net alone.
+- Same check with the 60000-step CI net (value weight 0.25, all data; run 41013089029, paired with its sims=0 ladder run 41012123471, 200 seeds): sims=0 with fair=1 equals plain (5.77 / 27 / 12). Fair sims=32: stake 1 5.48 / 37 / 24 vs 5.66 / 33 / 16 (-0.18, z -1.2), stake 2 4.86 / 24 / 42 vs 5.06 / 20 / 28 (-0.20), stake 3 3.96 / 4 / 44 vs 4.22 / 3 / 26 (-0.26, z -2.3), stake 4 -0.32 (z -3.0), stake 6 -0.17, stake 8 -0.14 (z -2.0). sims=8 is worse than 32 (stake 1 -0.43, stake 3 -0.34). The better value head does not change the picture: search buys a few extra wins at stakes 1-3 and pays with many more early deaths.
+- **Where search hurts and where it helps** (eval.lua `search_ph`, comma list of phases where the search runs, sims=0 elsewhere; 60000-step net, fair=1 sims=32, run 41013291103): search only in `play`: stake 1 5.24 / 28 / 28 (-0.42, z -2.8), stake 3 3.88 / 1 / 46 (-0.34). Search only in `shop,pack,blind_select`: stake 1 **5.99 / 44 / 14** (+0.33, z 3.6), stake 3 **4.33 / 5 / 24** (+0.11, z 2.2), 0.12-0.30 s/game. The value head guides economy decisions well and play decisions badly; the early deaths come from searching hands and discards.
+- **Econ-only fair search ladder** (60000-step net, `sims=32 fair=1 search_ph=shop,pack,blind_select quick_clear=1 pace=1.25`, run 41013395254, paired with ladder run 41012123471): gate 1-150 **6.10 / 37 / 10** (+0.33, z 3.2); stake 1 seeds 1-1000 **5.93 / 188 / 67** vs 5.70 / 151 / 76 (+0.24, z 5.4); stake 2 +0.10 (z 1.3), 4 +0.12 (z 2.0), 5 +0.10 (z 1.9), 6 +0.04, 7 +0.03, 8 +0.01, still 0 wins from stake 6 up (200 seeds each). 0.08-0.32 s/game.
+- Not checked yet: a shuffle check of the fair=1 search (fair_shuffle.lua has its own chooser without `fair` or `search_ph`). The world key is "FW<seed>_<move>" and the world gets its own seed and RNG, and sims=0 is byte-identical to plain, but run the shuffle check before this goes into a gate or a teacher.
+
+#### Next (after session 4)
+1. Shuffle check for fair=1 + search_ph (add both to fair_shuffle.lua's net chooser), then add `sims=32 fair=1 search_ph=shop,pack,blind_select` to the gate's eval_args if Gabriel agrees (it is the best fair player measured at white: 5.93 on 1000 seeds).
+2. Train the net on games of this player (expert step, free on CI): its economy choices beat the net's own. Teacher data could come from it at about 0.3 s/game instead of 6.6 s for Fair Seer lite.
+3. Play decisions: the value head steers hands and discards badly. Several worlds per decision or a better value head before searching in play again.
+4. Gold Stake is still at 0 wins from stake 6 up for every player measured.
+
 ### Plan: 20000 more teacher games on free CI (backlog item 7, built in session 2, see above)
 - State today: teacher.games 20000, next 10001 (seeds TEACH0001-10000, stakes 1 and 2), artifacts are the two hz runs. The CI teacher path already exists (steps.teacher_jobs: 40 jobs x 60 seeds per batch, finish_teacher appends `{run, tag}` artifacts, imitation_jobs downloads both kinds).
 - Build: an autopilot command `extend teacher --games N --ci` that keeps st.teacher (games, next, artifacts), stores a target `st.teacher.target = games + N` and `st.teacher.ci = true`, goes back to step teacher and clears the imitation gate and best. teacher_jobs/finish_teacher read the target from state when set; steps.paid_step returns False for teacher when `st.teacher.ci`.
