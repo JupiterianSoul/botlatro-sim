@@ -263,9 +263,10 @@ class TestTiny(Base):
             self.ap("extend", "imitation", "--games", "2")
         with self.assertRaises(SystemExit):
             self.ap("extend", "teacher", "--games", "0")
-        self.ap("extend", "teacher", "--games", "2", "--ci")
+        self.ap("extend", "teacher", "--games", "2", "--ci", "--hold")
         st = self.state()
         self.assertEqual((st["step"], st["status"], st["teacher"]["target"], st["teacher"]["ci"]), ("teacher", "running", 4, True))
+        self.assertTrue(st["flags"]["imitation_hold"])
         self.assertIsNone(st["best"]["name"])
         st = self.ticks()
         self.assertEqual(st["status"], "done", st.get("reason"))
@@ -557,6 +558,19 @@ class TestImitationPaid(Base):
         self.assertEqual(st["best"]["name"], "imitation")
         self.assertEqual(self.world.boxes, [])
         self.assertFalse(self.world.dispatches())
+
+    def test_hold_waits(self):
+        self.world.imitation = self.imit
+        self.ap("approve", "--eur", "5", "--round-cap", "5")
+        self.ap("flag", "imitation_hold", "on")
+        st = self.ticks(4)
+        self.assertEqual(st["status"], "waiting")
+        self.assertIn("imitation_hold", st["reason"])
+        self.assertFalse([c for c in self.world.hz_calls("up") if "--dry-run" not in c])
+        self.ap("flag", "imitation_hold", "off")
+        st = self.ticks(10)
+        self.assertEqual(st["status"], "done", st.get("reason"))
+        self.assertEqual(st["best"]["name"], "imitation")
 
     def test_low_ante_fails_gate(self):
         self.imit["mean_ante"] = 2.0
