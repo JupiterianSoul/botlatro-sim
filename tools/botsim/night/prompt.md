@@ -5,6 +5,8 @@ Start by reading HANDOVER.md (the sections dated 2026-10-29 and later first) and
 ## Goal
 Work through the section "Gold Stake plan (Gabriel, 2026-10-30 afternoon)" in HANDOVER.md, in order, on free CI. It replaces the older Next lists. Do not turn on `ladder_ok`.
 
+Before any result with rollouts (`ro=`) counts as fair: add `ro=` to tools/botsim/seer/fair_shuffle.lua and pass the shuffle check on CI, with the leak check, at the settings measured. Say in the report that results before that are unproven.
+
 Stake ladder and paired measurements are the only proof of a gain. Paid rounds are not needed for this list: do not start any.
 
 When the whole list is done, or nothing free is left that measurements say is worth trying, finish the report, push, and run `python3 -c "open('{DONE}','w')"`: that ends the run. Do not do it just because your own session is ending.
