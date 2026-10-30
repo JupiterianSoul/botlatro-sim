@@ -150,6 +150,30 @@ do
     ok(worse == 0, "solver never uses more hands than greedy")
 end
 
+current = "big hand scan"
+do
+    local s = E.new_run({seed = "BIGHAND1", deck = "b_red", stake = 1})
+    s.hand_size = 26
+    E.step(s, {type = "select"})
+    ok(s.n_hand > PL.MAX_SCAN_HAND, "hand is above the scan cap (" .. s.n_hand .. ")")
+    local v, c = {}, {}
+    local n = PL.scan(s, v, c)
+    local good = n > 0 and n <= #PL.combos(PL.BIG_HAND_PICK + 1)
+    for i = 1, n do
+        local cs = c[i]
+        if #cs < 1 or #cs > 5 or cs[1] < 1 or cs[#cs] > s.n_hand then good = false end
+        for j = 2, #cs do if cs[j] <= cs[j - 1] then good = false end end
+    end
+    ok(good, "capped scan gives few sorted in-hand combos (" .. n .. ")")
+    local t = os.clock()
+    local acts = PL.solve(s)
+    local cl = ST.clone(s)
+    local accepted = #acts > 0
+    for _, a in ipairs(acts) do accepted = accepted and E.step(cl, a) end
+    ok(accepted, "solver actions accepted on a big hand")
+    ok(os.clock() - t < 20, string.format("solve on a big hand is fast (%.1fs)", os.clock() - t))
+end
+
 current = "teacher records"
 do
     local blob, info = TE.run({seed = "TEACHT01", deck = "b_red", stake = 1}, {seer = QUICK, stop_ante = 1, K = 24, n_sims = 800}, 3)

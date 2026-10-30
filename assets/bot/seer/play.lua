@@ -76,9 +76,61 @@ local function nom_greater(a, b)
     return a < b
 end
 
+PL.MAX_SCAN_HAND = 16
+PL.BIG_HAND_PICK = 12
+
+local function big_hand_combos(s, fp)
+    local n, hand, rank, suit = s.n_hand, s.hand, s.c_rank, s.c_suit
+    local rc, uc, chips = {}, {}, {}
+    for i = 1, n do
+        local c = hand[i]
+        rc[rank[c]] = (rc[rank[c]] or 0) + 1
+        uc[suit[c]] = (uc[suit[c]] or 0) + 1
+        chips[i] = E.card_chips(s, c)
+    end
+    local bs, bn = nil, 0
+    for i = 1, n do
+        local u = suit[hand[i]]
+        if uc[u] > bn then bs, bn = u, uc[u] end
+    end
+    local order = {}
+    for i = 1, n do order[i] = i end
+    table.sort(order, function(a, b)
+        local fa, fb = suit[hand[a]] == bs, suit[hand[b]] == bs
+        if fa ~= fb then return fa end
+        if chips[a] ~= chips[b] then return chips[a] > chips[b] end
+        return a < b
+    end)
+    local take, used = {}, {}
+    if fp > 0 then take[1], used[fp] = fp, true end
+    for i = 1, min(5, bn) do
+        local p = order[i]
+        if not used[p] then take[#take + 1], used[p] = p, true end
+    end
+    table.sort(order, function(a, b)
+        local ra, rb = rc[rank[hand[a]]], rc[rank[hand[b]]]
+        if ra ~= rb then return ra > rb end
+        if chips[a] ~= chips[b] then return chips[a] > chips[b] end
+        return a < b
+    end)
+    for i = 1, n do
+        if #take >= PL.BIG_HAND_PICK then break end
+        local p = order[i]
+        if not used[p] then take[#take + 1], used[p] = p, true end
+    end
+    table.sort(take)
+    local base, list = combos(#take), {}
+    for i = 1, #base do
+        local b, t = base[i], {}
+        for j = 1, #b do t[j] = take[b[j]] end
+        list[i] = t
+    end
+    return list
+end
+
 function PL.scan(s, out_v, out_c, fast, top)
-    local list = combos(s.n_hand)
     local fp = forced_pos(s)
+    local list = s.n_hand > PL.MAX_SCAN_HAND and big_hand_combos(s, fp) or combos(s.n_hand)
     local five = fast and not wants_small(s)
     local n = 0
     for i = 1, #list do
