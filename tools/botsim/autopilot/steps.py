@@ -152,6 +152,8 @@ def imitation_jobs(ctx):
         extra += " --cfg %s" % ip["cfg"]
     if ip.get("chosen"):
         extra += " --chosen %g" % ip["chosen"]
+    if ip.get("value_weight") is not None:
+        extra += " --value-weight %g" % ip["value_weight"]
     train = quiet("python3 tools/botsim/train/train.py --data $(find data -name '*.bspr' -size +0c) --out %s --steps %d%s" % (w, ip["steps"], extra), "train.txt")
     ea = ip.get("eval_args", "")
     ev = quiet("luajit tools/botsim/train/eval.lua who=net weights=%s sims=0 prefix=%s first=1 seeds=%d decks=%s stakes=%s jsonl=$OUT/games.jsonl%s"

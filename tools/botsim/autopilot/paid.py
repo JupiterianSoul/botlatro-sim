@@ -161,6 +161,8 @@ def imitation_env(ctx):
         env["IMIT_ALL_DISC"] = str(ip["all_discards"])
     if ip.get("eval_args"):
         env["IMIT_EVAL_ARGS"] = ip["eval_args"]
+    if ip.get("value_weight") is not None:
+        env["IMIT_VALUE_W"] = str(ip["value_weight"])
     return env
 
 

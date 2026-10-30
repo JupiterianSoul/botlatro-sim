@@ -54,7 +54,7 @@ def load_data(paths, window, val_every=0):
     return dims, runs, recs, val
 
 
-def losses(model, b, ante_w, policy_min_sims=0, out=None):
+def losses(model, b, ante_w, policy_min_sims=0, out=None, val_w=1.0):
     z, ante, logits = model(b)
     if out is not None:
         out.append((torch.sigmoid(z).detach(), b["won"], ante.detach() * 8.0, b["ante"] * 8.0))
@@ -68,7 +68,7 @@ def losses(model, b, ante_w, policy_min_sims=0, out=None):
         pol = pol.mean()
     val = Fn.binary_cross_entropy_with_logits(z, b["won"])
     aux = Fn.mse_loss(ante, b["ante"])
-    return pol + val + ante_w * aux, pol.item(), val.item(), aux.item()
+    return pol + val_w * val + ante_w * aux, pol.item(), val.item(), aux.item()
 
 
 def validate(model, val, dims, batch, policy_min_sims):
@@ -105,6 +105,7 @@ def main():
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--wd", type=float, default=1e-4)
     ap.add_argument("--ante-weight", type=float, default=1.0)
+    ap.add_argument("--value-weight", type=float, default=1.0)
     ap.add_argument("--policy-min-sims", type=int, default=0)
     ap.add_argument("--window", type=int, default=2000000)
     ap.add_argument("--val-every", type=int, default=20)
@@ -172,7 +173,7 @@ def main():
             k0 = len(rows) - nm
             am = batch["amask"][k0:]
             batch["pi"][k0:] = (1 - a.mix_smooth) * batch["pi"][k0:] + a.mix_smooth * am / am.sum(-1, keepdim=True).clamp(min=1.0)
-        loss, lp, lv, la = losses(model, batch, a.ante_weight, a.policy_min_sims)
+        loss, lp, lv, la = losses(model, batch, a.ante_weight, a.policy_min_sims, val_w=a.value_weight)
         opt.zero_grad()
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 5.0)
