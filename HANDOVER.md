@@ -187,6 +187,7 @@ All imitation numbers: sims=0 with quick_clear=1 pace=1.25, mean ante / wins / d
   | 7 orange | 3.34 / 0 | 3.37 / 0 |
   | 8 gold | 3.07 / 0 | 3.10 / 0 (std budget 3.19 / 0 of 160, 13.9 s/game) |
 
+  The 60000-step CI big net (run 41012123471): 5.70 / 15.1, 5.15 / 9.8, 4.22 / 1.6, 4.12 / 0.8, 3.88 / 0.9, then 3.63, 3.38, 3.08 with 0 wins: better imitation only helps at stakes 1-2.
   The net equals its teacher at every stake. Wins collapse at green stake (faster blind scaling) and are zero from purple up, for the teacher too. Imitating Fair Seer cannot reach Gold Stake wins; the next lever is a stronger player at high stakes (the expert step: search plus the net, trained on its own games), not more imitation.
 - Paid: none. The ledger was 45.78 EUR and the night runner's guard deletes any box at 46.14, so no round could run.
 - The autopilot's paid tracker gap (failed starts not added) is cosmetic: budget_problem uses max(tracker, ledger - ledger_base).
