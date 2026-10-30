@@ -28,6 +28,7 @@ local FAIR = opt.fair > 0 and require("bot.seer.fair") or nil
 local PL = require("bot.seer.play")
 local SOLVER = FAIR and opt.solver ~= "" and FAIR.new({budget = opt.solver, quick_clear = opt.solver_qc > 0}) or nil
 local REC = opt.rec ~= "" and mc and require("botsim.train.records") or nil
+local TCH = REC and SOLVER and require("botsim.seer.teacher") or nil
 local rf, nrun = REC and assert(io.open(opt.rec, "wb")), 0
 if rf then rf:write(REC.file_header()) end
 
@@ -48,7 +49,12 @@ local function play(deck, stake, seed)
         if econ_run > opt.max_shop then
             if not E.step(s, ph == "pack" and SKIP or LEAVE) then why = "stuck_econ:" .. ph break end
         elseif SOLVER and ph == "play" then
+            SOLVER.last_cands = nil
             local acts = SOLVER:decide(s)
+            if recs and acts and acts[1] then
+                local r = TCH.encode(s, acts[1], {K = 32, neg = 16, n_sims = opt.sims}, FAIR.scores_of(SOLVER.last_cands or {}))
+                if r then recs[#recs + 1] = r end
+            end
             if not acts or not acts[1] or not E.step(s, acts[1]) then
                 local fb = PL.fast_action(s)
                 if not fb or not E.step(s, fb) then why = "step_failed:play:solver" break end
