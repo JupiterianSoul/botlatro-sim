@@ -11,7 +11,7 @@ local ES = require("botsim.train.evalset")
 local json = require("bot.sim.json")
 
 local opt = {who = "greedy", weights = "", sims = 32, K = 24, per = 6, decks = "", stakes = "", part = 0, parts = 1, out = "", max_moves = 3000, max_shop = 40,
-    mix = -1, score_prior = 0, score_top = 6, score_temp = 4, skip_pen = 1, skip_ante = 1, type_mass = 0, tm_plays = 0, quick_clear = 0, pace = 0, pace_net = 0, prefix = "", first = 1, seeds = 10, jsonl = "", fair = 0, search_ph = "", rec = "", solver = "", solver_qc = 0, set = "", curve = 0, leaf_money = 0, leaf_rent = 0, leaf_dead = 0, rent_prior = 1, rent_from = 0, sell_dead = 0, c_puct = 1.5, worlds = 1}
+    mix = -1, score_prior = 0, score_top = 6, score_temp = 4, skip_pen = 1, skip_ante = 1, type_mass = 0, tm_plays = 0, quick_clear = 0, pace = 0, pace_net = 0, prefix = "", first = 1, seeds = 10, jsonl = "", fair = 0, search_ph = "", rec = "", solver = "", solver_qc = 0, set = "", curve = 0, leaf_money = 0, leaf_rent = 0, leaf_dead = 0, rent_prior = 1, rent_from = 0, sell_dead = 0, c_puct = 1.5, worlds = 1, ro = 0, ro_c = 3, ro_h = 0, ro_ph = "shop,pack,blind_select", ro_from = 0}
 for _, a in ipairs(arg or {}) do
     local k, v = a:match("^([%w_]+)=(.*)$")
     if k then opt[k] = tonumber(v) or v end
@@ -36,6 +36,65 @@ local LEAVE, SKIP = {type = "leave"}, {type = "skip"}
 local step = {type = "play", cards = {}}
 local F, AB = FE.new_state_buf(), FE.new_action_buf(1024)
 local st = {}
+
+local RS = opt.ro > 0 and require("bot.seer.seer") or nil
+local ro_step = {type = "play", cards = {}}
+
+local function ro_score(w)
+    if w.won == 1 then return w.win_ante + 2 end
+    return w.ante + (w.blind_on_deck - 1) / 3
+end
+
+local function ro_run(w, stop_ante)
+    local moves, econ_run = 0, 0
+    while moves < 400 do
+        MC.advance_forced(w)
+        if MC.terminal(w) or (stop_ante > 0 and w.ante >= stop_ante) then break end
+        local ph = w.phase
+        if ph == "shop" or ph == "pack" then econ_run = econ_run + 1 else econ_run = 0 end
+        if econ_run > opt.max_shop then
+            if not E.step(w, ph == "pack" and SKIP or LEAVE) then break end
+        else
+            mc:search(w, 0, {noise = 0, reuse = false, adaptive = true})
+            local e = mc:choose(0)
+            if not e then break end
+            mc:edge_action(e, ro_step, w)
+            if not E.step(w, ro_step) then break end
+        end
+        moves = moves + 1
+    end
+    return ro_score(w)
+end
+
+local function ro_choose(s, seed, moves)
+    local ef, ec = mc:root_edges()
+    if ec < 2 then return nil end
+    local order = {}
+    for i = 0, ec - 1 do order[i + 1] = ef + i end
+    table.sort(order, function(a, b)
+        if mc.e_N[a] ~= mc.e_N[b] then return mc.e_N[a] > mc.e_N[b] end
+        return a < b
+    end)
+    local base = FAIR.sanitize(s)
+    local cands = {}
+    for i = 1, math.min(opt.ro_c, ec) do
+        mc:edge_action(order[i], ro_step, base)
+        cands[i] = {a = RS.copy_action(ro_step), e = order[i], v = 0}
+    end
+    local stop_ante = opt.ro_h > 0 and s.ante + opt.ro_h or 0
+    for r = 1, opt.ro do
+        local key = string.format("RO%s_%d_%d", seed, moves, r)
+        for _, c in ipairs(cands) do
+            local w = FAIR.world(base, key)
+            if E.step(w, c.a) then c.v = c.v + ro_run(w, stop_ante) else c.v = c.v - 100 end
+        end
+    end
+    local best = cands[1]
+    for i = 2, #cands do
+        if cands[i].v > best.v then best = cands[i] end
+    end
+    return best.a
+end
 
 local function play(deck, stake, seed)
     local s = E.new_run({seed = seed, deck = deck, stake = stake})
@@ -84,6 +143,15 @@ local function play(deck, stake, seed)
             if opt.search_ph ~= "" and not ("," .. opt.search_ph .. ","):find("," .. ph .. ",", 1, true) then sims = 0 end
             mc:search(view, sims, {noise = 0, reuse = not FAIR, adaptive = true})
             local e = mc:choose(0)
+            local ro_act = nil
+            if RS and sims > 0 and e and ("," .. opt.ro_ph .. ","):find("," .. ph .. ",", 1, true) and stake >= opt.ro_from then
+                ro_act = ro_choose(s, seed, moves)
+            end
+            if ro_act then
+                if not E.step(s, ro_act) then why = "step_failed:ro" break end
+                moves = moves + 1
+                goto continue
+            end
             if FAIR and sims > 0 and opt.worlds > 1 and e then
                 local ef, ec = mc:root_edges()
                 local sum = {}
@@ -117,6 +185,7 @@ local function play(deck, stake, seed)
             if not E.step(s, fs) then why = "step_failed:" .. ph .. ":" .. tostring(fs.type) break end
             moves = moves + 1
         end
+        ::continue::
     end
     local won = s.won == 1 and 1 or 0
     local ante = won == 1 and s.win_ante + 1 or s.ante
