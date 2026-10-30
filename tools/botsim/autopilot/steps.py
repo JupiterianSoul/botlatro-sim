@@ -8,6 +8,7 @@ import gates
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
 PART_BYTES = 40 * 1024 * 1024
+SLICES = 4
 CI_STEPS = ("fair_bench", "fair_speed", "teacher", "imitation")
 PAID_STEPS = ("expert", "ladder")
 FLAG_OF = {"fair_speed": "fair_speed_ok", "expert": "expert_ok", "ladder": "expert_ok"}
@@ -120,9 +121,16 @@ def teacher_jobs(ctx):
         if k <= 0:
             break
         stop = " stop_ante=%d" % tp["stop_ante"] if tp.get("stop_ante") else ""
-        cmd = "luajit tools/botsim/seer/teacher.lua mode=fair budget=%s prefix=%s start=%d seeds=%d decks=%s stakes=%s%s out=$OUT/teach.bspr jsonl=$OUT/games.jsonl" % (
-            tp["budget"], tp["prefix"], start + i * per, k, tp["decks"], tp["stakes"], stop)
-        out.append(job("t%d" % (i + 1), quiet(cmd, "teacher.txt"), tp["timeout"]))
+        base = "luajit tools/botsim/seer/teacher.lua mode=fair budget=%s prefix=%s decks=%s stakes=%s%s" % (tp["budget"], tp["prefix"], tp["decks"], tp["stakes"], stop)
+        q = int(math.ceil(k / float(SLICES)))
+        parts = []
+        for j in range(SLICES):
+            n = min(q, k - j * q)
+            if n <= 0:
+                break
+            parts.append("%s start=%d seeds=%d out=$OUT/teach%d.bspr jsonl=$OUT/games%d.jsonl > $OUT/teacher%d.txt 2>&1 &" % (base, start + i * per + j * q, n, j, j, j))
+        cmd = " ".join(parts) + " wait; cat $OUT/games[0-9]*.jsonl > $OUT/games.jsonl || true"
+        out.append(job("t%d" % (i + 1), cmd, tp["timeout"]))
     if not t.get("leak_ok"):
         out.append(job("leak", leak_cmd(ctx.prof), tp["timeout"]))
     return out
@@ -238,11 +246,15 @@ def finish_teacher(ctx, root, run_id):
         p = os.path.join(root, d)
         g = len(ctx.res.parse_games(ci.files(p, "games.jsonl")))
         games += g
-        b = os.path.join(p, "teach.bspr")
-        if g and os.path.exists(b) and os.path.getsize(b) > 0:
+        kept = 0
+        for f in sorted(os.listdir(p)) if g and os.path.isdir(p) else []:
+            b = os.path.join(p, f)
+            if f.startswith("teach") and f.endswith(".bspr") and os.path.getsize(b) > 0:
+                size += store_teacher(ctx.store, b, "runs/%s/teacher" % run, files)
+                files += 1
+                kept += 1
+        if kept:
             recs += g
-            size += store_teacher(ctx.store, b, "runs/%s/teacher" % run, files)
-            files += 1
     lk = gates.leak("\n".join(ci.read_all(ci.files(root, "leak.txt"))))
     if lk["failed"] is not None:
         t["leak_ok"] = lk["ok"]

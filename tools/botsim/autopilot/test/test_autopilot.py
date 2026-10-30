@@ -278,6 +278,9 @@ class TestTiny(Base):
             self.assertTrue(r.startswith("ci-"))
             with open(os.path.join(self.store_root, "runs", r, "teacher", "w000.bspr.gz.000"), "rb") as f:
                 self.assertEqual(gzip.decompress(f.read()), b"records")
+        tj = [" ".join(c) for c in self.world.dispatches() if "teacher.lua" in " ".join(c)]
+        self.assertIn("start=3 seeds=1 out=$OUT/teach0.bspr", tj[-1])
+        self.assertIn("start=4 seeds=1 out=$OUT/teach1.bspr", tj[-1])
         im = [" ".join(c) for c in self.world.dispatches() if "train.py" in " ".join(c)]
         for r in runs:
             self.assertIn("fetchdir runs/%s/teacher data/%s" % (r, r), im[-1])
