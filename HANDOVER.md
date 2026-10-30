@@ -286,6 +286,14 @@ All numbers: economy-only fair search player (`sims=32 fair=1 search_ph=shop,pac
 2. Gate noise: fresh-seed re-measures move a round's number by about 0.05-0.1, so a round winning at z 1.3-1.5 should be re-measured on fresh seeds before anyone relies on it.
 3. Paid ladder stays off (`ladder_ok`). Nothing measured says a paid round would help.
 
+### Stopped 2026-10-30 14:15 (Gabriel turned the PC off)
+Session 2 was stopped by hand, no paid rounds, ledger 45.78 EUR. Read these first:
+- Run 41057540772 (tag s5strain): three fine-tunes on 12000 games with the solver's play decisions (labels m50s40 finished, m75 and m50 were running). Not read yet. Helpers are the gitignored tools/botsim/results/s5/ scripts (expert_exp.py, cmp_solver.py, cmp_conf.py).
+- Run 41061679965 (branch ci-ap-solver, autopilot unit tests of d2cf0c7) was running. d2cf0c7 (eval.lua records solver decisions, fair_shuffle checks the net plus solver player) is on ci-bench-death and ci-ap-solver, not on main: merge it to main once that run is green.
+- Hybrid `solver=std` (Fair Seer plays hands, net keeps the economy, run 41052156283, fresh seeds, 200 games per stake, paired against the same net alone): stake 1 6.38 vs 5.96, 58 vs 41 wins, +0.415 z 2.8; stake 2 5.99 vs 5.46, 43 vs 29, +0.530 z 3.5; stake 3 4.71 vs 4.46, 7 vs 5, +0.245 z 2.1; stake 4 4.60 vs 4.32, 7 vs 4, +0.280 z 2.4; stake 8 3.42 vs 3.33, 0 vs 0, +0.100 z 1.3. 8.7 to 20 s/game. Shuffle check 8 of 8. Biggest measured gain so far, but no wins at Gold and stakes 5-7 were not in this run.
+- r23 (more expert data per round): -0.050 z -1.2 against the round 1 net, closed.
+- Plan steps 2-7 below have not started.
+
 ### Gold Stake plan (Gabriel, 2026-10-30 afternoon)
 Replaces the older Next lists. Free CI only, in order, one change at a time. Measure each with paired games on the ladder (stakes 1-8), per stake, and fresh seeds before relying on a win. Teacher and net are level at every stake (stake 8: 3.10 and 3.08 mean ante, 0 wins), so more imitation or the same fine-tunes are not the lever.
 1. Read r23 (Next item 0 above) and finish the two measurements already started: where games die at stakes 6-8 (blind, boss, money, jokers, chips against need) and the hybrid `solver=` (Fair Seer plays hands, net runs the economy). Say plainly whether stake 8 deaths are mainly economy, shop choices or hand play.
