@@ -79,7 +79,10 @@ function M.new(net, opts)
     self.tm_at = (opts.type_mass or 0) < 1 and opts.type_mass or 0.5
     self.tm_plays = opts.tm_plays or 0
     self.quick_clear = (opts.quick_clear or 0) > 0
+    self.pace = opts.pace or 0
+    self.pace_net = (opts.pace_net or 0) > 0
     self.cleared = 0
+    self.paced = 0
     self.tm_top = {}
     self.tm = BUF.alloc(1024)
     self.tm_cap = 1024
@@ -276,7 +279,26 @@ end
 function M:clear_key(s, AB, na, key)
     local FAIR, PL = require("bot.seer.fair"), require("bot.seer.play")
     local cs, v = PL.best_play(FAIR.sanitize(s))
-    if not cs or v < s.blind_chips - s.chips then return key end
+    if not cs then return key end
+    local need = s.blind_chips - s.chips
+    if v < need then
+        if self.pace <= 0 or s.discards_left <= 0 or v * s.hands_left < need * self.pace then return key end
+        self.paced = self.paced + 1
+        if self.pace_net then
+            if key ~= self.tm then
+                if self.tm_cap < na then
+                    self.tm_cap = AB.cap
+                    self.tm = BUF.alloc(AB.cap)
+                end
+                for j = 0, na - 1 do self.tm[j] = key[j] end
+                key = self.tm
+            end
+            for k = 0, na - 1 do
+                if AB.type[k] == 2 then key[k] = key[k] - 64 end
+            end
+            return key
+        end
+    end
     local band, lshift = bit.band, bit.lshift
     local want = 0
     for i = 1, #cs do want = want + lshift(1, cs[i]) end
