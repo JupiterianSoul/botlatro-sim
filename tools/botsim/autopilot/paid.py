@@ -138,7 +138,7 @@ def down_verify(ctx, run=None):
 def teacher_env(ctx):
     t, tp = ctx.st["teacher"], ctx.prof["teacher"]
     per = len(tp["decks"].split(",")) * len(str(tp["stakes"]).split(","))
-    left = max(0, tp["games"] - t["games"])
+    left = max(0, steps.teacher_goal(ctx.st, tp) - t["games"])
     seeds = max(1, min(int(tp["paid"]["seeds_per_round"]), -(-left // per)))
     return {"TEACH_START": str(t.get("next", 1)), "TEACH_SEEDS": str(seeds), "TEACH_DECKS": tp["decks"],
             "TEACH_STAKES": str(tp["stakes"]), "TEACH_PREFIX": tp["prefix"], "TEACH_BUDGET": tp["budget"],
@@ -424,9 +424,10 @@ def finish_teacher(ctx, run, lines):
         return gates.result(False, "teacher round returned no games")
     if not m.get("complete"):
         return gates.result(False, "teacher round %s ended early (%s), %d games kept" % (run, last_state(lines), games))
-    if t["games"] < tp["games"]:
+    goal = steps.teacher_goal(ctx.st, tp)
+    if t["games"] < goal:
         return gates.result(True, "", more=True, games=t["games"], records=t["records"])
-    return gates.teacher(t["games"], t["records"], tp["games"], t["leak_ok"])
+    return gates.teacher(t["games"], t["records"], goal, t["leak_ok"])
 
 
 def finish_imitation(ctx, run, lines):

@@ -1,3 +1,4 @@
+import gzip
 import json
 import os
 import shutil
@@ -254,6 +255,33 @@ class TestTiny(Base):
         self.assertEqual(st["status"], "done", st.get("reason"))
         self.assertEqual(st["teacher"]["games"], 2)
 
+    def test_extend_teacher_on_ci(self):
+        self.ap("init", "--profile", "tiny")
+        st = self.ticks()
+        self.assertEqual(st["status"], "done", st.get("reason"))
+        with self.assertRaises(SystemExit):
+            self.ap("extend", "imitation", "--games", "2")
+        with self.assertRaises(SystemExit):
+            self.ap("extend", "teacher", "--games", "0")
+        self.ap("extend", "teacher", "--games", "2", "--ci")
+        st = self.state()
+        self.assertEqual((st["step"], st["status"], st["teacher"]["target"], st["teacher"]["ci"]), ("teacher", "running", 4, True))
+        self.assertIsNone(st["best"]["name"])
+        st = self.ticks()
+        self.assertEqual(st["status"], "done", st.get("reason"))
+        self.assertEqual(st["teacher"]["games"], 4)
+        self.assertEqual(st["teacher"]["next"], 5)
+        runs = [a["hz_run"] for a in st["teacher"]["artifacts"]]
+        self.assertEqual(len(runs), 2)
+        for r in runs:
+            self.assertTrue(r.startswith("ci-"))
+            with open(os.path.join(self.store_root, "runs", r, "teacher", "w000.bspr.gz.000"), "rb") as f:
+                self.assertEqual(gzip.decompress(f.read()), b"records")
+        im = [" ".join(c) for c in self.world.dispatches() if "train.py" in " ".join(c)]
+        for r in runs:
+            self.assertIn("fetchdir runs/%s/teacher data/%s" % (r, r), im[-1])
+        self.assertEqual(st["best"]["name"], "imitation")
+
     def test_init_refuses_existing(self):
         self.ap("init", "--profile", "tiny")
         with self.assertRaises(SystemExit):
@@ -433,6 +461,20 @@ class TestTeacherPaid(Base):
         st = self.ticks(10)
         self.assertEqual(st["status"], "stopped")
         self.assertEqual(self.world.boxes, [])
+
+    def test_extend_on_ci_skips_hetzner(self):
+        self.ap("approve", "--eur", "5", "--round-cap", "1")
+        st = self.ticks(10)
+        self.assertEqual(st["status"], "done", st.get("reason"))
+        ups = len([c for c in self.world.hz_calls("up") if "--dry-run" not in c])
+        self.ap("extend", "teacher", "--games", "2", "--ci")
+        st = self.ticks(10)
+        self.assertEqual(st["status"], "done", st.get("reason"))
+        self.assertEqual(st["teacher"]["games"], 4)
+        self.assertEqual(st["teacher"]["next"], 5)
+        self.assertEqual(len([c for c in self.world.hz_calls("up") if "--dry-run" not in c]), ups)
+        self.assertTrue(self.world.dispatches())
+        self.assertEqual([a["hz_run"][:3] for a in st["teacher"]["artifacts"]], ["r1", "ci-"])
 
     def test_imitation_round_on_hetzner(self):
         import steps

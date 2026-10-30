@@ -65,6 +65,12 @@ class Local:
         with open(p, "a") as f:
             f.write(line.rstrip("\n") + "\n")
 
+    def write_bytes(self, rel, data):
+        p = self.path(rel)
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p, "wb") as f:
+            f.write(data)
+
     def copy_in(self, src, rel):
         p = self.path(rel)
         os.makedirs(os.path.dirname(p), exist_ok=True)
