@@ -137,7 +137,30 @@ All numbers: 150 b_red white BENCH seeds, sims=0, mean ante / wins / deaths in a
 - **Teacher data bug**: profile teacher `decks: "all"` went straight to teacher.lua, which played the literal deck "all": the engine gives it no back (3 discards, no deck one-hot). All 20000 teacher games are on that no-deck setup; the net never saw b_red (4 discards) in training. On the no-deck setup (CI run 40989622637, BENCH 1-150 white) the teacher gets 5.19 / 27 / 23 and the big net 5.03 plain, 5.25 quick_clear, 5.32 pace: the net matches the teacher there, while on b_red the teacher is 5.89 vs 5.30-5.56. Fixed: `decks=all` in teacher.lua now rotates the 15 real decks by seed (one game per seed and stake, so seed and game counts are unchanged).
 - Teacher speed now: about 6.6 s per Fair Seer lite game on a CI core (BENCH no-deck), 30 games per 4-core job in about a minute.
 - Backlog item 7 built: `autopilot.py extend teacher --games N [--ci] [--hold]` (target = games + N, next seeds continue, imitation and best reset). CI teacher jobs run 4 teacher.lua slices in parallel; finish_teacher stores every slice as runs/ci-<run>/teacher/wNNN.bspr.gz.NNN in the results repo, the same layout as Hetzner rounds, so CI and Hetzner imitation read them the same way. `flag imitation_hold on` makes a paid imitation round wait. CI imitation now passes the profile's window, cfg and chosen. Unit 46 OK (run 40990316211), slices plus train.py read checked (run 40990288249), nn 46/46, leak 156/156, shuffle with pace 8/8 (run 40989817945).
+- Slow teacher games: b_anaglyph sometimes takes 25+ minutes in Fair Seer lite (TEACH14098 stake 1: 1576 s, won at ante 9; TEACH14263 stake 2: over 20 minutes, its job cancelled at 04:07). Not an infinite tag loop (Double Tag cannot copy Double Tag in econ.lua); probably the search over stacked tags. teacher.lua's `time_limit` only works in the cheating play mode. Fix later: a per-game time cap in fair mode that ends the game cleanly, or find why anaglyph decisions explode. Until then a batch can hang on one job; cancelling the run keeps every finished job's games (the autopilot treats a cancelled run like a finished one).
+- CI imitation experiment (run 40997737212 from branch exp-vw, tools/botsim/results/s2/imit_exp.py is the dispatcher, small net E=32 H=128, window 0): new real-deck data = the first 14160 CI games (runs ci-40990898399, ci-40992262389, ci-40995732156), mixed = those plus the 20000 old no-deck games. sims=0 with quick_clear+pace 1.25; held-out = BENCH 151-1150 b_red white:
+  - old data only (small523, 20000 steps): held-out 5.38, gate 5.55 (qc only), all decks 4.96.
+  - new only, 20000 steps: held-out 5.30, gate 5.30, all decks 4.96. About the same as the old data with fewer games, so the deck mismatch is not what holds b_red back.
+  - mixed, 20000 steps: held-out 5.40, gate 5.52, all decks 4.92. Value overfit gone (val 0.373 vs train 0.362).
+  - mixed, 20000 steps, `--value-weight 0.25`: held-out **5.52** (vs mixed +0.12, z 2.3), gate **5.64 / 19 / 11**, plain 5.34 on the gate, all decks 4.95. Equal to the big net on old data (5.55 held-out).
+  - mixed, 40000 steps, weight 1: held-out 5.35, gate 5.60 / 20 / 10, all decks 5.01 (+0.09, z 2.3 over 20000 steps); val policy 1.208 vs 1.259.
+  - sims=32 on these nets (unfair reference): 5.39 and 5.59 on the gate, still no better than sims=0 with pace.
+- New profile key `imitation.value_weight` (train.py `--value-weight`, IMIT_VALUE_W on Hetzner); the full profile uses 0.25.
 - Started 03:17: `extend teacher --games 20000 --ci --hold` on the live autopilot (seeds TEACH10001 on, all 15 decks rotating, stakes 1 and 2). imitation_hold is on, so when the games are in the autopilot waits at imitation instead of starting a paid round.
+
+- Teacher extension finished 05:05: 41160 games (20000 old no-deck + 21160 real-deck from CI runs ci-40990898399, ci-40992262389, ci-40995732156, ci-40997707969, ci-40999965686). Three straggler batches cancelled by hand (anaglyph).
+- Tried and failed tonight: score_prior 0.05-0.2 at sims=0 (3.15 at every weight), pace_net, pace 0.75 and 3-4, sims=32 (worse than sims=0 with pace, value head), real-deck data alone (no gain over the same amount of no-deck data).
+
+#### Where things stand (05:30)
+- Autopilot `autopilot`: step imitation, status waiting on `imitation_hold`, expert_ok off. Teacher 41160 games. The next imitation round (paid, ccx63, E=64 H=256, 60000 steps, window 0, value_weight 0.25, gate quick_clear=1 pace=1.25) starts only after `flag imitation_hold off`.
+- Ledger 45.78 EUR; 29.64 of the 40 EUR approval used (the tracker says 27.99). One round is about 3.28 EUR.
+- The existing big net already passes the gate with pace (5.56 gate, 5.55 held-out) but the autopilot has no way to adopt it without a round.
+
+#### Next
+1. Morning decision (Gabriel): release the paid imitation round (`gh workflow run botsim-autopilot.yml -R JupiterianSoul/botlatro-sim --ref main -f command=flag -f args="imitation_hold off"`), or train the small net on CI for free (see the full-data CI run below), or adopt the existing big net.
+2. Anaglyph slowness in the fair teacher (see above): find the exploding decision or add a clean per-game cap in fair mode.
+3. Value head: weight 0.25 helped; also try 0.1 and dropout, and check sims>0 again once the value head generalizes (search still loses to sims=0 + pace).
+4. More real-deck teacher data is cheap now (21160 games in under two hours of free CI): `extend teacher --games N --ci --hold` again when the new round says data helps.
 
 ### Plan: 20000 more teacher games on free CI (backlog item 7, built in session 2, see above)
 - State today: teacher.games 20000, next 10001 (seeds TEACH0001-10000, stakes 1 and 2), artifacts are the two hz runs. The CI teacher path already exists (steps.teacher_jobs: 40 jobs x 60 seeds per batch, finish_teacher appends `{run, tag}` artifacts, imitation_jobs downloads both kinds).
