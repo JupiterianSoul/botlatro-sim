@@ -1,7 +1,7 @@
 {
  "tiny": {
   "steps": ["fair_bench", "fair_speed", "teacher", "imitation", "expert", "ladder"],
-  "flags": {"fair_speed_ok": true, "expert_ok": true},
+  "flags": {"fair_speed_ok": true, "expert_ok": true, "ladder_ok": true},
   "dry_paid": true,
   "leak_args": "quick",
   "bench": {"budget": "lite", "prefix": "BENCH", "run_cap": 120, "per_job": 30, "timeout": 60, "min_white_rate": 0.0,
@@ -65,6 +65,12 @@
   "imitation": {"steps": 60000, "eval_seeds": 1000, "min_ante": 5.5, "decks": "b_red", "stakes": "1", "timeout": 330, "window": 0, "cfg": "E=64,H=256",
                "eval_args": "sims=32 fair=1 search_ph=shop,pack,blind_select quick_clear=1 pace=1.25", "value_weight": 0.25},
   "paid": {"job": "train", "types": "cpx62,ccx33", "hours": 6, "spend_cap": 4, "env": {"TRAIN_PLAYER": "fair", "TRAIN_GAMES": "300"}, "max_rounds": 30, "wait_minutes": 0, "precheck_timeout": 120},
+  "expert": {"ci": true, "seeds": 200, "jobs": 16, "decks": "all", "stakes": "1,2,3,4,5,6,7,8", "prefix": "EXPT", "gen_timeout": 120, "timeout": 330,
+             "eval_args": "sims=32 fair=1 search_ph=shop,pack,blind_select quick_clear=1 pace=1.25",
+             "train_args": "--steps 20000 --policy-min-sims 1 --value-weight 0.25 --window 0 --mix 0.5",
+             "sets": [{"name": "gate", "first": 1, "seeds": 1000, "stakes": "1"}, {"name": "held", "first": 1001, "seeds": 1000, "stakes": "1"},
+                      {"name": "ladder", "first": 1, "seeds": 200, "stakes": "2,3,4,5,6,7,8"}],
+             "max_rounds": 3, "stale_limit": 2, "min_z": 1.28},
   "ladder": {"stakes": [1, 2, 3, 4, 5, 6, 7, 8], "win_rate": 0.6, "final_bench": true, "final_seeds": 30, "final_timeout": 330,
              "eval_args": "sims=32 fair=1 search_ph=shop,pack,blind_select quick_clear=1 pace=1.25"}
  }

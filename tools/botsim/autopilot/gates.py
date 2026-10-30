@@ -110,5 +110,36 @@ def improves(new, best):
     return score_key(new) > score_key(best)
 
 
+def paired(new, base):
+    old = {(g["deck"], g["stake"], g["seed"]): g for g in base}
+    d = [g["ante"] - old[(g["deck"], g["stake"], g["seed"])]["ante"] for g in new if (g["deck"], g["stake"], g["seed"]) in old]
+    n = len(d)
+    if not n:
+        return {"n": 0, "diff": 0.0, "z": 0.0, "ante": 0.0, "wins": 0, "base_wins": 0}
+    m = sum(d) / float(n)
+    var = sum((x - m) ** 2 for x in d) / (n - 1) if n > 1 else 0.0
+    if var > 0:
+        z = m / math.sqrt(var / n)
+    else:
+        z = 99.0 if m > 0 else (-99.0 if m < 0 else 0.0)
+    return {"n": n, "diff": round(m, 4), "z": round(z, 2), "ante": sum(g["ante"] for g in new) / float(len(new)),
+            "wins": sum(g["won"] for g in new), "base_wins": sum(g["won"] for g in base)}
+
+
+def expert_better(res, min_z, floor_z=-2.0):
+    if res["both"]["n"] == 0:
+        return False, "no paired games"
+    if res["held"]["diff"] <= 0:
+        return False, "held-out diff %+.2f not positive" % res["held"]["diff"]
+    if res["gate"]["diff"] < 0:
+        return False, "gate diff %+.2f negative" % res["gate"]["diff"]
+    if res["both"]["z"] < min_z:
+        return False, "gate and held-out z %.2f under %.2f" % (res["both"]["z"], min_z)
+    bad = [k for k in sorted(res) if k.startswith("stake") and res[k]["z"] < floor_z]
+    if bad:
+        return False, "loses on " + ", ".join(bad)
+    return True, "better: %+.2f, z %.2f" % (res["both"]["diff"], res["both"]["z"])
+
+
 def promote(wins, n, need_rate):
     return n > 0 and rate(wins, n) >= need_rate

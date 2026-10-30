@@ -22,7 +22,7 @@ import store as storemod
 LOCK_STALE = 45 * 60
 POLL_S = 30
 LOST_S = 30 * 60
-FLAGS = ("fair_speed_ok", "expert_ok", "imitation_hold")
+FLAGS = ("fair_speed_ok", "expert_ok", "ladder_ok", "imitation_hold")
 
 
 def say(*a):
@@ -247,7 +247,8 @@ def poll_ci(ctx):
         return None
     tmp = tempfile.mkdtemp(prefix="botsim-ap-")
     try:
-        ok, out = ci.download(ctx.run, job["run_id"], tmp)
+        job["conclusion"] = r.get("conclusion")
+        ok, out = (True, "") if job.get("phase") == "gen" else ci.download(ctx.run, job["run_id"], tmp)
         arts = sorted(os.listdir(tmp)) if os.path.isdir(tmp) else []
         res = steps.finish(ctx, job["step"], job.get("phase", "main"), tmp, job["run_id"])
     finally:
@@ -266,6 +267,8 @@ def start(ctx):
     flag = steps.FLAG_OF.get(step)
     if flag and not st["flags"].get(flag):
         return ctx.wait("flag %s is off (autopilot.py flag %s on)" % (flag, flag))
+    if steps.ci_expert(ctx.prof, step):
+        return dispatch(ctx, step, steps.expert_phase(st))
     if steps.on_hetzner(ctx.prof, step, st):
         if step == "imitation" and st["flags"].get("imitation_hold"):
             return ctx.wait("imitation_hold is on, the paid imitation round waits (autopilot.py flag imitation_hold off)")
@@ -351,6 +354,8 @@ def handle(ctx, res, phase=None):
         ctx.event("batch done, %d of %d teacher games" % (st["teacher"]["games"], ctx.prof["teacher"]["games"]))
         return
     ctx.event("gate passed (%s)" % phase)
+    if steps.ci_expert(ctx.prof, step):
+        return after_ci_expert(ctx, step, phase, res)
     if step in steps.CI_STEPS:
         ctx.alert("gate passed", "%s passed" % step, 3)
         return next_step(ctx)
@@ -369,7 +374,9 @@ def fail(ctx, step, phase, why):
     st = ctx.st
     g = st["gates"][step]
     g["fails"] += 1
-    if step in steps.PAID_STEPS:
+    if steps.ci_expert(ctx.prof, step):
+        st.setdefault("expert", {})["gen"] = None
+    elif step in steps.PAID_STEPS:
         st["prechecked"] = None
         st["candidate"] = None
     ctx.event("gate failed (%s, %d in a row): %s" % (phase, g["fails"], why))
@@ -377,6 +384,18 @@ def fail(ctx, step, phase, why):
         return ctx.stop("%s failed twice in a row: %s" % (step, why), urgent=True)
     st["attempt"] += 1
     ctx.alert("gate failed", "%s (%s): %s; retrying" % (step, phase, why), 4)
+
+
+def after_ci_expert(ctx, step, phase, res):
+    st, ep = ctx.st, ctx.prof["expert"]
+    if phase == "gen":
+        return
+    st["expert"]["gen"] = None
+    st["step_rounds"] = st.get("step_rounds", 0) + 1
+    st["stale_gens"] = 0 if res.get("improved") else st.get("stale_gens", 0) + 1
+    if st["step_rounds"] >= int(ep["max_rounds"]) or st["stale_gens"] >= int(ep["stale_limit"]):
+        ctx.event("expert ends after %d rounds, %d without a better net" % (st["step_rounds"], st["stale_gens"]))
+        next_step(ctx)
 
 
 def after_round(ctx, step, res):

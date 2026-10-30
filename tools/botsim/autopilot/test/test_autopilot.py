@@ -61,6 +61,7 @@ class World:
         self.run_n = 0
         self.teacher = None
         self.imitation = None
+        self.expert_gain = 0
 
     def __call__(self, argv, env=None, timeout=None):
         self.calls.append(list(argv))
@@ -104,6 +105,19 @@ class World:
             if "fair_shuffle.lua" in cmd:
                 with open(os.path.join(d, "shuffle.json"), "w") as f:
                     json.dump({"who": "fair", "games": 1, "identical": 0 if self.shuffle_fail else 1, "diffs": []}, f)
+            for name in ("gate", "held", "ladder"):
+                if "$OUT/%s.jsonl" % name in cmd:
+                    gain = self.expert_gain if "train.py" in cmd else 0
+                    stake = 2 if name == "ladder" else 1
+                    with open(os.path.join(d, name + ".jsonl"), "w") as f:
+                        for s in range(4):
+                            f.write(json.dumps({"deck": "b_red", "stake": stake, "seed": "BENCH%04d" % s, "won": 0, "ante": 3 + s % 2 + (gain if s else 0), "time": 1.0}) + "\n")
+            if "gen_games.txt" in cmd:
+                with open(os.path.join(d, "gen_games.txt"), "w") as f:
+                    f.write("24000\n")
+            if "train.py" in cmd and "--init" in cmd:
+                with open(os.path.join(d, "net.bnnw"), "w") as f:
+                    f.write("net")
             if "fair.lua" in cmd or "teacher.lua" in cmd or "eval.lua" in cmd:
                 with open(os.path.join(d, "games.jsonl"), "w") as f:
                     for s in range(2):
@@ -512,7 +526,97 @@ class TestTeacherPaid(Base):
         self.assertIn("search_ph=shop,pack,blind_select", cmd)
 
 
+class TestExpertCI(Base):
+    def setUp(self):
+        super().setUp()
+        p = json.loads(json.dumps(self.profiles["full"]))
+        p["steps"] = ["expert", "ladder"]
+        p["flags"] = {"expert_ok": True}
+        self.profiles["ci-exp"] = p
+        self.ap("init", "--profile", "ci-exp")
+        st = self.state()
+        st["best"] = {"name": "imitation", "path": "ap/checkpoints/imitation.bnnw", "score": {"ante": 5.9, "rate": 0.2}}
+        with open(os.path.join(self.store_root, "ap", "state.json"), "w") as f:
+            json.dump(st, f)
+
+    def test_full_profile_is_free(self):
+        import steps
+        self.assertTrue(steps.ci_expert(self.profiles["full"], "expert"))
+        self.assertFalse(steps.ci_expert(self.profiles["tiny-paid"], "expert"))
+        self.assertEqual(steps.FLAG_OF["ladder"], "ladder_ok")
+
+    def test_rounds_then_ladder_waits_without_paying(self):
+        self.world.expert_gain = 1
+        st = self.ticks(12)
+        self.assertEqual(st["step"], "ladder")
+        self.assertEqual(st["status"], "waiting")
+        self.assertIn("ladder_ok", st["reason"])
+        self.assertTrue(st["best"]["name"].startswith("expert-"))
+        self.assertEqual(len(st["expert"]["rounds"]), 3)
+        self.assertEqual(self.world.hz_calls("up"), [])
+        self.assertEqual(self.world.hz_calls("run"), [])
+        self.assertEqual([r["tag"].split("-")[-1] for r in self.world.runs], ["gen", "train"] * 3)
+
+    def test_gen_downloads_nothing_and_train_mixes_teacher_records(self):
+        self.world.expert_gain = 1
+        self.ticks(12)
+        downloaded = [c[3] for c in self.world.calls if c[:3] == ["gh", "run", "download"]]
+        gen, train = self.world.runs[0], self.world.runs[1]
+        self.assertNotIn(str(gen["databaseId"]), downloaded)
+        self.assertIn(str(train["databaseId"]), downloaded)
+        self.assertEqual(len(gen["jobs"]), 16)
+        self.assertIn("part=63 parts=64", gen["jobs"][-1]["cmd"])
+        self.assertIn("rec=$OUT/x3.bspr", gen["jobs"][-1]["cmd"])
+        cand = [j for j in train["jobs"] if j["label"] == "cand"][0]["cmd"]
+        self.assertIn("--init ckpt/imitation.bnnw", cand)
+        self.assertIn("--mix 0.5", cand)
+        self.assertIn("--policy-min-sims 1", cand)
+        self.assertIn("gh run download %d -p '%s-g*' -D gen" % (gen["databaseId"], gen["tag"]), cand)
+        self.assertIn("fair_shuffle.lua", cand)
+
+    def test_no_gain_ends_after_stale_limit_and_keeps_best(self):
+        st = self.ticks(12)
+        self.assertEqual(st["step"], "ladder")
+        self.assertEqual(st["best"]["name"], "imitation")
+        self.assertEqual(len(st["expert"]["rounds"]), 2)
+
+    def test_new_round_starts_from_new_best_on_new_seeds(self):
+        self.world.expert_gain = 1
+        self.ticks(12)
+        gen2 = self.world.runs[2]["jobs"][0]["cmd"]
+        self.assertIn("weights=ckpt/expert-", gen2)
+        self.assertIn("first=201 ", gen2)
+
+    def test_bad_shuffle_fails_and_regenerates(self):
+        self.world.expert_gain = 1
+        self.world.shuffle_fail = True
+        st = self.ticks(12)
+        self.assertEqual(st["status"], "stopped")
+        self.assertEqual([r["tag"].split("-")[-1] for r in self.world.runs], ["gen", "train", "gen", "train"])
+        self.assertEqual(st["best"]["name"], "imitation")
+
+
 class TestPieces(unittest.TestCase):
+    def test_expert_better(self):
+        import gates
+
+        def r(d, z):
+            return {"n": 10, "diff": d, "z": z}
+        ok = {"both": r(0.06, 1.5), "held": r(0.08, 1.2), "gate": r(0.05, 0.9), "stake2": r(0.3, 2.6), "stake4": r(-0.02, -0.2)}
+        self.assertTrue(gates.expert_better(ok, 1.28)[0])
+        self.assertFalse(gates.expert_better(dict(ok, held=r(-0.01, -0.1)), 1.28)[0])
+        self.assertFalse(gates.expert_better(dict(ok, gate=r(-0.01, -0.1)), 1.28)[0])
+        self.assertFalse(gates.expert_better(dict(ok, both=r(0.05, 1.0)), 1.28)[0])
+        self.assertFalse(gates.expert_better(dict(ok, stake4=r(-0.3, -2.5)), 1.28)[0])
+
+    def test_paired(self):
+        import gates
+        old = [{"deck": "d", "stake": 1, "seed": i, "ante": 3, "won": 0} for i in range(4)]
+        new = [{"deck": "d", "stake": 1, "seed": i, "ante": 3 + i, "won": i == 3} for i in range(4)]
+        p = gates.paired(new, old)
+        self.assertEqual((p["n"], p["diff"], p["wins"], p["base_wins"]), (4, 1.5, 1, 0))
+        self.assertGreater(p["z"], 1)
+
     def test_find_run_by_name(self):
         runs = [{"databaseId": 1, "displayTitle": "botsim work abc-1", "status": "completed", "conclusion": "success", "createdAt": "1"},
                 {"databaseId": 2, "displayTitle": "botsim work abc-10", "status": "in_progress", "conclusion": None, "createdAt": "2"},
