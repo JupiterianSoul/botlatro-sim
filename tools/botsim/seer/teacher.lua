@@ -160,6 +160,7 @@ if arg and arg[0] and arg[0]:match("teacher%.lua$") then
         local k, v = a:match("^%-*([%w_]+)=(.*)$")
         if k then opt[k] = tonumber(v) or v end
     end
+    local ALL = require("botsim.train.evalset").ALL_DECKS
     local decks, stakes = {}, {}
     for w in tostring(opt.decks):gmatch("[^,]+") do decks[#decks + 1] = w end
     for w in tostring(opt.stakes):gmatch("[^,]+") do stakes[#stakes + 1] = tonumber(w) end
@@ -172,7 +173,8 @@ if arg and arg[0] and arg[0]:match("teacher%.lua$") then
         for _, st in ipairs(stakes) do
             for i = opt.start, opt.start + opt.seeds - 1 do
                 n = n + 1
-                local setup = {seed = string.format("%s%04d", opt.prefix, i), deck = d, stake = st}
+                local deck = d == "all" and ALL[(i - 1) % #ALL + 1] or d
+                local setup = {seed = string.format("%s%04d", opt.prefix, i), deck = deck, stake = st}
                 local blob, info = T.run(setup, {K = opt.K, neg = opt.neg, n_sims = opt.n_sims, stop_ante = opt.stop_ante > 0 and opt.stop_ante or nil,
                     mode = opt.mode, budget = opt.budget, max_lines = opt.max_lines, time_limit = opt.time_limit, weights = opt.weights, net_sims = opt.net_sims}, n)
                 if opt.wins_only == 0 or info.won == 1 then
@@ -181,12 +183,12 @@ if arg and arg[0] and arg[0]:match("teacher%.lua$") then
                 end
                 if jf then
                     jf:write(string.format('{"deck":"%s","stake":%d,"seed":"%s","won":%d,"ante":%d,"time":%.2f,"records":%d,"dec":%d,"searched":%d,"net_picks":%d}\n',
-                        d, st, setup.seed, info.won, info.final_ante, info.time or 0, info.records, info.decisions or 0, info.searched or 0, info.net_picks or 0))
+                        deck, st, setup.seed, info.won, info.final_ante, info.time or 0, info.records, info.decisions or 0, info.searched or 0, info.net_picks or 0))
                     jf:flush()
                 end
                 wins = wins + info.won
                 for k, v in pairs(info.skipped) do tot_skip[k] = (tot_skip[k] or 0) + v end
-                print(string.format("run %d %s stake %d seed %s ante %d won %d records %d", n, d, st, setup.seed, info.final_ante, info.won, info.records))
+                print(string.format("run %d %s stake %d seed %s ante %d won %d records %d", n, deck, st, setup.seed, info.final_ante, info.won, info.records))
             end
         end
     end

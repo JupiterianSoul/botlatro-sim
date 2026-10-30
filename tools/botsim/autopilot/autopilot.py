@@ -266,7 +266,7 @@ def start(ctx):
     flag = steps.FLAG_OF.get(step)
     if flag and not st["flags"].get(flag):
         return ctx.wait("flag %s is off (autopilot.py flag %s on)" % (flag, flag))
-    if steps.on_hetzner(ctx.prof, step):
+    if steps.on_hetzner(ctx.prof, step, st):
         return start_round(ctx, step)
     if step in steps.CI_STEPS:
         return dispatch(ctx, step, "main")
@@ -573,6 +573,30 @@ def cmd_redo(ctx, a):
     return 0
 
 
+def cmd_extend(ctx, a):
+    def f(st):
+        steps = ctx.prof["steps"]
+        if a.step != "teacher" or "teacher" not in steps:
+            raise SystemExit("extend works on the teacher step only")
+        if steps.index("teacher") > steps.index(st["step"]):
+            raise SystemExit("the teacher step is not done yet")
+        if st.get("job"):
+            raise SystemExit("a job is live (%s); stop first" % (st["job"].get("tag") or st["job"].get("run")))
+        if a.games <= 0:
+            raise SystemExit("--games must be positive")
+        t = st["teacher"]
+        t["target"] = int(t.get("games", 0)) + a.games
+        t["ci"] = bool(a.ci)
+        st["step"], st["attempt"], st["step_rounds"] = "teacher", 1, 0
+        st["status"], st["reason"], st["lock"] = "running", "", None
+        for later in steps[steps.index("teacher"):]:
+            st["gates"][later] = {"fails": 0, "last": {}}
+        st["best"] = {"name": None, "path": None, "score": {}}
+        st["candidate"], st["prechecked"] = None, None
+    mutate(ctx, "extend teacher +%d%s" % (a.games, " on CI" if a.ci else ""), f)
+    return 0
+
+
 def cmd_results(ctx, a):
     ctx.store.sync()
     if not ctx.load():
@@ -608,12 +632,16 @@ def parser():
     sub.add_parser("resume", parents=[common])
     s = sub.add_parser("redo", parents=[common])
     s.add_argument("step")
+    s = sub.add_parser("extend", parents=[common])
+    s.add_argument("step")
+    s.add_argument("--games", type=int, required=True)
+    s.add_argument("--ci", action="store_true")
     sub.add_parser("results", parents=[common])
     return p
 
 
 COMMANDS = {"init": cmd_init, "tick": tick, "status": cmd_status, "flag": cmd_flag, "approve": cmd_approve,
-            "stop": cmd_stop, "resume": cmd_resume, "redo": cmd_redo, "results": cmd_results}
+            "stop": cmd_stop, "resume": cmd_resume, "redo": cmd_redo, "extend": cmd_extend, "results": cmd_results}
 
 
 def main(argv=None, **kw):

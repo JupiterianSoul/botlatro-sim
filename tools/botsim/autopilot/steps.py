@@ -1,3 +1,4 @@
+import gzip
 import json
 import math
 import os
@@ -6,13 +7,28 @@ import ci
 import gates
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
+PART_BYTES = 40 * 1024 * 1024
 CI_STEPS = ("fair_bench", "fair_speed", "teacher", "imitation")
 PAID_STEPS = ("expert", "ladder")
 FLAG_OF = {"fair_speed": "fair_speed_ok", "expert": "expert_ok", "ladder": "expert_ok"}
 
 
-def on_hetzner(prof, step):
+def on_hetzner(prof, step, st=None):
+    if step == "teacher" and ((st or {}).get("teacher") or {}).get("ci"):
+        return False
     return step in ("teacher", "imitation") and bool((prof.get(step) or {}).get("paid"))
+
+
+def teacher_goal(st, tp):
+    return int((st.get("teacher") or {}).get("target") or tp["games"])
+
+
+def store_teacher(store, src, rel, i):
+    with open(src, "rb") as f:
+        blob = gzip.compress(f.read(), 6)
+    for k in range(max(1, int(math.ceil(len(blob) / float(PART_BYTES))))):
+        store.write_bytes("%s/w%03d.bspr.gz.%03d" % (rel, i, k), blob[k * PART_BYTES:(k + 1) * PART_BYTES])
+    return len(blob)
 
 
 def job(label, cmd, timeout, torch=False):
@@ -92,7 +108,7 @@ def jobs_for(ctx, step, phase):
 
 def teacher_jobs(ctx):
     t, tp = ctx.st["teacher"], ctx.prof["teacher"]
-    left = tp["games"] - t["games"]
+    left = teacher_goal(ctx.st, tp) - t["games"]
     if left <= 0:
         return []
     per = max(1, int(tp["per_job"]))
@@ -216,8 +232,8 @@ def speed_limit(fs, base):
 
 def finish_teacher(ctx, root, run_id):
     t, tp = ctx.st["teacher"], ctx.prof["teacher"]
-    tag = ctx.st["job"]["tag"]
-    games = recs = 0
+    run = "ci-%s" % run_id
+    games = recs = files = size = 0
     for d in sorted(os.listdir(root)) if os.path.isdir(root) else []:
         p = os.path.join(root, d)
         g = len(ctx.res.parse_games(ci.files(p, "games.jsonl")))
@@ -225,6 +241,8 @@ def finish_teacher(ctx, root, run_id):
         b = os.path.join(p, "teach.bspr")
         if g and os.path.exists(b) and os.path.getsize(b) > 0:
             recs += g
+            size += store_teacher(ctx.store, b, "runs/%s/teacher" % run, files)
+            files += 1
     lk = gates.leak("\n".join(ci.read_all(ci.files(root, "leak.txt"))))
     if lk["failed"] is not None:
         t["leak_ok"] = lk["ok"]
@@ -232,12 +250,13 @@ def finish_teacher(ctx, root, run_id):
     t["records"] += recs
     t["next"] = t.get("next", 1) + sum(1 for j in ctx.st["job"]["jobs"] if j["label"].startswith("t")) * int(tp["per_job"])
     if recs:
-        t.setdefault("artifacts", []).append({"run": run_id, "tag": tag})
+        t.setdefault("artifacts", []).append({"hz_run": run, "games": recs, "bytes": size})
     if games == 0:
         return gates.result(False, "teacher batch returned no games")
-    if t["games"] < tp["games"]:
+    goal = teacher_goal(ctx.st, tp)
+    if t["games"] < goal:
         return gates.result(True, "", more=True)
-    return gates.teacher(t["games"], t["records"], tp["games"], t.get("leak_ok"))
+    return gates.teacher(t["games"], t["records"], goal, t.get("leak_ok"))
 
 
 def finish_imitation(ctx, root, run_id, run=None, wfile=None, done=None):
