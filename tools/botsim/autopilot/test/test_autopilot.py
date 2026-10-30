@@ -493,6 +493,8 @@ class TestTeacherPaid(Base):
         ctx.st = {"teacher": {"artifacts": [{"hz_run": "r9"}]}}
         cmd = steps.imitation_jobs(ctx)[0]["cmd"]
         self.assertIn("fetchdir runs/r9/teacher data/r9", cmd)
+        self.assertIn("--window 0 --cfg E=64,H=256", cmd)
+        self.assertIn("quick_clear=1 pace=1.25", cmd)
         self.assertIn('${f%.gz.000}', cmd)
 
 
