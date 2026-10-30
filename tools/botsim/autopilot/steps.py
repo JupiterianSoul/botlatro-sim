@@ -156,8 +156,9 @@ def imitation_jobs(ctx):
         extra += " --value-weight %g" % ip["value_weight"]
     train = quiet("python3 tools/botsim/train/train.py --data $(find data -name '*.bspr' -size +0c) --out %s --steps %d%s" % (w, ip["steps"], extra), "train.txt")
     ea = ip.get("eval_args", "")
-    ev = quiet("luajit tools/botsim/train/eval.lua who=net weights=%s sims=0 prefix=%s first=1 seeds=%d decks=%s stakes=%s jsonl=$OUT/games.jsonl%s"
-               % (w, b["prefix"], ip["eval_seeds"], ip["decks"], ip["stakes"], " " + ea if ea else ""), "eval.txt")
+    ev = " ".join("luajit tools/botsim/train/eval.lua who=net weights=%s sims=0 prefix=%s first=1 seeds=%d decks=%s stakes=%s part=%d parts=%d jsonl=$OUT/eval%d.jsonl%s > $OUT/eval%d.txt 2>&1 &"
+                  % (w, b["prefix"], ip["eval_seeds"], ip["decks"], ip["stakes"], j, SLICES, j, " " + ea if ea else "", j) for j in range(SLICES))
+    ev += " wait; cat $OUT/eval[0-9].jsonl > $OUT/games.jsonl || true"
     sh = shuffle_cmd(ctx.prof, "net", w, ea)
     cmd = "; ".join(["mkdir -p data"] + dl + [train, ev, sh])
     return [job("imitation", cmd, ip["timeout"], torch=True)]
@@ -169,8 +170,9 @@ def final_jobs(ctx):
     out = []
     for d in all_decks():
         w = "ckpt/%s.bnnw" % name
-        ev = quiet("luajit tools/botsim/train/eval.lua who=net weights=%s sims=0 prefix=%s first=1 seeds=%d decks=%s stakes=1,2,3,4,5,6,7,8 jsonl=$OUT/games.jsonl"
-                   % (w, b["prefix"], lp.get("final_seeds", 30), d), "eval.txt")
+        ea = lp.get("eval_args", "")
+        ev = quiet("luajit tools/botsim/train/eval.lua who=net weights=%s sims=0 prefix=%s first=1 seeds=%d decks=%s stakes=1,2,3,4,5,6,7,8 jsonl=$OUT/games.jsonl%s"
+                   % (w, b["prefix"], lp.get("final_seeds", 30), d, " " + ea if ea else ""), "eval.txt")
         out.append(job("final-%s" % d, fetch_cmd(ctx.dir, name) + " && " + ev, lp.get("final_timeout", 330)))
     return out
 
