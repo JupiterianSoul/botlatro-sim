@@ -11,17 +11,19 @@ local ES = require("botsim.train.evalset")
 local json = require("bot.sim.json")
 
 local opt = {who = "greedy", weights = "", sims = 32, K = 24, per = 6, decks = "", stakes = "", part = 0, parts = 1, out = "", max_moves = 3000, max_shop = 40,
-    mix = -1, score_prior = 0, score_top = 6, score_temp = 4, skip_pen = 1, skip_ante = 1, type_mass = 0, tm_plays = 0, quick_clear = 0, pace = 0, pace_net = 0, prefix = "", first = 1, seeds = 10, jsonl = "", fair = 0, search_ph = "", rec = "", solver = "", solver_qc = 0, set = "", curve = 0, leaf_money = 0, leaf_rent = 0, leaf_dead = 0, rent_prior = 1, rent_from = 0, sell_dead = 0, c_puct = 1.5, worlds = 1, ro = 0, ro_c = 3, ro_h = 0, ro_ph = "shop,pack,blind_select", ro_from = 0, ro_mon = 0, ro_net = 0}
+    mix = -1, score_prior = 0, score_top = 6, score_temp = 4, skip_pen = 1, skip_ante = 1, type_mass = 0, tm_plays = 0, quick_clear = 0, pace = 0, pace_net = 0, prefix = "", first = 1, seeds = 10, jsonl = "", fair = 0, search_ph = "", rec = "", solver = "", solver_qc = 0, set = "", curve = 0, leaf_money = 0, leaf_rent = 0, leaf_dead = 0, rent_prior = 1, rent_from = 0, sell_dead = 0, c_puct = 1.5, worlds = 1, ro = 0, ro_c = 3, ro_h = 0, ro_ph = "shop,pack,blind_select", ro_from = 0, ro_mon = 0, ro_net = 0, ro_t = 0.25}
 for _, a in ipairs(arg or {}) do
     local k, v = a:match("^([%w_]+)=(.*)$")
     if k then opt[k] = tonumber(v) or v end
 end
 
-local mc
+local mc, rmc
 if opt.who == "net" then
     local W = WT.load(opt.weights)
-    mc = MC.new(NET.new(W), {K = opt.K, seed = 99991, alpha = 0.5, mix = opt.mix >= 0 and opt.mix or nil,
-        score_prior = opt.score_prior, score_top = opt.score_top, score_temp = opt.score_temp, skip_pen = opt.skip_pen, skip_ante = opt.skip_ante, type_mass = opt.type_mass, tm_plays = opt.tm_plays, quick_clear = opt.quick_clear, pace = opt.pace, pace_net = opt.pace_net, leaf_money = opt.leaf_money, leaf_rent = opt.leaf_rent, leaf_dead = opt.leaf_dead, rent_prior = opt.rent_prior, rent_from = opt.rent_from, c_puct = opt.c_puct, nodes = opt.sims + 2, full = true})
+    local function new_mc() return MC.new(NET.new(W), {K = opt.K, seed = 99991, alpha = 0.5, mix = opt.mix >= 0 and opt.mix or nil,
+        score_prior = opt.score_prior, score_top = opt.score_top, score_temp = opt.score_temp, skip_pen = opt.skip_pen, skip_ante = opt.skip_ante, type_mass = opt.type_mass, tm_plays = opt.tm_plays, quick_clear = opt.quick_clear, pace = opt.pace, pace_net = opt.pace_net, leaf_money = opt.leaf_money, leaf_rent = opt.leaf_rent, leaf_dead = opt.leaf_dead, rent_prior = opt.rent_prior, rent_from = opt.rent_from, c_puct = opt.c_puct, nodes = opt.sims + 2, full = true}) end
+    mc = new_mc()
+    if opt.ro > 0 then rmc = new_mc() end
 end
 POL.shop = true
 local FAIR = opt.fair > 0 and require("bot.seer.fair") or nil
@@ -55,10 +57,10 @@ local function ro_run(w, stop_ante)
         if econ_run > opt.max_shop then
             if not E.step(w, ph == "pack" and SKIP or LEAVE) then break end
         else
-            mc:search(w, 0, {noise = 0, reuse = false, adaptive = true})
-            local e = mc:choose(0)
+            rmc:search(w, 0, {noise = 0, reuse = false, adaptive = true})
+            local e = rmc:choose(0)
             if not e then break end
-            mc:edge_action(e, ro_step, w)
+            rmc:edge_action(e, ro_step, w)
             if not E.step(w, ro_step) then break end
         end
         moves = moves + 1
@@ -67,8 +69,8 @@ local function ro_run(w, stop_ante)
     if stop_ante > 0 and not MC.terminal(w) then
         if opt.ro_mon ~= 0 then v = v + opt.ro_mon * math.min(math.max(w.money, 0), 50) / 50 end
         if opt.ro_net ~= 0 then
-            mc:search(w, 0, {noise = 0, reuse = false, adaptive = true})
-            v = v + opt.ro_net * mc.n_val[mc.root]
+            rmc:search(w, 0, {noise = 0, reuse = false, adaptive = true})
+            v = v + opt.ro_net * rmc.n_val[rmc.root]
         end
     end
     return v
@@ -101,7 +103,17 @@ local function ro_choose(s, seed, moves)
     for i = 2, #cands do
         if cands[i].v > best.v then best = cands[i] end
     end
-    return best.a
+    if opt.rec ~= "" then
+        local ef2, ec2 = mc:root_edges()
+        for e = ef2, ef2 + ec2 - 1 do mc.e_N[e] = 0 end
+        local top, sum = best.v / opt.ro, 0
+        for _, c in ipairs(cands) do
+            c.w = math.exp((c.v / opt.ro - top) / opt.ro_t)
+            sum = sum + c.w
+        end
+        for _, c in ipairs(cands) do mc.e_N[c.e] = math.floor(32 * c.w / sum + 0.5) end
+    end
+    return best.a, best.e
 end
 
 local function play(deck, stake, seed)
@@ -151,11 +163,12 @@ local function play(deck, stake, seed)
             if opt.search_ph ~= "" and not ("," .. opt.search_ph .. ","):find("," .. ph .. ",", 1, true) then sims = 0 end
             mc:search(view, sims, {noise = 0, reuse = not FAIR, adaptive = true})
             local e = mc:choose(0)
-            local ro_act = nil
+            local ro_act, ro_e = nil, nil
             if RS and sims > 0 and e and ("," .. opt.ro_ph .. ","):find("," .. ph .. ",", 1, true) and stake >= opt.ro_from then
-                ro_act = ro_choose(s, seed, moves)
+                ro_act, ro_e = ro_choose(s, seed, moves)
             end
             if ro_act then
+                if recs then recs[#recs + 1] = REC.encode_record(mc.F_root, mc, ro_e, sims, FE.PHASES[ph] or 0) end
                 if not E.step(s, ro_act) then why = "step_failed:ro" break end
                 moves = moves + 1
                 goto continue
