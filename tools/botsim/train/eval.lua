@@ -11,7 +11,7 @@ local ES = require("botsim.train.evalset")
 local json = require("bot.sim.json")
 
 local opt = {who = "greedy", weights = "", sims = 32, K = 24, per = 6, decks = "", stakes = "", part = 0, parts = 1, out = "", max_moves = 3000, max_shop = 40,
-    mix = -1, score_prior = 0, score_top = 6, score_temp = 4, skip_pen = 1, skip_ante = 1, type_mass = 0, tm_plays = 0, quick_clear = 0, pace = 0, pace_net = 0, prefix = "", first = 1, seeds = 10, jsonl = "", fair = 0}
+    mix = -1, score_prior = 0, score_top = 6, score_temp = 4, skip_pen = 1, skip_ante = 1, type_mass = 0, tm_plays = 0, quick_clear = 0, pace = 0, pace_net = 0, prefix = "", first = 1, seeds = 10, jsonl = "", fair = 0, search_ph = ""}
 for _, a in ipairs(arg or {}) do
     local k, v = a:match("^([%w_]+)=(.*)$")
     if k then opt[k] = tonumber(v) or v end
@@ -44,7 +44,9 @@ local function play(deck, stake, seed)
         elseif mc then
             local view = s
             if FAIR then view = FAIR.world(FAIR.sanitize(s), string.format("FW%s_%d", seed, moves)) end
-            mc:search(view, opt.sims, {noise = 0, reuse = not FAIR, adaptive = true})
+            local sims = opt.sims
+            if opt.search_ph ~= "" and not ("," .. opt.search_ph .. ","):find("," .. ph .. ",", 1, true) then sims = 0 end
+            mc:search(view, sims, {noise = 0, reuse = not FAIR, adaptive = true})
             local e = mc:choose(0)
             if not e then why = "no_edge:" .. ph break end
             mc:edge_action(e, step, view)
