@@ -28,7 +28,8 @@ gh workflow run botsim-autopilot.yml --ref main -f command=tick
 | `stop [reason]` | stop for good; also takes a live Hetzner round down |
 | `resume` | clear a stop or a wait |
 | `flag fair_speed_ok on` | let the fair_speed step run (code work is done) |
-| `flag expert_ok on` | let the expert step run (net-guided Fair Seer exists) |
+| `flag expert_ok on` | let the expert step run |
+| `flag ladder_ok on` | let the paid ladder step run |
 | `approve --eur X --round-cap Y` | the budget for paid rounds, only after you said yes in the picker |
 | `redo STEP` | go back to an earlier step and run it again from scratch |
 | `extend teacher --games N [--ci] [--hold]` | play N more teacher games on new seeds next to the ones already kept, then train imitation again on all of them; `--ci` plays them on free CI even when the profile has a paid teacher, `--hold` turns `imitation_hold` on |
@@ -51,8 +52,8 @@ Global options: `--dir`, `--store-local PATH`, `--dry-run`.
 | fair_speed | CI, needs `fair_speed_ok` | mean s/game at most 60, wins not worse than the baseline |
 | teacher | Hetzner in `full` (one cpx62 round per 120 seeds, needs budget), CI in `tiny` | game and record counts reached, leak test passed on the box |
 | imitation | CI, CPU torch | white mean ante at least 5.5, net shuffle check identical |
-| expert | Hetzner, needs `expert_ok` and budget | beats the previous best on the fixed eval, shuffle check passes |
-| ladder | Hetzner | promote at the profile's win rate, next stake, full benchmark after Gold |
+| expert | CI in `full` (games with eval.lua rec=, fine-tune on them mixed with teacher records), needs `expert_ok`; Hetzner in the paid test profiles | paired against the best net on the same seeds: held-out diff above 0, gate diff not negative, gate plus held-out z at least `min_z`, no ladder stake under z -2, shuffle check passes. A round without a better net is no failure; the step ends after `max_rounds` rounds or `stale_limit` in a row without one |
+| ladder | Hetzner, needs `ladder_ok` | promote at the profile's win rate, next stake, full benchmark after Gold |
 
 Two gate failures in a row stop the autopilot and send an urgent alert. One failure retries; a paid step only retries after its free CI precheck passes again.
 

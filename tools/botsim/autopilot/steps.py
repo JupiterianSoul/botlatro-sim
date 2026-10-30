@@ -11,13 +11,21 @@ PART_BYTES = 40 * 1024 * 1024
 SLICES = 4
 CI_STEPS = ("fair_bench", "fair_speed", "teacher", "imitation")
 PAID_STEPS = ("expert", "ladder")
-FLAG_OF = {"fair_speed": "fair_speed_ok", "expert": "expert_ok", "ladder": "expert_ok"}
+FLAG_OF = {"fair_speed": "fair_speed_ok", "expert": "expert_ok", "ladder": "ladder_ok"}
 
 
 def on_hetzner(prof, step, st=None):
     if step == "teacher" and ((st or {}).get("teacher") or {}).get("ci"):
         return False
     return step in ("teacher", "imitation") and bool((prof.get(step) or {}).get("paid"))
+
+
+def ci_expert(prof, step):
+    return step == "expert" and bool((prof.get("expert") or {}).get("ci"))
+
+
+def expert_phase(st):
+    return "train" if (st.get("expert") or {}).get("gen") else "gen"
 
 
 def teacher_goal(st, tp):
@@ -88,6 +96,8 @@ def all_decks():
 
 def jobs_for(ctx, step, phase):
     st, prof = ctx.st, ctx.prof
+    if ci_expert(prof, step):
+        return expert_gen_jobs(ctx) if phase == "gen" else expert_train_jobs(ctx)
     if step == "fair_bench":
         return bench_jobs(prof, None) + check_jobs(prof)
     if step == "fair_speed":
@@ -136,14 +146,19 @@ def teacher_jobs(ctx):
     return out
 
 
-def imitation_jobs(ctx):
-    ip, b = ctx.prof["imitation"], ctx.prof["bench"]
+def teacher_dl(ctx):
     dl = []
     for a in ctx.st["teacher"].get("artifacts", []):
         if a.get("hz_run"):
             dl.append("python3 tools/botsim/autopilot/store.py fetchdir runs/%s/teacher data/%s && for f in data/%s/w*.bspr.gz.000; do cat \"${f%%.000}\".* | gunzip > \"${f%%.gz.000}\"; done || true" % (a["hz_run"], a["hz_run"], a["hz_run"]))
         else:
             dl.append("gh run download %s -p '%s-t*' -D data/%s || true" % (a["run"], a["tag"], a["run"]))
+    return dl
+
+
+def imitation_jobs(ctx):
+    ip, b = ctx.prof["imitation"], ctx.prof["bench"]
+    dl = teacher_dl(ctx)
     w = "$OUT/imitation.bnnw"
     extra = " --all-discards %d" % ip["all_discards"] if ip.get("all_discards") else ""
     if "window" in ip:
@@ -162,6 +177,45 @@ def imitation_jobs(ctx):
     sh = shuffle_cmd(ctx.prof, "net", w, ea)
     cmd = "; ".join(["mkdir -p data"] + dl + [train, ev, sh])
     return [job("imitation", cmd, ip["timeout"], torch=True)]
+
+
+def expert_gen_jobs(ctx):
+    ep = ctx.prof["expert"]
+    name = ctx.st["best"]["name"]
+    w = "ckpt/%s.bnnw" % name
+    first = 1 + int(ep["seeds"]) * int(ctx.st.get("step_rounds") or 0)
+    base = "luajit tools/botsim/train/eval.lua who=net weights=%s %s prefix=%s first=%d seeds=%d decks=%s stakes=%s" % (
+        w, ep["eval_args"], ep["prefix"], first, ep["seeds"], ep["decks"], ep["stakes"])
+    n = int(ep["jobs"]) * SLICES
+    out = []
+    for i in range(int(ep["jobs"])):
+        parts = ["%s part=%d parts=%d jsonl=$OUT/g%d.jsonl rec=$OUT/x%d.bspr > $OUT/g%d.txt 2>&1 &" % (base, i * SLICES + j, n, j, j, j) for j in range(SLICES)]
+        out.append(job("g%02d" % (i + 1), "%s; %s wait; cat $OUT/g[0-9].jsonl > $OUT/games.jsonl || true" % (fetch_cmd(ctx.dir, name), " ".join(parts)), ep["gen_timeout"]))
+    return out
+
+
+def expert_evals(ep, b, w):
+    out = []
+    for s in ep["sets"]:
+        base = "luajit tools/botsim/train/eval.lua who=net weights=%s %s prefix=%s first=%d seeds=%d decks=b_red stakes=%s" % (w, ep["eval_args"], b["prefix"], s["first"], s["seeds"], s["stakes"])
+        cmds = ["%s part=%d parts=%d jsonl=$OUT/%s_%d.jsonl > $OUT/%s_%d.txt 2>&1 &" % (base, j, SLICES, s["name"], j, s["name"], j) for j in range(SLICES)]
+        out.append(" ".join(cmds) + " wait; cat $OUT/%s_[0-9].jsonl > $OUT/%s.jsonl || true" % (s["name"], s["name"]))
+    return out
+
+
+def expert_train_jobs(ctx):
+    ep, b, st = ctx.prof["expert"], ctx.prof["bench"], ctx.st
+    gen, name = st["expert"]["gen"], st["best"]["name"]
+    w, old = "$OUT/net.bnnw", "ckpt/%s.bnnw" % name
+    fetch = fetch_cmd(ctx.dir, name)
+    dl = "gh run download %s -p '%s-g*' -D gen || true" % (gen["run"], gen["tag"])
+    count = "cat gen/*/games.jsonl | wc -l > $OUT/gen_games.txt"
+    train = quiet("python3 tools/botsim/train/train.py --data $(find gen -name 'x*.bspr' -size +0c) --mix-data $(find data -name '*.bspr' -size +0c) --init %s --out %s %s" % (old, w, ep["train_args"]), "train.txt")
+    sh = shuffle_cmd(ctx.prof, "net", w, ep["eval_args"])
+    cand = [fetch, "mkdir -p data"] + teacher_dl(ctx) + [dl, count, train] + expert_evals(ep, b, w) + [sh]
+    base = [fetch] + expert_evals(ep, b, old)
+    return [job("cand", "; ".join(cand), ep["timeout"], torch=True), job("base", "; ".join(base), ep["timeout"]),
+            job("leak", leak_cmd(ctx.prof), ep["timeout"])]
 
 
 def final_jobs(ctx):
@@ -193,6 +247,8 @@ def white(games, stake=1):
 
 
 def finish(ctx, step, phase, root, run_id):
+    if ci_expert(ctx.prof, step):
+        return finish_expert_gen(ctx, run_id) if phase == "gen" else finish_expert_train(ctx, root, run_id)
     if step == "fair_bench":
         return finish_bench(ctx, root, run_id)
     if step == "fair_speed":
@@ -300,3 +356,62 @@ def finish_imitation(ctx, root, run_id, run=None, wfile=None, done=None):
     elif not ws:
         return gates.result(False, "training produced no checkpoint")
     return gates.imitation(mean, ctx.prof["imitation"]["min_ante"], sh, n)
+
+
+def finish_expert_gen(ctx, run_id):
+    job_ = ctx.st["job"]
+    if job_.get("conclusion") != "success":
+        return gates.result(False, "expert games run ended %s" % job_.get("conclusion"))
+    ctx.st.setdefault("expert", {})["gen"] = {"run": run_id, "tag": job_["tag"]}
+    return gates.result(True, "")
+
+
+def gen_goal(ep):
+    decks = len(all_decks()) if ep["decks"] == "all" else len(ep["decks"].split(","))
+    return int(ep["seeds"]) * decks * len(ep["stakes"].split(","))
+
+
+def finish_expert_train(ctx, root, run_id):
+    ep, st = ctx.prof["expert"], ctx.st
+    tag = st["job"]["tag"]
+    cand, base = os.path.join(root, tag + "-cand"), os.path.join(root, tag + "-base")
+    lk, sh = checks(root)
+    nets = ci.files(cand, "net.bnnw")
+    if not nets:
+        return gates.result(False, "fine-tune produced no checkpoint")
+    done = "".join(ci.read_all(ci.files(cand, "gen_games.txt"))).strip()
+    goal = gen_goal(ep)
+    if not done.isdigit() or int(done) < 0.9 * goal:
+        return gates.result(False, "only %s of %d expert games reached the fine-tune" % (done or "0", goal))
+    if not lk["ok"]:
+        return gates.result(False, "leak test: " + lk["why"])
+    if not sh["ok"]:
+        return gates.result(False, "shuffle check of the fine-tune: " + sh["why"])
+    res, all_new, all_old = {}, [], []
+    for s in ep["sets"]:
+        new = ctx.res.parse_games(ci.files(cand, s["name"] + ".jsonl"))
+        old = ctx.res.parse_games(ci.files(base, s["name"] + ".jsonl"))
+        if not new or not old:
+            return gates.result(False, "no %s games came back" % s["name"])
+        if s["name"] == "ladder":
+            for k in s["stakes"].split(","):
+                res["stake" + k] = gates.paired([g for g in new if g["stake"] == int(k)], [g for g in old if g["stake"] == int(k)])
+        else:
+            res[s["name"]] = gates.paired(new, old)
+            all_new += new
+            all_old += old
+        ctx.add_rows(ctx.res.aggregate(new, t=ctx.now(), step="expert", checkpoint="round%d" % (int(st.get("step_rounds") or 0) + 1), who="net",
+                                       set=s["name"], fair=True, ci_run=run_id))
+    res["both"] = gates.paired(all_new, all_old)
+    better, why = gates.expert_better(res, float(ep["min_z"]))
+    st.setdefault("expert", {}).setdefault("rounds", []).append(dict(res, run=run_id, better=better))
+    ctx.event("expert round: %s; %s" % (why, json.dumps({k: [v["diff"], v["z"], v["wins"], v["base_wins"]] for k, v in res.items()}, sort_keys=True)))
+    if better:
+        name = "expert-%s-%d" % (st["id"], st["seq"])
+        path = "%s/checkpoints/%s.bnnw" % (ctx.dir, name)
+        ctx.store.copy_in(nets[0], path)
+        g = res["gate"]
+        st["best"] = {"name": name, "path": path, "score": {"ante": g["ante"], "rate": gates.rate(g["wins"], g["n"]), "wins": g["wins"], "n": g["n"]}}
+        st["prechecked"] = name
+        ctx.alert("new best", "%s: %s" % (name, why), 3)
+    return gates.result(True, "", improved=better, best=res["both"])
