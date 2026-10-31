@@ -348,6 +348,19 @@ All b_red unless said, best net `expert-721e43-19`, economy search player, paire
 2. Loop round 2: s8rgen, run 41148423481, 12000 games r32mn, stakes 4-8, all decks, EXPR seeds 101-260. Fine-tune as in `expert_exp.py rtrain` with mix 0.25 (change the artifact pattern to s8rgen-g*), judge with `loop7.py ab`. A second round without a gain at stakes 6-8 ends the loop per Gabriel's rule, then step 6.
 3. Step 7: all 15 decks with the best setting that passed the check.
 
+### Night 2026-10-31, run 1902 session 3: fresh seeds confirm rollouts, round 2 data done (on main)
+All b_red, best net `expert-721e43-19`, r32mn = `ro=32 ro_h=2 ro_mon=0.5 ro_net=1`. Full numbers and run ids are in tools/botsim/night/REPORT-2026-10-30.md, Session 3.
+- **Fresh seeds BENCH 4001-4300, against no rollouts:** stake 2 +1.227 (z 7.7), 123 vs 46 wins; stake 6 +0.583 (z 5.7), 5 vs 0; stake 7 +0.740 (z 8.5), 3 vs 1; stake 8 +0.887 (z 10.8), 2 vs 0. The r32mn gain holds.
+- **Hybrid r32mn plus `solver=std solver_qc=1` passed the shuffle check** (16 of 16, run 41154835984). Fresh seeds: stakes 6, 7, 8 only +0.07, +0.08, +0.06 in mean ante over r32mn at more than double the time, wins level. r32mn stays the working player.
+- **Tried and closed:** 64 rollouts at stake 8 +0.147 (z 2.0) over r32 on 3001-3300. `ro_sh` early candidate drop (commit only on local branch ci-rosh, removed from the remote, not on main): -0.400 and -0.813 down to one candidate, -0.083 and -0.193 with five candidates, -0.047 with 64 rollouts. `sell_dead=1` with r32mn: exactly 0.000 at stake 8.
+- **Open lead:** `c_puct=0.25` with r32mn at stake 8, 4001-4300: mean ante +0.040 (z 0.9) but 7 vs 2 wins. Too few wins to trust. Check on tags s14cp8 (5001-5300), s14cq7 and s14cq6 (4001-4300, against /tmp/r s10r327 and s10r326, runs 41152466240, 41152468320).
+
+#### Next (after session 3)
+1. Read s15rt, run 41169766357: fine-tune on 12000 r32mn games (s8rgen, run 41148423481, stakes 4-8, all decks), mix 0.25, net alone on 3001-3300 stakes 1-8. Compare against s6lbase, run 41127812954, with `cmp7.py`.
+2. Round 2 judgement: `loop7.py var main`-style jobs for the new net are not there, use `loop7.py ab main s17 41169766357 s15rt-m025 5001 300 8,7,6 "ro=32;ro_h=2;ro_mon=0.5;ro_net=1"`. It also plays an old arm; the old arm is already running as tags s16old8, s16old7, s16old6 (5001-5300), so compare the `new` artifacts against those, or drop the old job to save slots. A second round without a gain at stakes 6-8 ends the loop by Gabriel's rule, then plan step 6.
+3. Read s13h38 (`ro_h=3`, run 41164961774) and the s14 tags. s14cp8 is paired against s16old8. Wins need more than the 300-game sample before anyone relies on them.
+4. Step 6 then step 7: all 15 decks with r32mn or r16mn. Decks done so far: red, blue, yellow, black, plasma.
+
 ### Plan: 20000 more teacher games on free CI (backlog item 7, built in session 2, see above)
 - State today: teacher.games 20000, next 10001 (seeds TEACH0001-10000, stakes 1 and 2), artifacts are the two hz runs. The CI teacher path already exists (steps.teacher_jobs: 40 jobs x 60 seeds per batch, finish_teacher appends `{run, tag}` artifacts, imitation_jobs downloads both kinds).
 - Build: an autopilot command `extend teacher --games N --ci` that keeps st.teacher (games, next, artifacts), stores a target `st.teacher.target = games + N` and `st.teacher.ci = true`, goes back to step teacher and clears the imitation gate and best. teacher_jobs/finish_teacher read the target from state when set; steps.paid_step returns False for teacher when `st.teacher.ci`.
