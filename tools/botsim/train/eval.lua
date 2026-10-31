@@ -11,7 +11,7 @@ local ES = require("botsim.train.evalset")
 local json = require("bot.sim.json")
 
 local opt = {who = "greedy", weights = "", sims = 32, K = 24, per = 6, decks = "", stakes = "", part = 0, parts = 1, out = "", max_moves = 3000, max_shop = 40,
-    mix = -1, score_prior = 0, score_top = 6, score_temp = 4, skip_pen = 1, skip_ante = 1, type_mass = 0, tm_plays = 0, quick_clear = 0, pace = 0, pace_net = 0, prefix = "", first = 1, seeds = 10, jsonl = "", fair = 0, search_ph = "", rec = "", solver = "", solver_qc = 0, set = "", curve = 0, leaf_money = 0, leaf_rent = 0, leaf_dead = 0, rent_prior = 1, rent_from = 0, sell_dead = 0, c_puct = 1.5, worlds = 1, ro = 0, ro_c = 3, ro_h = 0, ro_ph = "shop,pack,blind_select", ro_from = 0, ro_mon = 0, ro_net = 0, ro_t = 0.25}
+    mix = -1, score_prior = 0, score_top = 6, score_temp = 4, skip_pen = 1, skip_ante = 1, type_mass = 0, tm_plays = 0, quick_clear = 0, pace = 0, pace_net = 0, prefix = "", first = 1, seeds = 10, jsonl = "", fair = 0, search_ph = "", rec = "", solver = "", solver_qc = 0, set = "", curve = 0, leaf_money = 0, leaf_rent = 0, leaf_dead = 0, rent_prior = 1, rent_from = 0, sell_dead = 0, c_puct = 1.5, worlds = 1, ro = 0, ro_c = 3, ro_h = 0, ro_ph = "shop,pack,blind_select", ro_from = 0, ro_mon = 0, ro_net = 0, ro_t = 0.25, branch = 0, branch_from = 3, branch_low = 5, max_time = 0}
 for _, a in ipairs(arg or {}) do
     local k, v = a:match("^([%w_]+)=(.*)$")
     if k then opt[k] = tonumber(v) or v end
@@ -41,16 +41,33 @@ local st = {}
 
 local ro_choose = opt.ro > 0 and require("botsim.train.rollout").chooser(mc, rmc, opt) or nil
 
-local function play(deck, stake, seed)
-    local s = E.new_run({seed = seed, deck = deck, stake = stake})
-    for k, v in tostring(opt.set):gmatch("([%w_]+):(-?[%d%.]+)") do s[k] = tonumber(v) end
+local branch_log = {}
+
+local function play(deck, stake, seed, s0)
+    local s = s0 or E.new_run({seed = seed, deck = deck, stake = stake})
+    if not s0 then
+        for k, v in tostring(opt.set):gmatch("([%w_]+):(-?[%d%.]+)") do s[k] = tonumber(v) end
+    end
     local moves, econ_run, why = 0, 0, "max_moves"
     local curve, curve_ante = {}, 0
-    local recs = rf and {}
+    local branching = opt.branch > 0 and not s0
+    local recs = rf and not branching and {}
+    local branch_ante = 0
     while moves < opt.max_moves do
         MC.advance_forced(s)
         if MC.terminal(s) then why = "end" break end
         local ph = s.phase
+        if branching and s.ante ~= branch_ante and s.ante >= opt.branch_from then
+            branch_ante = s.ante
+            local n = opt.branch * math.min(s.ante - opt.branch_from + 1, 3) * (s.money <= opt.branch_low and 2 or 1)
+            local base = FAIR.sanitize(s)
+            for b = 1, n do
+                local bseed = string.format("%s_B%d_%d", seed, s.ante, b)
+                local t0 = os.clock()
+                local w, a, _, mv = play(deck, stake, bseed, FAIR.world(base, "BR" .. bseed))
+                branch_log[#branch_log + 1] = string.format('{"deck":"%s","stake":%d,"seed":"%s","won":%d,"ante":%d,"time":%.2f,"moves":%d,"from":%d,"from_money":%d}\n', deck, stake, bseed, w, a, os.clock() - t0, mv, s.ante, s.money)
+            end
+        end
         if opt.curve > 0 and s.ante ~= curve_ante then
             curve_ante = s.ante
             local rent, dead, et = 0, 0, 0
@@ -157,13 +174,15 @@ if opt.prefix ~= "" then
             local wins, antes, sq = 0, 0, 0
             for k = opt.first, opt.first + opt.seeds - 1 do
                 i = i + 1
-                if (i - 1) % opt.parts == opt.part then
+                if (i - 1) % opt.parts == opt.part and (opt.max_time == 0 or os.clock() < opt.max_time) then
                     local seed = string.format("%s%04d", opt.prefix, k)
                     local t0 = os.clock()
                     local w, a, why, mv, fs = play(d, stk, seed)
                     wins, antes, sq = wins + w, antes + a, sq + a * a
                     if jf then
                         jf:write(string.format('{"deck":"%s","stake":%d,"seed":"%s","won":%d,"ante":%d,"time":%.2f,"end":"%s","moves":%d%s}\n', d, stk, seed, w, a, os.clock() - t0, why, mv, death_fields(fs)))
+                        for _, l in ipairs(branch_log) do jf:write(l) end
+                        branch_log = {}
                         jf:flush()
                     end
                 end
