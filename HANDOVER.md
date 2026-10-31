@@ -3,6 +3,12 @@ Read this first, then session 4 in tools/botsim/night/REPORT-2026-10-30.md. Repl
 
 Where it stands: r32mn (`ro=32 ro_h=2 ro_mon=0.5 ro_net=1`, net `expert-721e43-19`) is the working player, Gold 4.08 mean ante, 4 wins in 900. Two teaching rounds and per-stake fine-tunes improved the net alone but gave nothing inside rollouts. Three reasons to attack: Gold games give almost no wins to learn from, imitation copies moves whatever their outcome, and a rollout score of ante reached 2 antes ahead rewards survival over building something that can win later.
 
+State at 10:38 on 2026-10-31 (PC was shut down, the session was killed before writing notes; its results are recovered from the transcript, base is r32mn):
+- Step 1 first read: money tracks depth, joker counts are level across outcomes. Curve runs b1c6, b1c7, b1c8.
+- Step 2, `ro_bld`, BENCH 300 games per stake: stake 8 flat in every variant (w100h2 +0.037 z 0.5, w50h2 -0.003, w25h2 -0.020, w50h3 -0.043; after the floor fix (6db9f52) w100h2 -0.067, w50h2 -0.017). Stake 6: w50h2 +0.190 z 2.3 before the fix, +0.070 z 0.9 after; w100h2 +0.130 z 1.5; w25h2 +0.070. No gain at Gold so far, and the stake 6 lead did not hold after the fix. Read any remaining b3 runs, then decide.
+- Commit 235e2ee added train.py weighting by rollout advantage and depth and a value head on ante reached (step 4). CI tags o4, f0base7, f0base8 and b3dec8 finished at about 10:07 and have not been read.
+- Runs are read with the gitignored helpers in tools/botsim/results/s5/.
+
 Judge every step by the rollout player on fresh seeds, paired, at stakes 6-8, with stake 8 wins counted over at least 1000 games before calling a win rate. Net-alone gains do not count. A step that fails is recorded and the next one starts; do not tune it further.
 1. **What wins:** from existing games.jsonl with curve data, compare the Gold wins and the deepest stake 7-8 games with the rest: money, jokers, rentals, score power against need, per ante. Use it to define the build strength measure for step 2. Report it plainly.
 2. **Rollouts that value builds:** add to the rollout score a term for build strength at the horizon, best score the build can reach against the need of the next antes, with money. Try weights and horizons 2 and 3. This is the most direct change to what the planner builds.
