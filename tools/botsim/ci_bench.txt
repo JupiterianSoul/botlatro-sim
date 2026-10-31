@@ -1,0 +1,2 @@
+leak|luajit tools/botsim/seer/test/fair_test.lua > $OUT/leak.txt 2>&1; rc=$?; tail -3 $OUT/leak.txt; exit $rc
+control|timeout 3000 luajit tools/botsim/seer/fair_shuffle.lua who=cheat budget=lite prefix=BENCH first=1 seeds=4 decks=b_red stakes=8 max_steps=4000 out=$OUT/shuffle.json > $OUT/control.txt 2>&1; rc=$?; tail -2 $OUT/control.txt; exit $rc
