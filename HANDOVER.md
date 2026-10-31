@@ -321,6 +321,32 @@ Replaces the older Next lists. Free CI only, in order, one change at a time. Mea
 
 Paid rounds stay off. Write in the report when a free result would justify one (a clear paired gain at stake 6 or above, and data volume as the limit) and what it would cost: 29.64 of 40 EUR approved for the autopilot, ledger 45.78 of the 56.14 ceiling, 100 EUR hard cap. Gabriel decides. If the plan ends with no gain at stakes 6-8, say so plainly and name what limits it.
 
+### Night 2026-10-30, run 1902 session 2: rollouts proven fair, big gain at every stake (on main)
+All b_red unless said, best net `expert-721e43-19`, economy search player, paired per seed. Rollouts are in `tools/botsim/train/rollout.lua`, the same module used by eval.lua and fair_shuffle.lua.
+- **Fairness passed at the measured settings.** Shuffle check 144 of 144 games identical, 0 differences (run 41140791671): ro=16 ro_h=2 at stakes 1,2,4,8 (96 games), ro=32 ro_h=2 ro_mon=0.5 ro_net=1 at stakes 1,8 (32), ro=16 ro_h=2 solver=std solver_qc=1 at stake 8 (16). Leak test 323 of 323 and the cheating control 4 of 4 changed (run 41140424583). Autopilot unit tests pass (run 41143131190). Rollout results from before this check, including session 1, were unproven until then.
+- **r32mn = `ro=32 ro_h=2 ro_mon=0.5 ro_net=1`, against the same net without rollouts, BENCH 3001-3300, 300 games per stake (base run 41127812954, r32mn tags s7n1-8):**
+
+  | stake | ante | wins of 300 | paired | z | s/game |
+  | --- | --- | --- | --- | --- | --- |
+  | 2 | 6.80 vs 5.51 | 118 vs 45 | +1.290 | 8.4 | 89 |
+  | 3 | 5.27 vs 4.53 | 33 vs 8 | +0.737 | 6.1 | 70 |
+  | 4 | 5.22 vs 4.36 | 26 vs 6 | +0.857 | 7.6 | 74 |
+  | 5 | 4.98 vs 4.04 | 22 vs 5 | +0.940 | 8.5 | 63 |
+  | 6 | 4.33 vs 3.71 | 5 vs 0 | +0.623 | 6.3 | 55 |
+  | 7 | 4.19 vs 3.48 | 6 vs 0 | +0.710 | 7.6 | 51 |
+  | 8 | 3.94 vs 3.11 | 2 vs 0 | +0.830 | 9.7 | 41 |
+
+  Stake 1 was still running at this checkpoint. Fresh seeds BENCH 4001-4300 at stakes 2,6,7,8 run under tags s10b* (no rollouts) and s10r32* (r32mn).
+- Lighter setting r16h2 on the same seeds: stake 1 +0.093, 2 +0.407, 3 +0.210, 4 +0.293, 5 +0.300, 6 +0.247, 7 +0.380, 8 +0.550. r16 with ro_mon and ro_net: stake 2 +0.690 (82 vs 45 wins), stake 8 +0.617. Hybrid r16h2 plus solver=std, stake 8: +0.697.
+- **Early deck sample, ro=16 ro_h=2 ro_mon=0.5 ro_net=1, BENCH 4001-4200, 200 games, stakes 2 and 8 (tags s7d*):** b_blue +0.780 (z 3.8, 87 vs 50 wins) and +0.735 (z 6.4); b_yellow +0.545 (z 2.6, 74 vs 41) and +0.650 (z 6.4); b_black +1.110 (z 5.4, 44 vs 9) and +0.495 (z 4.6); b_plasma +0.470 (z 2.6, 68 vs 42) and +0.825 (z 7.8, 1 win).
+- **Teaching loop, round 1: no gain.** Net fine-tuned on 12000 rollout games (s6rgen run 41127908489, ro=16 ro_h=2, all decks x stakes 1-8) mixed with teacher records (run 41143001033). Net alone against the old net, 3001-3300: mix 0.25 stake 8 +0.280 (z 3.9), others -0.11 to +0.12; mix 0.5 stake 8 +0.233, stake 1 -0.203; mix 0 stake 8 +0.260 but stake 1 -0.547. Judged as Gabriel asked, rollout player with the new net (mix 0.25) against rollout player with the old net, r16mn, fresh BENCH 4001-4300 (tags s8a1-8): stake 1 -0.137, 2 +0.113, 3 +0.113, 4 -0.087, 5 -0.220 (z -1.9), 6 +0.063, 7 -0.053, 8 -0.013, all inside noise. The net learns the rollouts' choices when playing alone, but that adds nothing once rollouts are on.
+- Scripts are the gitignored `tools/botsim/results/s5/loop7.py` (modes decks, ab, rgen2, var), `cmp7.py BASE_DIR DIR...`, `fetch7.sh REGEX` (downloads to /tmp/r). The bench workflow has no results store key, so anything that needs a net goes through botsim-work.yml.
+
+#### Next (after this session)
+1. Read fresh-seed runs s10b* and s10r32*, then the player variants against base run 41127812954 (s9r64mn, s9r32hyb, s9r32m1, stakes 2 and 8).
+2. Loop round 2: s8rgen, run 41148423481, 12000 games r32mn, stakes 4-8, all decks, EXPR seeds 101-260. Fine-tune as in `expert_exp.py rtrain` with mix 0.25 (change the artifact pattern to s8rgen-g*), judge with `loop7.py ab`. A second round without a gain at stakes 6-8 ends the loop per Gabriel's rule, then step 6.
+3. Step 7: all 15 decks with the best rollout setting.
+
 ### Plan: 20000 more teacher games on free CI (backlog item 7, built in session 2, see above)
 - State today: teacher.games 20000, next 10001 (seeds TEACH0001-10000, stakes 1 and 2), artifacts are the two hz runs. The CI teacher path already exists (steps.teacher_jobs: 40 jobs x 60 seeds per batch, finish_teacher appends `{run, tag}` artifacts, imitation_jobs downloads both kinds).
 - Build: an autopilot command `extend teacher --games N --ci` that keeps st.teacher (games, next, artifacts), stores a target `st.teacher.target = games + N` and `st.teacher.ci = true`, goes back to step teacher and clears the imitation gate and best. teacher_jobs/finish_teacher read the target from state when set; steps.paid_step returns False for teacher when `st.teacher.ci`.
