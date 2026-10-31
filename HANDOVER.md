@@ -344,7 +344,7 @@ All b_red unless said, best net `expert-721e43-19`, economy search player, paire
 - Scripts are the gitignored `tools/botsim/results/s5/loop7.py` (modes decks, ab, rgen2, var), `cmp7.py BASE_DIR DIR...`, `fetch7.sh REGEX` (downloads to /tmp/r). The bench workflow has no results store key, so anything that needs a net goes through botsim-work.yml.
 
 #### Next (after this session)
-1. Read s11shuf: exits.txt must show exit 0 on all parts and grep `^diff` must be empty, because the job itself reports success either way. Then s10r32* against s10b* and s11hyb* against s10b* with `cmp7.py`, and s9r64mn8 against base run 41127812954.
+1. Read s11shuf (run 41154835984; s11hyb8, 7, 6 are runs 41154839223, 41154841971, 41154844691): exits.txt must show exit 0 on all parts and grep `^diff` must be empty, because the job itself reports success either way. Then s10r32* against s10b* and s11hyb* against s10b* with `cmp7.py`, and s9r64mn8 against base run 41127812954.
 2. Loop round 2: s8rgen, run 41148423481, 12000 games r32mn, stakes 4-8, all decks, EXPR seeds 101-260. Fine-tune as in `expert_exp.py rtrain` with mix 0.25 (change the artifact pattern to s8rgen-g*), judge with `loop7.py ab`. A second round without a gain at stakes 6-8 ends the loop per Gabriel's rule, then step 6.
 3. Step 7: all 15 decks with the best setting that passed the check.
 
