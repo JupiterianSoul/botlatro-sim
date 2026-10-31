@@ -95,9 +95,20 @@ local function run(setup, scrambled)
     local pick = chooser()
     local line = {}
     local dec = 0
+    local econ_run = 0
     while #line < opt.max_steps do
         if forced then forced(s) end
         if s.won == 1 or s.phase == "game_over" or s.phase == "win" then break end
+        if s.phase == "shop" or s.phase == "pack" then econ_run = econ_run + 1 else econ_run = 0 end
+        if econ_run > opt.max_shop then
+            local out = s.phase == "pack" and {type = "skip"} or {type = "leave"}
+            if not E.step(s, out) then
+                line[#line + 1] = {key = "stuck", phase = s.phase}
+                break
+            end
+            line[#line + 1] = {key = "cap:" .. F.action_key(out), phase = s.phase}
+            goto continue
+        end
         dec = dec + 1
         local view = scrambled and SC.shuffled(s, string.format("SHUF%s_%d_%d", setup.seed, dec, s.step)) or s
         local phase = s.phase
@@ -118,6 +129,7 @@ local function run(setup, scrambled)
             end
             line[#line + 1] = {key = "fb:" .. F.action_key(fb), phase = phase}
         end
+        ::continue::
     end
     return line
 end
