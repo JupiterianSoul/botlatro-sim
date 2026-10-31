@@ -1,3 +1,18 @@
+## Training plan (Gabriel, 2026-10-31)
+Read this first, then session 4 in tools/botsim/night/REPORT-2026-10-30.md. Replaces every older plan. Free CI only, no paid rounds.
+
+Where it stands: r32mn (`ro=32 ro_h=2 ro_mon=0.5 ro_net=1`, net `expert-721e43-19`) is the working player, Gold 4.08 mean ante, 4 wins in 900. Two teaching rounds and per-stake fine-tunes improved the net alone but gave nothing inside rollouts. Three reasons to attack: Gold games give almost no wins to learn from, imitation copies moves whatever their outcome, and a rollout score of ante reached 2 antes ahead rewards survival over building something that can win later.
+
+Judge every step by the rollout player on fresh seeds, paired, at stakes 6-8, with stake 8 wins counted over at least 1000 games before calling a win rate. Net-alone gains do not count. A step that fails is recorded and the next one starts; do not tune it further.
+1. **What wins:** from existing games.jsonl with curve data, compare the Gold wins and the deepest stake 7-8 games with the rest: money, jokers, rentals, score power against need, per ante. Use it to define the build strength measure for step 2. Report it plainly.
+2. **Rollouts that value builds:** add to the rollout score a term for build strength at the horizon, best score the build can reach against the need of the next antes, with money. Try weights and horizons 2 and 3. This is the most direct change to what the planner builds.
+3. **Reverse curriculum:** train where wins exist. `set=` showed stake 8 with $200 wins 5 of 1000 and rule-free stake 8 wins 153. Generate games at stake 8 with $200, fine-tune, then $50, then $20, then real $4, carrying the net forward. Add sticker and score-table steps if money alone is not enough.
+4. **Learn from outcomes:** weight training records by rollout advantage (how much better the chosen move scored than the others) and by how far the game went, instead of copying all moves equally. Train the value head on blinds reached, not win chance, which is about zero at Gold.
+5. **Faster rollouts with the value head:** if step 4 gives a value head that predicts blinds reached well, end rollouts early on it. Use the saved time for more playouts or a longer horizon, and measure strength per second.
+6. **Oracle-guided training, last:** cheating Seer solve-mode Gold games as training data only. The net sees only fair inputs at play time and must pass the shuffle and leak checks. Keep it apart in the report and flag it for Gabriel, who decides whether it counts toward the goal.
+
+When a step gains, make it the new working player, and re-run later steps from it. End when all six are done or tried. Report: before and after table per stake, and what limits Gold now.
+
 # Handover 2026-10-28 (night)
 
 Read this first, then tools/botsim/autopilot/DESIGN.md. Newest state: the section "Morning 2026-10-30: imitation on CI, expert step started on CI" and its "Next" list further down; the State list right below is from 2026-10-28.

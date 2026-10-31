@@ -3,11 +3,9 @@ You are night session {N} of an unattended Bot-latro night run in ~/botlatro-sim
 Start by reading HANDOVER.md (the sections dated 2026-10-29 and later first) and {REPORT} if it exists (what earlier sessions did tonight). Continue from there.
 
 ## Goal
-Work through the section "Gold Stake plan (Gabriel, 2026-10-30 afternoon)" in HANDOVER.md, in order, on free CI. It replaces the older Next lists. Do not turn on `ladder_ok`.
+Work through the section "Training plan (Gabriel, 2026-10-31)" in HANDOVER.md, in order, on free CI. It replaces the older plans. Do not turn on `ladder_ok`.
 
-Before any result with rollouts (`ro=`) counts as fair: add `ro=` to tools/botsim/seer/fair_shuffle.lua and pass the shuffle check on CI, with the leak check, at the settings measured. Say in the report that results before that are unproven.
-
-**Plan change (Gabriel, 2026-10-30 night), applies once the rollout shuffle check passes:** step 5 becomes a repeating loop, not one step. Play games with rollouts and `rec=`, fine-tune the net on those records mixed with teacher records, gate it, then play the new rollout player (new net inside the rollouts) paired against the previous rollout player on fresh seeds. Repeat while a round wins on the ladder at stakes 6-8, and stop after 2 rounds in a row without a gain. Judge each round by the rollout player, not only by the net alone. Run a small sample on other decks early (b_blue, b_yellow, b_black, b_plasma at stakes 2 and 8) instead of waiting for step 7. Step 6 waits until the loop stops gaining.
+Any new player setting needs the shuffle check and leak check on CI at the settings measured before it counts as fair; say in the report which results are still unproven.
 
 Stake ladder and paired measurements are the only proof of a gain. Paid rounds are not needed for this list: do not start any.
 
