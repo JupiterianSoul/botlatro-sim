@@ -56,19 +56,27 @@ def load_data(paths, window, val_every=0, stakes=None):
     return dims, runs, recs, val
 
 
-def losses(model, b, ante_w, policy_min_sims=0, out=None, val_w=1.0):
+def losses(model, b, ante_w, policy_min_sims=0, out=None, val_w=1.0, adv_w=0.0, depth_w=0.0, val_ante=False):
     z, ante, logits = model(b)
     if out is not None:
         out.append((torch.sigmoid(z).detach(), b["won"], ante.detach() * 8.0, b["ante"] * 8.0))
     lp = Fn.log_softmax(logits, -1)
     lp = torch.where(b["amask"] > 0, lp, torch.zeros_like(lp))
     pol = -(b["pi"] * lp).sum(-1)
+    if adv_w > 0 or depth_w > 0:
+        wt = torch.ones_like(pol)
+        if adv_w > 0:
+            top = b["pi"].topk(2, dim=-1).values
+            wt = wt + adv_w * (top[:, 0] - top[:, 1])
+        if depth_w > 0:
+            wt = wt * (1 + depth_w * ((b["ante"] * 8.0 - 1.0) / 7.0).clamp(0.0, 8.0 / 7.0))
+        pol = pol * wt / wt.mean()
     if policy_min_sims > 0:
         pm = (b["nsims"] >= policy_min_sims).to(pol.dtype)
         pol = (pol * pm).sum() / pm.sum().clamp(min=1.0)
     else:
         pol = pol.mean()
-    val = Fn.binary_cross_entropy_with_logits(z, b["won"])
+    val = Fn.binary_cross_entropy_with_logits(z, (b["ante"] * 8.0 / 9.0).clamp(0.0, 1.0) if val_ante else b["won"])
     aux = Fn.mse_loss(ante, b["ante"])
     return pol + val_w * val + ante_w * aux, pol.item(), val.item(), aux.item()
 
@@ -125,6 +133,9 @@ def main():
     ap.add_argument("--mix-smooth", type=float, default=0.0)
     ap.add_argument("--mix-window", type=int, default=2000000)
     ap.add_argument("--stakes", default="")
+    ap.add_argument("--adv-weight", type=float, default=0.0)
+    ap.add_argument("--depth-weight", type=float, default=0.0)
+    ap.add_argument("--value-ante", type=int, default=0)
     a = ap.parse_args()
     if a.threads:
         torch.set_num_threads(a.threads)
@@ -177,7 +188,7 @@ def main():
             k0 = len(rows) - nm
             am = batch["amask"][k0:]
             batch["pi"][k0:] = (1 - a.mix_smooth) * batch["pi"][k0:] + a.mix_smooth * am / am.sum(-1, keepdim=True).clamp(min=1.0)
-        loss, lp, lv, la = losses(model, batch, a.ante_weight, a.policy_min_sims, val_w=a.value_weight)
+        loss, lp, lv, la = losses(model, batch, a.ante_weight, a.policy_min_sims, val_w=a.value_weight, adv_w=a.adv_weight, depth_w=a.depth_weight, val_ante=bool(a.value_ante))
         opt.zero_grad()
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 5.0)
