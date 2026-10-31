@@ -336,16 +336,17 @@ All b_red unless said, best net `expert-721e43-19`, economy search player, paire
   | 7 | 4.19 vs 3.48 | 6 vs 0 | +0.710 | 7.6 | 51 |
   | 8 | 3.94 vs 3.11 | 2 vs 0 | +0.830 | 9.7 | 41 |
 
-  Stake 1 was still running at this checkpoint. Fresh seeds BENCH 4001-4300 at stakes 2,6,7,8 run under tags s10b* (no rollouts) and s10r32* (r32mn).
+  Stake 1: 6.95 vs 6.21, 134 vs 69 wins, +0.747 (z 4.7), 106 s/game. Seeds 3001-3300 were not used to pick r32mn over r16, but fresh-seed proof is still pending: BENCH 4001-4300 at stakes 2,6,7,8, tags s10b* (no rollouts, done: stake 8 3.19 and 0 wins, stake 7 3.59 and 1 win) and s10r32* (r32mn, runs 41152471009, 41152468320, 41152466240, 41152464040, still running).
+- **Best at stake 8, not yet shuffle-checked: r32hyb = r32mn plus `solver=std solver_qc=1`, 3001-3300 (run 41148414145): 4.22 vs 3.11, 3 vs 0 wins, early deaths 50 vs 70, +1.107 (z 11.0), 52 s/game.** ro_mon=1 instead of 0.5: +0.850 (z 9.5, 0 wins), no real change. This exact setting is unproven until the check passes: tag s11shuf (stakes 2,8) and fresh seeds, tags s11hyb8, s11hyb7, s11hyb6. Stake 2 variants s9r64mn2, s9r32hyb2, s9r32m12 were cancelled by hand to free CI slots for fresh seeds; s9r64mn8 still running.
 - Lighter setting r16h2 on the same seeds: stake 1 +0.093, 2 +0.407, 3 +0.210, 4 +0.293, 5 +0.300, 6 +0.247, 7 +0.380, 8 +0.550. r16 with ro_mon and ro_net: stake 2 +0.690 (82 vs 45 wins), stake 8 +0.617. Hybrid r16h2 plus solver=std, stake 8: +0.697.
 - **Early deck sample, ro=16 ro_h=2 ro_mon=0.5 ro_net=1, BENCH 4001-4200, 200 games, stakes 2 and 8 (tags s7d*):** b_blue +0.780 (z 3.8, 87 vs 50 wins) and +0.735 (z 6.4); b_yellow +0.545 (z 2.6, 74 vs 41) and +0.650 (z 6.4); b_black +1.110 (z 5.4, 44 vs 9) and +0.495 (z 4.6); b_plasma +0.470 (z 2.6, 68 vs 42) and +0.825 (z 7.8, 1 win).
 - **Teaching loop, round 1: no gain.** Net fine-tuned on 12000 rollout games (s6rgen run 41127908489, ro=16 ro_h=2, all decks x stakes 1-8) mixed with teacher records (run 41143001033). Net alone against the old net, 3001-3300: mix 0.25 stake 8 +0.280 (z 3.9), others -0.11 to +0.12; mix 0.5 stake 8 +0.233, stake 1 -0.203; mix 0 stake 8 +0.260 but stake 1 -0.547. Judged as Gabriel asked, rollout player with the new net (mix 0.25) against rollout player with the old net, r16mn, fresh BENCH 4001-4300 (tags s8a1-8): stake 1 -0.137, 2 +0.113, 3 +0.113, 4 -0.087, 5 -0.220 (z -1.9), 6 +0.063, 7 -0.053, 8 -0.013, all inside noise. The net learns the rollouts' choices when playing alone, but that adds nothing once rollouts are on.
 - Scripts are the gitignored `tools/botsim/results/s5/loop7.py` (modes decks, ab, rgen2, var), `cmp7.py BASE_DIR DIR...`, `fetch7.sh REGEX` (downloads to /tmp/r). The bench workflow has no results store key, so anything that needs a net goes through botsim-work.yml.
 
 #### Next (after this session)
-1. Read fresh-seed runs s10b* and s10r32*, then the player variants against base run 41127812954 (s9r64mn, s9r32hyb, s9r32m1, stakes 2 and 8).
+1. Read s11shuf: exits.txt must show exit 0 on all parts and grep `^diff` must be empty, because the job itself reports success either way. Then s10r32* against s10b* and s11hyb* against s10b* with `cmp7.py`, and s9r64mn8 against base run 41127812954.
 2. Loop round 2: s8rgen, run 41148423481, 12000 games r32mn, stakes 4-8, all decks, EXPR seeds 101-260. Fine-tune as in `expert_exp.py rtrain` with mix 0.25 (change the artifact pattern to s8rgen-g*), judge with `loop7.py ab`. A second round without a gain at stakes 6-8 ends the loop per Gabriel's rule, then step 6.
-3. Step 7: all 15 decks with the best rollout setting.
+3. Step 7: all 15 decks with the best setting that passed the check.
 
 ### Plan: 20000 more teacher games on free CI (backlog item 7, built in session 2, see above)
 - State today: teacher.games 20000, next 10001 (seeds TEACH0001-10000, stakes 1 and 2), artifacts are the two hz runs. The CI teacher path already exists (steps.teacher_jobs: 40 jobs x 60 seeds per batch, finish_teacher appends `{run, tag}` artifacts, imitation_jobs downloads both kinds).
