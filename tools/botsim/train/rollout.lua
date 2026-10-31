@@ -70,12 +70,12 @@ function M.chooser(mc, rmc, opt)
             end
         end
         if opt.ro_bld ~= 0 then
-            local b = -2
+            local b = -3
             if w.won == 1 then
                 b = 2
             elseif not MC.terminal(w) then
                 local p = M.power(w, key .. "P")
-                if p > 0 then b = math.max(-2, math.min(2, math.log(p / M.need(w)) / LOG2)) end
+                if p > 0 then b = math.max(-4, math.min(2, math.log(p / M.need(w)) / LOG2)) end
             end
             v = v + opt.ro_bld * b
         end
