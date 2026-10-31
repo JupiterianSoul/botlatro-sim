@@ -44,6 +44,25 @@ function M.chooser(mc, rmc, opt)
         return v
     end
 
+    local function race(alive, r)
+        local best = alive[1]
+        for i = 2, #alive do
+            if alive[i].v > best.v then best = alive[i] end
+        end
+        local keep = {}
+        for _, c in ipairs(alive) do
+            local sum, sq = 0, 0
+            for i = 1, r do
+                local d = best.h[i] - c.h[i]
+                sum = sum + d
+                sq = sq + d * d
+            end
+            local se2 = (sq - sum * sum / r) / (r - 1) / r
+            if c == best or (se2 > 0 and sum / r < opt.ro_z * math.sqrt(se2)) then keep[#keep + 1] = c end
+        end
+        return keep
+    end
+
     return function(s, seed, moves)
         local ef, ec = mc:root_edges()
         if ec < 2 then return nil end
@@ -57,26 +76,36 @@ function M.chooser(mc, rmc, opt)
         local cands = {}
         for i = 1, math.min(opt.ro_c, ec) do
             mc:edge_action(order[i], step, base)
-            cands[i] = {a = S.copy_action(step), e = order[i], v = 0}
+            cands[i] = {a = S.copy_action(step), e = order[i], v = 0, n = 0, h = {}}
         end
         local stop_ante = opt.ro_h > 0 and s.ante + opt.ro_h or 0
+        local alive = cands
+        local check = opt.ro_a > 0 and opt.ro_a or opt.ro + 1
         for r = 1, opt.ro do
             local key = string.format("RO%s_%d_%d", seed, moves, r)
-            for _, c in ipairs(cands) do
+            for _, c in ipairs(alive) do
                 local w = F.world(base, key)
-                if E.step(w, c.a) then c.v = c.v + run(w, stop_ante) else c.v = c.v - 100 end
+                local v = E.step(w, c.a) and run(w, stop_ante) or -100
+                c.v = c.v + v
+                c.n = r
+                c.h[r] = v
+            end
+            if r == check then
+                alive = race(alive, r)
+                if #alive == 1 then break end
+                check = check * 2
             end
         end
-        local best = cands[1]
-        for i = 2, #cands do
-            if cands[i].v > best.v then best = cands[i] end
+        local best = alive[1]
+        for i = 2, #alive do
+            if alive[i].v > best.v then best = alive[i] end
         end
         if opt.rec ~= "" then
             local ef2, ec2 = mc:root_edges()
             for e = ef2, ef2 + ec2 - 1 do mc.e_N[e] = 0 end
-            local top, sum = best.v / opt.ro, 0
+            local top, sum = best.v / best.n, 0
             for _, c in ipairs(cands) do
-                c.w = math.exp((c.v / opt.ro - top) / opt.ro_t)
+                c.w = math.exp((c.v / c.n - top) / opt.ro_t)
                 sum = sum + c.w
             end
             for _, c in ipairs(cands) do mc.e_N[c.e] = math.floor(32 * c.w / sum + 0.5) end
