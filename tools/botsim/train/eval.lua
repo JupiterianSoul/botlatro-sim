@@ -11,7 +11,7 @@ local ES = require("botsim.train.evalset")
 local json = require("bot.sim.json")
 
 local opt = {who = "greedy", weights = "", sims = 32, K = 24, per = 6, decks = "", stakes = "", part = 0, parts = 1, out = "", max_moves = 3000, max_shop = 40,
-    mix = -1, score_prior = 0, score_top = 6, score_temp = 4, skip_pen = 1, skip_ante = 1, type_mass = 0, tm_plays = 0, quick_clear = 0, pace = 0, pace_net = 0, prefix = "", first = 1, seeds = 10, jsonl = "", fair = 0, search_ph = "", rec = "", solver = "", solver_qc = 0, set = "", curve = 0, leaf_money = 0, leaf_rent = 0, leaf_dead = 0, rent_prior = 1, rent_from = 0, sell_dead = 0, c_puct = 1.5, worlds = 1, ro = 0, ro_c = 3, ro_h = 0, ro_ph = "shop,pack,blind_select", ro_from = 0, ro_mon = 0, ro_net = 0, ro_t = 0.25}
+    mix = -1, score_prior = 0, score_top = 6, score_temp = 4, skip_pen = 1, skip_ante = 1, type_mass = 0, tm_plays = 0, quick_clear = 0, pace = 0, pace_net = 0, prefix = "", first = 1, seeds = 10, jsonl = "", fair = 0, search_ph = "", rec = "", solver = "", solver_qc = 0, set = "", curve = 0, leaf_money = 0, leaf_rent = 0, leaf_dead = 0, rent_prior = 1, rent_from = 0, sell_dead = 0, c_puct = 1.5, worlds = 1, ro = 0, ro_c = 3, ro_h = 0, ro_ph = "shop,pack,blind_select", ro_from = 0, ro_mon = 0, ro_net = 0, ro_t = 0.25, ro_bld = 0, pow_k = 8}
 for _, a in ipairs(arg or {}) do
     local k, v = a:match("^([%w_]+)=(.*)$")
     if k then opt[k] = tonumber(v) or v end
@@ -39,7 +39,8 @@ local step = {type = "play", cards = {}}
 local F, AB = FE.new_state_buf(), FE.new_action_buf(1024)
 local st = {}
 
-local ro_choose = opt.ro > 0 and require("botsim.train.rollout").chooser(mc, rmc, opt) or nil
+local RO = require("botsim.train.rollout")
+local ro_choose = opt.ro > 0 and RO.chooser(mc, rmc, opt) or nil
 
 local function play(deck, stake, seed)
     local s = E.new_run({seed = seed, deck = deck, stake = stake})
@@ -59,7 +60,13 @@ local function play(deck, stake, seed)
                 et = et + s.j_eternal[k]
                 if s.j_perish[k] == 0 then dead = dead + 1 end
             end
-            curve[#curve + 1] = string.format("%d:%d:%d:%d:%d:%d", s.ante, s.money, s.n_jok, rent, dead, et)
+            local tail = ""
+            if opt.curve > 1 and FAIR then
+                local base, sum = FAIR.sanitize(s), 0
+                for k = 1, opt.pow_k do sum = sum + RO.power(base, string.format("PW%s_%d_%d", seed, s.ante, k)) end
+                tail = string.format(":%.0f:%.0f", sum / opt.pow_k, RO.need(s))
+            end
+            curve[#curve + 1] = string.format("%d:%d:%d:%d:%d:%d%s", s.ante, s.money, s.n_jok, rent, dead, et, tail)
         end
         if opt.sell_dead > 0 and ph == "shop" then
             for k = s.n_jok, 1, -1 do

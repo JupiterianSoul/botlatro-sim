@@ -2,20 +2,48 @@ local E = require("bot.sim.engine")
 local MC = require("bot.nn.mcts")
 local F = require("bot.seer.fair")
 local S = require("bot.seer.seer")
+local PL = require("bot.seer.play")
 
 local M = {}
 
-local LEAVE, SKIP = {type = "leave"}, {type = "skip"}
+local LEAVE, SKIP, SELECT = {type = "leave"}, {type = "skip"}, {type = "select"}
+
+local LOG2 = math.log(2)
 
 local function score(w)
     if w.won == 1 then return w.win_ante + 2 end
     return w.ante + (w.blind_on_deck - 1) / 3
 end
 
+function M.power(w, key)
+    local c = F.world(w, key)
+    for _ = 1, 8 do
+        if c.phase == "play" then break end
+        local a = c.phase == "shop" and LEAVE or c.phase == "pack" and SKIP or c.phase == "blind_select" and SELECT or nil
+        if c.phase == "round_eval" then
+            MC.advance_forced(c)
+        elseif not a or not E.step(c, a) then
+            return 0
+        end
+    end
+    if c.phase ~= "play" then return 0 end
+    c.blind_chips = 1e18
+    for _ = 1, 40 do
+        if c.phase ~= "play" then break end
+        local a = PL.fast_action(c, true)
+        if not a or not E.step(c, a) then break end
+    end
+    return c.chips
+end
+
+function M.need(w)
+    return E.get_blind_amount(w, w.ante + 1) * 2 * w.ante_scaling
+end
+
 function M.chooser(mc, rmc, opt)
     local step = {type = "play", cards = {}}
 
-    local function run(w, stop_ante)
+    local function run(w, stop_ante, key)
         local moves, econ_run = 0, 0
         while moves < 400 do
             MC.advance_forced(w)
@@ -41,6 +69,16 @@ function M.chooser(mc, rmc, opt)
                 v = v + opt.ro_net * rmc.n_val[rmc.root]
             end
         end
+        if opt.ro_bld ~= 0 then
+            local b = -2
+            if w.won == 1 then
+                b = 2
+            elseif not MC.terminal(w) then
+                local p = M.power(w, key .. "P")
+                if p > 0 then b = math.max(-2, math.min(2, math.log(p / M.need(w)) / LOG2)) end
+            end
+            v = v + opt.ro_bld * b
+        end
         return v
     end
 
@@ -64,7 +102,7 @@ function M.chooser(mc, rmc, opt)
             local key = string.format("RO%s_%d_%d", seed, moves, r)
             for _, c in ipairs(cands) do
                 local w = F.world(base, key)
-                if E.step(w, c.a) then c.v = c.v + run(w, stop_ante) else c.v = c.v - 100 end
+                if E.step(w, c.a) then c.v = c.v + run(w, stop_ante, key) else c.v = c.v - 100 end
             end
         end
         local best = cands[1]
