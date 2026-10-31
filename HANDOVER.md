@@ -361,6 +361,14 @@ All b_red, best net `expert-721e43-19`, r32mn = `ro=32 ro_h=2 ro_mon=0.5 ro_net=
 3. Read s13h38 (`ro_h=3`, run 41164961774) and the s14 tags. s14cp8 is paired against s16old8. Wins need more than the 300-game sample before anyone relies on them.
 4. Step 6 then step 7: all 15 decks with r32mn or r16mn. Decks done so far: red, blue, yellow, black, plasma.
 
+### Night 2026-10-31, run 1902 session 4: loop stopped, curriculum no gain, all 15 decks sampled (on main)
+Full numbers and run ids are in tools/botsim/night/REPORT-2026-10-30.md, Session 4. Best net is still `expert-721e43-19`, working player r32mn. No code changed on main.
+- **Loop round 2, no gain:** r32mn with the new net against the old, fresh 5001-5300: stake 6 -0.043, 7 -0.007, 8 -0.027. Second round in a row, so the loop has stopped under Gabriel's rule. The net alone gains (+0.437 at stake 8), but not inside the rollouts.
+- **Step 6, no gain on the first rung:** per-stake fine-tunes inside r32mn: stake 6 -0.033, stake 8 -0.130.
+- **Step 7:** r16mn against no rollouts on the other 10 decks, 150 seeds, stakes 2 and 8 only: all positive, stake 2 482 vs 226 wins, stake 8 3 vs 0. b_painted at stake 8 has 18 games, b_checkered 94. Stakes 3-7 on those decks not measured. Shuffle check on only 4 of the 10 decks at this setting.
+- **Tried and closed:** `c_puct=0.25` (7 vs 2 wins did not repeat). `ro_save=1`, leave or skip as an extra candidate (commit d19d891 on local branch ci-rosave, removed from the remote, not on main): mean ante flat, fresh wins 8 vs 4 on incomplete time-capped runs, no gain shown.
+- **Next:** the plan is finished with Gold under 1% wins. Rollouts are the one big gain and nothing tried adds to them. Limits are early money at stake 8 and the planner's build choices. A new idea has to change what gets built. Gabriel decides how much time per game the real player may use. No paid round is justified.
+
 ### Plan: 20000 more teacher games on free CI (backlog item 7, built in session 2, see above)
 - State today: teacher.games 20000, next 10001 (seeds TEACH0001-10000, stakes 1 and 2), artifacts are the two hz runs. The CI teacher path already exists (steps.teacher_jobs: 40 jobs x 60 seeds per batch, finish_teacher appends `{run, tag}` artifacts, imitation_jobs downloads both kinds).
 - Build: an autopilot command `extend teacher --games N --ci` that keeps st.teacher (games, next, artifacts), stores a target `st.teacher.target = games + N` and `st.teacher.ci = true`, goes back to step teacher and clears the imitation gate and best. teacher_jobs/finish_teacher read the target from state when set; steps.paid_step returns False for teacher when `st.teacher.ci`.
