@@ -2134,6 +2134,7 @@ end_round = function(s)
     local rentals = 0
     resolve_blueprints(s)
     local is_boss = s.blind > 2
+    local unused = s.discards_left
     for k = 1, s.n_jok do
         local id = s.j_id[k]
         if s.j_debuff[k] == 0 and not is_killed(s, k) then
@@ -2188,7 +2189,7 @@ end_round = function(s)
         s.phase = "game_over"
         return
     end
-    s.unused_discards = s.unused_discards + s.discards_left
+    s.unused_discards = s.unused_discards + unused
     if is_boss then
         local best, bp = 12, -1
         local order = D.HAND_PAIRS_ORDER

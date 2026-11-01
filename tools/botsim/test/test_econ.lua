@@ -192,3 +192,14 @@ do
         T.eq(E.key_used(w, false, id2), true, "a shop copy alone keeps the key used")
     end
 end
+
+do
+    local v = E.new_run({seed = "ECON0006", deck = "b_red", stake = 1})
+    E.step(v, {type = "select"})
+    v.blind_chips = 1
+    E.add_joker(v, "j_merry_andy", 0, {perish = 1})
+    v.discards_left = 5
+    E.step(v, {type = "play", cards = {1}})
+    T.eq(v.unused_discards, 5, "unused discards count before a perishing joker takes its discards away")
+    T.eq(v.discards_left < 5, true, "the perished joker took its discards")
+end
