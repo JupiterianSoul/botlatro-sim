@@ -11,7 +11,7 @@ local ES = require("botsim.train.evalset")
 local json = require("bot.sim.json")
 
 local opt = {who = "greedy", weights = "", sims = 32, K = 24, per = 6, decks = "", stakes = "", part = 0, parts = 1, out = "", max_moves = 3000, max_shop = 40,
-    mix = -1, score_prior = 0, score_top = 6, score_temp = 4, skip_pen = 1, skip_ante = 1, type_mass = 0, tm_plays = 0, quick_clear = 0, pace = 0, pace_net = 0, prefix = "", first = 1, seeds = 10, jsonl = "", fair = 0, search_ph = "", rec = "", solver = "", solver_qc = 0, set = "", curve = 0, trace = 0, list = "", leaf_money = 0, leaf_rent = 0, leaf_dead = 0, rent_prior = 1, rent_from = 0, sell_dead = 0, c_puct = 1.5, worlds = 1, ro = 0, ro_a = 0, ro_z = 2, ro_c = 3, ro_h = 0, ro_ph = "shop,pack,blind_select", ro_from = 0, ro_mon = 0, ro_net = 0, ro_t = 0.25, log = "", ro_noskip = 0, ro_bf = 1, ro_buy = "", ro_vou = "", ro_vou_keep = 10, ro_hunt = 0, ro_cap = 50, ro_norent = 0}
+    mix = -1, score_prior = 0, score_top = 6, score_temp = 4, skip_pen = 1, skip_ante = 1, type_mass = 0, tm_plays = 0, quick_clear = 0, pace = 0, pace_net = 0, prefix = "", first = 1, seeds = 10, jsonl = "", fair = 0, search_ph = "", rec = "", solver = "", solver_qc = 0, set = "", curve = 0, trace = 0, list = "", leaf_money = 0, leaf_rent = 0, leaf_dead = 0, rent_prior = 1, rent_from = 0, sell_dead = 0, c_puct = 1.5, worlds = 1, ro = 0, ro_a = 0, ro_z = 2, ro_c = 3, ro_h = 0, ro_ph = "shop,pack,blind_select", ro_from = 0, ro_mon = 0, ro_net = 0, ro_t = 0.25, log = "", ro_noskip = 0, ro_bf = 1, ro_sellper = 0, ro_noper = 0, ro_buy = "", ro_vou = "", ro_vou_keep = 10, ro_hunt = 0, ro_cap = 50, ro_norent = 0}
 opt.digest = 0
 for _, a in ipairs(arg or {}) do
     local k, v = a:match("^([%w_]+)=(.*)$")
@@ -63,6 +63,12 @@ local function ro_vou_pick(s)
 end
 
 local REROLL = {type = "reroll"}
+
+local function ro_sellper_pick(s)
+    for k = 1, s.n_jok do
+        if s.j_perish[k] == 0 then return k end
+    end
+end
 
 local SELECT = {type = "select"}
 
@@ -141,7 +147,7 @@ local function trace_json(tr, s)
         offer[tostring(a)] = l
     end
     for a, c in pairs(tr.act) do act[tostring(a)] = c end
-    return json.encode({a = tr.a, r = tr.r, offer = offer, act = act, buy = tr.buy, forced = tr.forced or 0, forced_v = tr.forced_v or 0, n_hand = s.n_hand, n_deck = s.n_deck, phase = s.phase})
+    return json.encode({a = tr.a, r = tr.r, offer = offer, act = act, buy = tr.buy, forced = tr.forced or 0, forced_v = tr.forced_v or 0, sold_per = tr.sold_per or 0, n_hand = s.n_hand, n_deck = s.n_deck, phase = s.phase})
 end
 
 local function game_key(deck, stake, seed)
@@ -257,6 +263,9 @@ local function play(deck, stake, seed)
                 if not fb or not do_step(s, fb) then why = "step_failed:play:solver" break end
             end
             moves = moves + 1
+        elseif mc and ph == "shop" and opt.ro_sellper > 0 and ro_sellper_pick(s) and do_step(s, {type = "sell", area = "jokers", card = ro_sellper_pick(s)}) then
+            moves = moves + 1
+            if tr then tr.sold_per = (tr.sold_per or 0) + 1 end
         elseif mc and ph == "shop" and opt.ro_vou ~= "" and ro_vou_pick(s) and do_step(s, {type = "redeem", card = ro_vou_pick(s)}) then
             moves = moves + 1
             if tr then tr.forced_v = (tr.forced_v or 0) + 1 end

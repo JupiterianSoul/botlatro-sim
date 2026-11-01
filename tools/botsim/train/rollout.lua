@@ -82,7 +82,7 @@ function M.chooser(mc, rmc, opt)
         for i = 1, ec do
             if #cands >= opt.ro_c then break end
             mc:edge_action(order[i], step, base)
-            if not no_skip(base, step) and not (opt.ro_norent and opt.ro_norent > 0 and step.type == "buy" and base.sj_kind[step.card] == 1 and base.sj_rent[step.card] == 1) then
+            if not no_skip(base, step) and not ((opt.ro_noper or 0) > 0 and step.type == "buy" and base.sj_kind[step.card] == 1 and base.sj_per[step.card] >= 0) and not (opt.ro_norent and opt.ro_norent > 0 and step.type == "buy" and base.sj_kind[step.card] == 1 and base.sj_rent[step.card] == 1) then
                 cands[#cands + 1] = {a = S.copy_action(step), e = order[i], v = 0, n = 0, h = {}}
             end
         end
