@@ -11,7 +11,7 @@ local ES = require("botsim.train.evalset")
 local json = require("bot.sim.json")
 
 local opt = {who = "greedy", weights = "", sims = 32, K = 24, per = 6, decks = "", stakes = "", part = 0, parts = 1, out = "", max_moves = 3000, max_shop = 40,
-    mix = -1, score_prior = 0, score_top = 6, score_temp = 4, skip_pen = 1, skip_ante = 1, type_mass = 0, tm_plays = 0, quick_clear = 0, pace = 0, pace_net = 0, prefix = "", first = 1, seeds = 10, jsonl = "", fair = 0, search_ph = "", rec = "", solver = "", solver_qc = 0, set = "", curve = 0, trace = 0, list = "", leaf_money = 0, leaf_rent = 0, leaf_dead = 0, rent_prior = 1, rent_from = 0, sell_dead = 0, c_puct = 1.5, worlds = 1, ro = 0, ro_a = 0, ro_z = 2, ro_c = 3, ro_h = 0, ro_ph = "shop,pack,blind_select", ro_from = 0, ro_mon = 0, ro_net = 0, ro_t = 0.25, log = "", ro_buy = "", ro_vou = "", ro_vou_keep = 10, ro_hunt = 0, ro_cap = 50, ro_norent = 0}
+    mix = -1, score_prior = 0, score_top = 6, score_temp = 4, skip_pen = 1, skip_ante = 1, type_mass = 0, tm_plays = 0, quick_clear = 0, pace = 0, pace_net = 0, prefix = "", first = 1, seeds = 10, jsonl = "", fair = 0, search_ph = "", rec = "", solver = "", solver_qc = 0, set = "", curve = 0, trace = 0, list = "", leaf_money = 0, leaf_rent = 0, leaf_dead = 0, rent_prior = 1, rent_from = 0, sell_dead = 0, c_puct = 1.5, worlds = 1, ro = 0, ro_a = 0, ro_z = 2, ro_c = 3, ro_h = 0, ro_ph = "shop,pack,blind_select", ro_from = 0, ro_mon = 0, ro_net = 0, ro_t = 0.25, log = "", ro_noskip = 0, ro_bf = 1, ro_buy = "", ro_vou = "", ro_vou_keep = 10, ro_hunt = 0, ro_cap = 50, ro_norent = 0}
 opt.digest = 0
 for _, a in ipairs(arg or {}) do
     local k, v = a:match("^([%w_]+)=(.*)$")
@@ -64,7 +64,10 @@ end
 
 local REROLL = {type = "reroll"}
 
+local SELECT = {type = "select"}
+
 local function ro_hunt_act(s, a)
+    if opt.ro_noskip > 0 and s.phase == "blind_select" and a.type == "skip" and s.ante >= opt.ro_noskip then return SELECT end
     if opt.ro_hunt > 0 and s.phase == "shop" and a.type == "leave" and s.n_jok < s.joker_limit and s.money - s.reroll_cost >= opt.ro_hunt then return REROLL end
     return a
 end

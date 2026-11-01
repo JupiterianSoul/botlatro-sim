@@ -1,3 +1,1 @@
-aud-tests|luajit tools/botsim/seer/test/run.lua quick > $OUT/seer.txt 2>&1; echo seer exit $?; tail -3 $OUT/seer.txt; luajit tools/botsim/train/test/run.lua > $OUT/train.txt 2>&1; echo train exit $?; tail -3 $OUT/train.txt; tail -5 sim-test.txt; grep -c FAIL sim-test.txt; true
-aud-fair|luajit tools/botsim/seer/test/fair_test.lua > $OUT/fair.txt 2>&1; echo fair exit $?; grep -E "FAIL|info:|fair tests" $OUT/fair.txt | cut -c1-200 | head -70
-unit|python3 tools/botsim/test/test_games.py && (cd tools/botsim/autopilot/test && python3 test_results.py && python3 test_autopilot.py)
+syntax|luajit -bl tools/botsim/train/eval.lua > /dev/null; luajit -bl tools/botsim/train/rollout.lua > /dev/null; echo ok

@@ -7,13 +7,17 @@ local M = {}
 
 local LEAVE, SKIP = {type = "leave"}, {type = "skip"}
 
-local function score(w)
+local function score(w, bf)
     if w.won == 1 then return w.win_ante + 2 end
-    return w.ante + (w.blind_on_deck - 1) / 3
+    return w.ante + bf * (w.blind_on_deck - 1) / 3
 end
 
 function M.chooser(mc, rmc, opt)
     local step = {type = "play", cards = {}}
+
+    local function no_skip(w, a)
+        return (opt.ro_noskip or 0) > 0 and a.type == "skip" and w.phase == "blind_select" and w.ante >= opt.ro_noskip
+    end
 
     local function run(w, stop_ante)
         local moves, econ_run = 0, 0
@@ -29,11 +33,12 @@ function M.chooser(mc, rmc, opt)
                 local e = rmc:choose(0)
                 if not e then break end
                 rmc:edge_action(e, step, w)
+                if no_skip(w, step) then step.type = "select" end
                 if not E.step(w, step) then break end
             end
             moves = moves + 1
         end
-        local v = score(w)
+        local v = score(w, opt.ro_bf or 1)
         if stop_ante > 0 and not MC.terminal(w) then
             if opt.ro_mon ~= 0 then v = v + opt.ro_mon * math.min(math.max(w.money, 0), opt.ro_cap or 50) / 50 end
             if opt.ro_net ~= 0 then
@@ -77,7 +82,7 @@ function M.chooser(mc, rmc, opt)
         for i = 1, ec do
             if #cands >= opt.ro_c then break end
             mc:edge_action(order[i], step, base)
-            if not (opt.ro_norent and opt.ro_norent > 0 and step.type == "buy" and base.sj_kind[step.card] == 1 and base.sj_rent[step.card] == 1) then
+            if not no_skip(base, step) and not (opt.ro_norent and opt.ro_norent > 0 and step.type == "buy" and base.sj_kind[step.card] == 1 and base.sj_rent[step.card] == 1) then
                 cands[#cands + 1] = {a = S.copy_action(step), e = order[i], v = 0, n = 0, h = {}}
             end
         end
