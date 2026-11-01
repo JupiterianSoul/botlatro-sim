@@ -39,6 +39,15 @@ local function nominal_key(s, cid)
 end
 M.nominal_key = nominal_key
 
+function M.nominal_key_suit(s, cid)
+    local r = s.c_rank[cid]
+    local m = 1000
+    if s.c_enh[cid] == E_STONE then m = -1000 end
+    local nom = r == 14 and 11 or (r > 10 and 10 or r)
+    local face = r == 11 and 0.1 or r == 12 and 0.2 or r == 13 and 0.3 or r == 14 and 0.4 or 0
+    return nom + SN[s.c_suit[cid]] * m + SO[s.c_osuit[cid]] * 0.0001 * m + face
+end
+
 local function nominal_greater(s, a, b)
     local ka, kb = nominal_key(s, a), nominal_key(s, b)
     if ka ~= kb then return ka > kb end

@@ -28,7 +28,7 @@ local SCALARS = {
     "temp_reroll", "shop_free", "shop_d6", "last_tp", "joker_buffer", "ecto_minus", "planet_mask", "ban",
     "eternals_on", "perish_on", "rentals_on", "all_eternal", "inflation_on", "booster_ante_scaling", "vouchers_off",
     "n_rk", "lux_x", "lux_last", "debuff_played", "chips_cap", "discard_cost", "set_eternal_ante", "set_joker_slots_ante", "flipped_cards",
-    "orb_s", "orb_b", "orb_a1", "orb_s1", "orb_b1", "orb_a2", "orb_s2", "orb_b2", "orb_a3", "orb_s3", "orb_b3",
+    "sort_suit", "n_clr", "orb_s", "orb_b", "orb_a1", "orb_s1", "orb_b1", "orb_a2", "orb_s2", "orb_b2", "orb_a3", "orb_s3", "orb_b3",
 }
 M.SCALARS = SCALARS
 
@@ -48,7 +48,7 @@ local SHOP_ARRAYS = {"sj_kind", "sj_id", "sj_ed", "sj_et", "sj_per", "sj_rent", 
 local PACK_ARRAYS = {"pk_kind", "pk_id", "pk_ed", "pk_et", "pk_per", "pk_rent", "pk_cid", "pk_hpc", "pk_n", "pk_uid"}
 M.SHOP_ARRAYS, M.PACK_ARRAYS = SHOP_ARRAYS, PACK_ARRAYS
 local VAR_ARRAYS = {{"sv_id", "n_sv"}, {"sv_main", "n_sv"}, {"sb_id", "n_sb"}, {"sb_coup", "n_sb"}, {"sb_pos", "n_sb"},
-    {"cons_ed", "n_cons"}, {"cons_ev", "n_cons"}, {"cons_uid", "n_cons"}, {"tag_hand", "n_tags"}, {"tag_trig", "n_tags"}, {"pq", "n_pq"}}
+    {"cons_ed", "n_cons"}, {"cons_ev", "n_cons"}, {"cons_uid", "n_cons"}, {"tag_hand", "n_tags"}, {"tag_trig", "n_tags"}, {"pq", "n_pq"}, {"clr", "n_clr"}}
 for _, f in ipairs(SHOP_ARRAYS) do VAR_ARRAYS[#VAR_ARRAYS + 1] = {f, "n_sj"} end
 for _, f in ipairs(PACK_ARRAYS) do VAR_ARRAYS[#VAR_ARRAYS + 1] = {f, "n_pk"} end
 M.VAR_ARRAYS = VAR_ARRAYS

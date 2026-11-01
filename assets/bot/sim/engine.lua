@@ -229,12 +229,14 @@ local function remove_joker_slot(s, k)
     if s.j_debuff[k] == 0 then joker_effects(s, k, -1, false)
     elseif s.j_ed[k] == ED_NEG then s.joker_limit = s.joker_limit - 1 end
     local n = s.n_jok
+    local id = s.j_id[k]
     for _, f in ipairs(ST.JOKER_ARRAYS) do
         local a = s[f]
         for i = k, n - 1 do a[i] = a[i + 1] end
         a[n] = nil
     end
     s.n_jok = n - 1
+    if s.n_sj + s.n_pk > 0 then E.I.on_removed(s, false, id) end
 end
 E.remove_joker_slot = remove_joker_slot
 
@@ -305,6 +307,7 @@ local function playing_card_added(s, count)
 end
 
 local function sort_key(s, cid)
+    if s.sort_suit == 1 then return EV.nominal_key_suit(s, cid) end
     return EV.nominal_key(s, cid)
 end
 
@@ -485,7 +488,7 @@ local function lux_sync(s)
         local delta = s.lux_last - f
         s.hand_size = s.hand_size + delta
         s.lux_last = f
-        if delta > 0 and s.phase == "play" and s.n_hand > 0 then draw_n(s, min(delta, s.n_deck)) end
+        if delta > 0 and s.hand_size > 1 and s.phase == "play" and s.n_hand > 0 then draw_n(s, min(delta, s.n_deck)) end
     end
 end
 E.lux_sync = lux_sync
@@ -1966,6 +1969,7 @@ local function play_eval(s, n, pc)
             local tot = chips + mult
             chips = floor(tot / 2)
             mult = floor(tot / 2)
+            if s.chips_cap == 1 then chips = min(chips, max(s.money, 0)) end
         end
         local nd = 0
         for i = 1, ns do
@@ -2368,6 +2372,12 @@ function E.step(s, a)
     elseif t == "reroll" then ok = E.reroll(s)
     elseif t == "pick" then ok = E.pick(s, a.card, a.targets)
     elseif t == "reorder_jokers" then ok = E.reorder(s, a.order)
+    elseif t == "sort" then
+        ok = s.phase == "play" and (a.by == "rank" or a.by == "suit")
+        if ok then
+            s.sort_suit = a.by == "suit" and 1 or 0
+            sort_hand(s)
+        end
     elseif t == "endless" then
         ok = s.phase == "win"
         if ok then s.phase = "round_eval" end

@@ -108,6 +108,7 @@ return function(E, I)
     local K_TODO = key_id("to_do")
 
     local mark_j, mark_c, mark_v, gen = {}, {}, {}, 0
+    local CLR_C = 100000
     local cur_use = 0
 
     local function build_marks(s, want_j, want_c)
@@ -125,6 +126,47 @@ return function(E, I)
             if cur_use > 0 then mark_c[cur_use] = g end
         end
         for i = 1, s.n_sv do mark_v[s.sv_id[i]] = g end
+        for i = 1, s.n_clr do
+            local c = s.clr[i]
+            if c >= CLR_C then mark_c[c - CLR_C] = 0 else mark_j[c] = 0 end
+        end
+    end
+
+    local function clr_drop(s, code)
+        local n = s.n_clr
+        for i = 1, n do
+            if s.clr[i] == code then
+                s.clr[i] = s.clr[n]
+                s.clr[n] = nil
+                s.n_clr = n - 1
+                return
+            end
+        end
+    end
+
+    local function on_removed(s, is_cons, id)
+        if s.n_sj + s.n_pk == 0 then return end
+        local kind = is_cons and K_CONS or K_JOKER
+        if is_cons then
+            for i = 1, s.n_cons do if CONS_ID[s.cons[i]] == id then return end end
+        else
+            for k = 1, s.n_jok do if s.j_id[k] == id then return end end
+        end
+        local found = false
+        for i = 1, s.n_sj do if s.sj_kind[i] == kind and s.sj_id[i] == id then found = true end end
+        for i = 1, s.n_pk do if s.pk_kind[i] == kind and s.pk_id[i] == id then found = true end end
+        if not found then return end
+        local code = is_cons and id + CLR_C or id
+        for i = 1, s.n_clr do if s.clr[i] == code then return end end
+        s.n_clr = s.n_clr + 1
+        s.clr[s.n_clr] = code
+    end
+    I.on_removed = on_removed
+
+    function E.key_used(s, is_cons, id)
+        build_marks(s, not is_cons, is_cons)
+        if is_cons then return mark_c[id] == gen end
+        return mark_j[id] == gen
     end
 
     local function banned(s, key)
@@ -289,6 +331,7 @@ return function(E, I)
             end
             R.ed = poll_edition(s, kp("edi", app, ante), 1, false, false)
         end
+        if s.n_clr > 0 then clr_drop(s, R.kind == K_CONS and R.id + CLR_C or R.id) end
         return R
     end
     I.create_card = create_card
@@ -814,7 +857,11 @@ return function(E, I)
             s.n_deck = nd + m
         end
         s.n_hand = 0
-        for i = s.n_pk, 1, -1 do remove_pack_item(s, i) end
+        for i = s.n_pk, 1, -1 do
+            local kind, id = s.pk_kind[i], s.pk_id[i]
+            remove_pack_item(s, i)
+            if kind ~= K_CARD then on_removed(s, kind == K_CONS, id) end
+        end
         s.pack_kind = 0
         s.pack_choices = 0
         s.phase = s.pack_ret == 1 and "shop" or "blind_select"
@@ -848,6 +895,7 @@ return function(E, I)
         if strip_neg and ed == ED_NEG then ed = 0 end
         local id = s.j_id[k]
         local todo = 0
+        if s.n_clr > 0 then clr_drop(s, id) end
         if id == J.todo_list then roll_todo(s, 0) todo = s.j_n[k] end
         local nk = E.add_joker(s, id, ed, {eternal = s.j_eternal[k] == 1, perish = s.j_perish[k], rental = s.j_rental[k] == 1,
             todo = id == J.todo_list and todo or nil, hpc = s.j_h[k]})
@@ -1162,6 +1210,7 @@ return function(E, I)
         if ed == ED_NEG then s.cons_limit = s.cons_limit + 1 end
         use_cons(s, cid, targets, false, true)
         if ed == ED_NEG then s.cons_limit = s.cons_limit - 1 end
+        on_removed(s, true, cid)
         return true
     end
 
@@ -1170,7 +1219,9 @@ return function(E, I)
         if area == "consumables" then
             if type(pos) ~= "number" or pos < 1 or pos > s.n_cons then return false end
             local v = cons_sell(s, pos)
+            local sold = CONS_ID[s.cons[pos]]
             remove_cons(s, pos)
+            on_removed(s, true, sold)
             s.money = s.money + v
         else
             if type(pos) ~= "number" or pos < 1 or pos > s.n_jok then return false end
@@ -1296,7 +1347,10 @@ return function(E, I)
         end
         if s.inflation_on == 1 then s.inflation = s.inflation + 1 end
         if cost ~= 0 then s.money = s.money - cost end
-        if and_use then use_cons(s, id, nil, false, false) end
+        if and_use then
+            use_cons(s, id, nil, false, false)
+            on_removed(s, true, id)
+        end
         return true
     end
 
@@ -1381,6 +1435,7 @@ return function(E, I)
             if CONS[id].name == "Ankh" and s.n_jok >= s.joker_limit then return false end
             remove_pack_item(s, pos)
             use_cons(s, id, targets, true, false)
+            on_removed(s, true, id)
         elseif kind == K_JOKER then
             if not (ed == ED_NEG or s.n_jok < s.joker_limit) then return false end
             local et, per, rent, hpc, n = s.pk_et[pos], s.pk_per[pos], s.pk_rent[pos], s.pk_hpc[pos], s.pk_n[pos]
@@ -1430,6 +1485,7 @@ return function(E, I)
                     end
                     best, bi = cur, ci
                 end
+                if s.n_clr > 0 then clr_drop(s, CONS_ID[s.cons[bi]] + CLR_C) end
                 add_cons(s, CONS_ID[s.cons[bi]], ED_NEG)
             end
         end
