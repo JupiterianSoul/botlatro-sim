@@ -11,7 +11,7 @@ local ES = require("botsim.train.evalset")
 local json = require("bot.sim.json")
 
 local opt = {who = "greedy", weights = "", sims = 32, K = 24, per = 6, decks = "", stakes = "", part = 0, parts = 1, out = "", max_moves = 3000, max_shop = 40,
-    mix = -1, score_prior = 0, score_top = 6, score_temp = 4, skip_pen = 1, skip_ante = 1, type_mass = 0, tm_plays = 0, quick_clear = 0, pace = 0, pace_net = 0, prefix = "", first = 1, seeds = 10, jsonl = "", fair = 0, search_ph = "", rec = "", solver = "", solver_qc = 0, set = "", curve = 0, trace = 0, list = "", leaf_money = 0, leaf_rent = 0, leaf_dead = 0, rent_prior = 1, rent_from = 0, sell_dead = 0, c_puct = 1.5, worlds = 1, ro = 0, ro_a = 0, ro_z = 2, ro_c = 3, ro_h = 0, ro_ph = "shop,pack,blind_select", ro_from = 0, ro_mon = 0, ro_net = 0, ro_t = 0.25, log = "", ro_buy = ""}
+    mix = -1, score_prior = 0, score_top = 6, score_temp = 4, skip_pen = 1, skip_ante = 1, type_mass = 0, tm_plays = 0, quick_clear = 0, pace = 0, pace_net = 0, prefix = "", first = 1, seeds = 10, jsonl = "", fair = 0, search_ph = "", rec = "", solver = "", solver_qc = 0, set = "", curve = 0, trace = 0, list = "", leaf_money = 0, leaf_rent = 0, leaf_dead = 0, rent_prior = 1, rent_from = 0, sell_dead = 0, c_puct = 1.5, worlds = 1, ro = 0, ro_a = 0, ro_z = 2, ro_c = 3, ro_h = 0, ro_ph = "shop,pack,blind_select", ro_from = 0, ro_mon = 0, ro_net = 0, ro_t = 0.25, log = "", ro_buy = "", ro_hunt = 0, ro_cap = 50, ro_norent = 0}
 opt.digest = 0
 for _, a in ipairs(arg or {}) do
     local k, v = a:match("^([%w_]+)=(.*)$")
@@ -51,6 +51,13 @@ local function ro_buy_pick(s)
     for k = 1, s.n_sj do
         if s.sj_kind[k] == 1 and s.sj_rent[k] == 0 and s.sj_per[k] < 0 and RO_BUY[D.JOKERS[s.sj_id[k]].key] then return k end
     end
+end
+
+local REROLL = {type = "reroll"}
+
+local function ro_hunt_act(s, a)
+    if opt.ro_hunt > 0 and s.phase == "shop" and a.type == "leave" and s.n_jok < s.joker_limit and s.money - s.reroll_cost >= opt.ro_hunt then return REROLL end
+    return a
 end
 
 local function trace_new()
@@ -254,6 +261,7 @@ local function play(deck, stake, seed)
             end
             if ro_act then
                 if recs then recs[#recs + 1] = REC.encode_record(mc.F_root, mc, ro_e, sims, FE.PHASES[ph] or 0) end
+                ro_act = ro_hunt_act(s, ro_act)
                 if tr then trace_act(tr, s, ro_act) end
                 if not do_step(s, ro_act) then why = "step_failed:ro" break end
                 moves = moves + 1
@@ -279,8 +287,9 @@ local function play(deck, stake, seed)
             if recs then recs[#recs + 1] = REC.encode_record(mc.F_root, mc, e, sims, FE.PHASES[ph] or 0) end
             mc:edge_action(e, step, view)
             if not FAIR then mc:commit(e) end
-            if tr then trace_act(tr, s, step) end
-            if not do_step(s, step) then why = "step_failed:" .. ph .. ":" .. tostring(step.type) break end
+            local chosen = ro_hunt_act(s, step)
+            if tr then trace_act(tr, s, chosen) end
+            if not do_step(s, chosen) then why = "step_failed:" .. ph .. ":" .. tostring(step.type) break end
             moves = moves + 1
         else
             FE.state(s, F)

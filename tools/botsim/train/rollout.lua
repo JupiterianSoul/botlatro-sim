@@ -35,7 +35,7 @@ function M.chooser(mc, rmc, opt)
         end
         local v = score(w)
         if stop_ante > 0 and not MC.terminal(w) then
-            if opt.ro_mon ~= 0 then v = v + opt.ro_mon * math.min(math.max(w.money, 0), 50) / 50 end
+            if opt.ro_mon ~= 0 then v = v + opt.ro_mon * math.min(math.max(w.money, 0), opt.ro_cap or 50) / 50 end
             if opt.ro_net ~= 0 then
                 rmc:search(w, 0, {noise = 0, reuse = false, adaptive = true})
                 v = v + opt.ro_net * rmc.n_val[rmc.root]
@@ -74,10 +74,14 @@ function M.chooser(mc, rmc, opt)
         end)
         local base = F.sanitize(s)
         local cands = {}
-        for i = 1, math.min(opt.ro_c, ec) do
+        for i = 1, ec do
+            if #cands >= opt.ro_c then break end
             mc:edge_action(order[i], step, base)
-            cands[i] = {a = S.copy_action(step), e = order[i], v = 0, n = 0, h = {}}
+            if not (opt.ro_norent and opt.ro_norent > 0 and step.type == "buy" and base.sj_kind[step.card] == 1 and base.sj_rent[step.card] == 1) then
+                cands[#cands + 1] = {a = S.copy_action(step), e = order[i], v = 0, n = 0, h = {}}
+            end
         end
+        if #cands == 0 then return nil end
         local stop_ante = opt.ro_h > 0 and s.ante + opt.ro_h or 0
         local alive = cands
         local check = opt.ro_a > 0 and opt.ro_a or opt.ro + 1
