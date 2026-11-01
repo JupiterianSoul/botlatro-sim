@@ -1,6 +1,7 @@
 package.path = "assets/?.lua;tools/?.lua;" .. package.path
 
 local E = require("bot.sim.engine")
+local D = require("bot.sim.data")
 local S = require("bot.seer.seer")
 local F = require("bot.seer.fair")
 local PL = require("bot.seer.play")
@@ -8,7 +9,7 @@ local SC = require("botsim.seer.scramble")
 
 local opt = {who = "fair", budget = "lite", weights = "", prefix = "BENCH", first = 1, seeds = 1, decks = "b_red", stakes = "1",
     max_steps = 4000, out = "", sims = 32, K = 24, quick_clear = 0, pace = 0, pace_net = 0, type_mass = 0, tm_plays = 0, fair = 0, search_ph = "", solver = "", solver_qc = 0,
-    ro = 0, ro_a = 0, ro_z = 2, ro_c = 3, ro_h = 0, ro_ph = "shop,pack,blind_select", ro_from = 0, ro_mon = 0, ro_net = 0, ro_t = 0.25, max_shop = 40, rec = ""}
+    ro = 0, ro_a = 0, ro_z = 2, ro_c = 3, ro_h = 0, ro_ph = "shop,pack,blind_select", ro_from = 0, ro_mon = 0, ro_net = 0, ro_t = 0.25, max_shop = 40, rec = "", min_ante = 0}
 for _, a in ipairs(arg or {}) do
     local k, v = a:match("^%-*([%w_]+)=(.*)$")
     if k then
@@ -96,24 +97,36 @@ local function run(setup, scrambled)
     local line = {}
     local dec = 0
     local econ_run = 0
+    local cov = {flip = 0, jok = 0, vh = 0, caps = 0, final = "", top = 0, why = "steps"}
     while #line < opt.max_steps do
         if forced then forced(s) end
-        if s.won == 1 or s.phase == "game_over" or s.phase == "win" then break end
+        if s.won == 1 or s.phase == "game_over" or s.phase == "win" then cov.why = s.phase break end
+        if s.ante > cov.top then cov.top = s.ante end
         if s.phase == "shop" or s.phase == "pack" then econ_run = econ_run + 1 else econ_run = 0 end
         if econ_run > opt.max_shop then
             local out = s.phase == "pack" and {type = "skip"} or {type = "leave"}
             if not E.step(s, out) then
                 line[#line + 1] = {key = "stuck", phase = s.phase}
+                cov.why = "stuck"
                 break
             end
+            cov.caps = cov.caps + 1
             line[#line + 1] = {key = "cap:" .. F.action_key(out), phase = s.phase}
             goto continue
         end
         dec = dec + 1
+        for i = 1, s.n_hand do
+            if s.c_flip[s.hand[i]] == 1 then cov.flip = cov.flip + 1 break end
+        end
+        for k = 1, s.n_jok do
+            if s.j_flip[k] == 1 then cov.jok = cov.jok + 1 break end
+        end
+        if F.voucher_hidden(s) then cov.vh = cov.vh + 1 end
+        if s.phase == "play" and s.blind > 2 and D.BLINDS[s.blind].showdown then cov.final = D.BLINDS[s.blind].key end
         local view = scrambled and SC.shuffled(s, string.format("SHUF%s_%d_%d", setup.seed, dec, s.step)) or s
         local phase = s.phase
         local acts = pick(view)
-        if not acts or #acts == 0 then break end
+        if not acts or #acts == 0 then cov.why = "no_action" break end
         local moved = false
         for i = 1, #acts do
             if #line >= opt.max_steps then break end
@@ -125,23 +138,33 @@ local function run(setup, scrambled)
             local fb = fallback(s)
             if not fb or not E.step(s, fb) then
                 line[#line + 1] = {key = "stuck", phase = phase}
+                cov.why = "stuck"
                 break
             end
             line[#line + 1] = {key = "fb:" .. F.action_key(fb), phase = phase}
         end
         ::continue::
     end
-    return line
+    cov.won = s.won
+    return line, cov
 end
 
 local diffs, games, identical = {}, 0, 0
+local top_ante, by_ante, finals, flips, jok_flips, v_hidden, caps, early = 0, {}, {}, 0, 0, 0, 0, 0
 for _, d in ipairs(split(opt.decks)) do
     for _, st in ipairs(split(opt.stakes)) do
         for n = opt.first, opt.first + opt.seeds - 1 do
             local setup = {seed = string.format("%s%04d", opt.prefix, n), deck = d, stake = tonumber(st)}
-            local l1 = run(setup, false)
+            local l1, cov = run(setup, false)
             local l2 = run(setup, true)
             games = games + 1
+            if cov.top > top_ante then top_ante = cov.top end
+            by_ante[cov.top] = (by_ante[cov.top] or 0) + 1
+            if cov.final ~= "" then finals[cov.final] = (finals[cov.final] or 0) + 1 end
+            flips, jok_flips, v_hidden, caps = flips + cov.flip, jok_flips + cov.jok, v_hidden + cov.vh, caps + cov.caps
+            if cov.why ~= "game_over" and cov.why ~= "win" then early = early + 1 end
+            print(string.format("reach %s %s stake %d: ante %d end %s won %d decisions with flipped hand %d flipped jokers %d hidden voucher %d shop caps %d final %s",
+                setup.seed, d, setup.stake, cov.top, cov.why, cov.won, cov.flip, cov.jok, cov.vh, cov.caps, cov.final))
             local at
             for i = 1, math.max(#l1, #l2) do
                 local x, y = l1[i], l2[i]
@@ -165,7 +188,16 @@ local parts = {}
 for _, x in ipairs(diffs) do
     parts[#parts + 1] = string.format('{"seed":"%s","deck":"%s","stake":%d,"step":%d,"phase":"%s"}', x.seed, x.deck, x.stake, x.step, x.phase)
 end
-local js = string.format('{"who":"%s","games":%d,"identical":%d,"diffs":[%s]}', opt.who, games, identical, table.concat(parts, ","))
+local ante_parts = {}
+for a = 0, top_ante do
+    if by_ante[a] then ante_parts[#ante_parts + 1] = string.format("%d:%d", a, by_ante[a]) end
+end
+local final_parts = {}
+for k, v in pairs(finals) do final_parts[#final_parts + 1] = string.format("%s:%d", k, v) end
+table.sort(final_parts)
+local reach = string.format('{"top_ante":%d,"by_ante":"%s","finals":"%s","flipped_hand":%d,"flipped_jokers":%d,"hidden_voucher":%d,"caps":%d,"early":%d}',
+    top_ante, table.concat(ante_parts, " "), table.concat(final_parts, " "), flips, jok_flips, v_hidden, caps, early)
+local js = string.format('{"who":"%s","games":%d,"identical":%d,"reach":%s,"diffs":[%s]}', opt.who, games, identical, reach, table.concat(parts, ","))
 print(js)
 if opt.out ~= "" then
     local fh = assert(io.open(opt.out, "w"))
@@ -179,6 +211,10 @@ if opt.who == "cheat" then
         os.exit(0)
     end
     print("CONTROL FAILED: cheating Seer played identical lines on every game, the shuffle check is not scrambling anything")
+    os.exit(1)
+end
+if opt.min_ante > 0 and top_ante < opt.min_ante then
+    print(string.format("SHUFFLE CHECK FAILED: no game reached ante %d (best %d), the check says nothing about later antes", opt.min_ante, top_ante))
     os.exit(1)
 end
 if #diffs == 0 then

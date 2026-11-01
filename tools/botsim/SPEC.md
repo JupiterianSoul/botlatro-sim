@@ -75,7 +75,7 @@ Details the formats above leave open, as the recorder writes them. The sim shoul
 
 - Setup line of a recorded log has one more field, `hands_order`: the names of `G.GAME.hands` in the order `pairs()` walked them in the recording process. LuaJIT 2.1 seeds its string hash per process, so that order changes from one process to the next, and the game uses it for To Do List, the Orbital Tag hand and The Ox tie-break (the most played hand when two are tied). The sim must take its hand order from this list wherever the game walks `G.GAME.hands`, and must never let a `pairs()` order over string keys decide anything.
 - Every run is recorded with all content unlocked and discovered, so shop and pack pools are the full vanilla pools.
-- `phase` is `B.phase()`: `blind_select`, `play`, `shop`, `pack`, `round_eval`, `game_over`, `win`. The last snapshot of a lost run has phase `game_over`.
+- `phase` is `B.phase()`: `blind_select`, `play`, `shop`, `pack`, `round_eval`, `game_over`, `win`. The last snapshot of a lost run has phase `game_over`. `won` in the sim means the run was really won: the game also sets its own flag on a lost final boss, the sim does not.
 - `blind` is only there while `G.GAME.facing_blind` is set (from selecting a blind until the round is cashed out). `target` is `G.GAME.blind.chips`.
 - `shop` is only there while the shop exists (`G.shop`), which includes packs opened from the shop. A playing card in the shop jokers row has its card string as `key`.
 - `pack` is only there in phase `pack`. A joker or consumable in a pack is its center key, followed by `:<edition>` when it has one (`j_joker:e_foil`).
