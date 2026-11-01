@@ -21,7 +21,11 @@ end
 local function last_hand(s, part)
     s.hands_left = 1
     s.chips = s.blind_chips * part
-    return E.step(s, {type = "play", cards = {1}})
+    local pick = 1
+    for i = 1, s.n_hand do
+        if s.c_forced[s.hand[i]] == 1 then pick = i end
+    end
+    return E.step(s, {type = "play", cards = {pick}})
 end
 
 local function has(s, key)
@@ -92,6 +96,12 @@ do
     T.eq(s.phase, "round_eval", "final boss on ante 7 after a lost ante goes on")
     T.eq(s.won, 0, "final boss on ante 7 is no win")
     T.eq(s.ante, 8, "next ante")
+end
+
+do
+    local s = fight("bl_final_bell")
+    local free = s.c_forced[s.hand[1]] == 1 and 2 or 1
+    T.eq(E.step(s, {type = "play", cards = {free}}), false, "bell refuses a hand without its forced card")
 end
 
 do
