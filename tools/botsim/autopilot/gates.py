@@ -112,23 +112,27 @@ def improves(new, best):
 
 def paired(new, base):
     old = {(g["deck"], g["stake"], g["seed"]): g for g in base}
-    d = [g["ante"] - old[(g["deck"], g["stake"], g["seed"])]["ante"] for g in new if (g["deck"], g["stake"], g["seed"]) in old]
+    both = [g for g in new if (g["deck"], g["stake"], g["seed"]) in old]
+    d = [g["ante"] - old[(g["deck"], g["stake"], g["seed"])]["ante"] for g in both]
     n = len(d)
+    missing = len(new) + len(old) - 2 * n
     if not n:
-        return {"n": 0, "diff": 0.0, "z": 0.0, "ante": 0.0, "wins": 0, "base_wins": 0}
+        return {"n": 0, "diff": 0.0, "z": 0.0, "ante": 0.0, "wins": 0, "base_wins": 0, "missing": missing}
     m = sum(d) / float(n)
     var = sum((x - m) ** 2 for x in d) / (n - 1) if n > 1 else 0.0
     if var > 0:
         z = m / math.sqrt(var / n)
     else:
         z = 99.0 if m > 0 else (-99.0 if m < 0 else 0.0)
-    return {"n": n, "diff": round(m, 4), "z": round(z, 2), "ante": sum(g["ante"] for g in new) / float(len(new)),
-            "wins": sum(g["won"] for g in new), "base_wins": sum(g["won"] for g in base)}
+    return {"n": n, "diff": round(m, 4), "z": round(z, 2), "ante": sum(g["ante"] for g in both) / float(n),
+            "wins": sum(g["won"] for g in both), "base_wins": sum(old[(g["deck"], g["stake"], g["seed"])]["won"] for g in both), "missing": missing}
 
 
 def expert_better(res, min_z, floor_z=-2.0):
     if res["both"]["n"] == 0:
         return False, "no paired games"
+    if res["both"].get("missing", 0) > 0.02 * res["both"]["n"]:
+        return False, "%d games without a pair" % res["both"]["missing"]
     if res["held"]["diff"] <= 0:
         return False, "held-out diff %+.2f not positive" % res["held"]["diff"]
     if res["gate"]["diff"] < 0:

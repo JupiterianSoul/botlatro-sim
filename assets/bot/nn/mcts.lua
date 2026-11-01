@@ -118,6 +118,12 @@ function M.new(net, opts)
     return self
 end
 
+function M:new_game(seed)
+    self.rnd = M.new_rng(seed)
+    self.commit_edge = nil
+    self.nn, self.ne, self.root = 0, 0, nil
+end
+
 function M:reserve(nodes)
     if nodes <= self.cap_nodes then return false end
     local ne = nodes * self.K
