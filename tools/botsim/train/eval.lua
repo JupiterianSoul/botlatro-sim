@@ -11,7 +11,7 @@ local ES = require("botsim.train.evalset")
 local json = require("bot.sim.json")
 
 local opt = {who = "greedy", weights = "", sims = 32, K = 24, per = 6, decks = "", stakes = "", part = 0, parts = 1, out = "", max_moves = 3000, max_shop = 40,
-    mix = -1, score_prior = 0, score_top = 6, score_temp = 4, skip_pen = 1, skip_ante = 1, type_mass = 0, tm_plays = 0, quick_clear = 0, pace = 0, pace_net = 0, prefix = "", first = 1, seeds = 10, jsonl = "", fair = 0, search_ph = "", rec = "", solver = "", solver_qc = 0, set = "", curve = 0, leaf_money = 0, leaf_rent = 0, leaf_dead = 0, rent_prior = 1, rent_from = 0, sell_dead = 0, c_puct = 1.5, worlds = 1, ro = 0, ro_a = 0, ro_z = 2, ro_c = 3, ro_h = 0, ro_ph = "shop,pack,blind_select", ro_from = 0, ro_mon = 0, ro_net = 0, ro_t = 0.25}
+    mix = -1, score_prior = 0, score_top = 6, score_temp = 4, skip_pen = 1, skip_ante = 1, type_mass = 0, tm_plays = 0, quick_clear = 0, pace = 0, pace_net = 0, prefix = "", first = 1, seeds = 10, jsonl = "", fair = 0, search_ph = "", rec = "", solver = "", solver_qc = 0, set = "", curve = 0, trace = 0, list = "", leaf_money = 0, leaf_rent = 0, leaf_dead = 0, rent_prior = 1, rent_from = 0, sell_dead = 0, c_puct = 1.5, worlds = 1, ro = 0, ro_a = 0, ro_z = 2, ro_c = 3, ro_h = 0, ro_ph = "shop,pack,blind_select", ro_from = 0, ro_mon = 0, ro_net = 0, ro_t = 0.25}
 for _, a in ipairs(arg or {}) do
     local k, v = a:match("^([%w_]+)=(.*)$")
     if k then opt[k] = tonumber(v) or v end
@@ -41,18 +41,96 @@ local st = {}
 
 local ro_choose = opt.ro > 0 and require("botsim.train.rollout").chooser(mc, rmc, opt) or nil
 
+local D = require("bot.sim.data")
+
+local function trace_new()
+    return {a = {}, r = {}, offer = {}, act = {}, buy = {}}
+end
+
+local function trace_ante(tr, s)
+    local j, lv = {}, {}
+    for k = 1, s.n_jok do
+        j[k] = {D.JOKERS[s.j_id[k]].key, s.j_ed[k], s.j_mult[k], s.j_x[k], s.j_ex[k]}
+    end
+    for k = 1, 12 do lv[k] = s.h_level[k] end
+    local v = {}
+    for k = 1, #D.VOUCHERS do
+        if s.used_v[k] ~= 0 and s.used_v[k] ~= false then v[#v + 1] = D.VOUCHERS[k].key end
+    end
+    tr.a[#tr.a + 1] = {ante = s.ante, money = s.money, jok = j, lv = lv, n_deck = s.n_cards, v = v, limit = s.joker_limit}
+end
+
+local function trace_top(tr, s)
+    local r = tr.cur
+    if r then
+        local d = s.chips - r.chips
+        if d > 0 then
+            r.chips = s.chips
+            if d > r.best then r.best = d end
+        end
+    end
+end
+
+local function trace_phase(tr, s, ph)
+    if ph == "play" and (not tr.cur or tr.cur.round ~= s.round) then
+        tr.cur = {round = s.round, ante = s.ante, blind = D.BLINDS[s.blind].key, need = s.blind_chips, chips = 0, best = 0, plays = 0, discards = 0, money = s.money}
+        tr.r[#tr.r + 1] = tr.cur
+    elseif ph == "shop" or ph == "pack" then
+        local o = tr.offer[s.ante]
+        if not o then
+            o = {}
+            tr.offer[s.ante] = o
+        end
+        if ph == "shop" then
+            for k = 1, s.n_sj do
+                if s.sj_kind[k] == 1 then o[D.JOKERS[s.sj_id[k]].key] = 1 end
+            end
+        end
+    end
+end
+
+local function trace_act(tr, s, a)
+    local c = tr.act[s.ante]
+    if not c then
+        c = {}
+        tr.act[s.ante] = c
+    end
+    c[a.type] = (c[a.type] or 0) + 1
+    if tr.cur and a.type == "play" then tr.cur.plays = tr.cur.plays + 1 end
+    if tr.cur and a.type == "discard" then tr.cur.discards = tr.cur.discards + 1 end
+    if (a.type == "buy" or a.type == "buy_and_use") and s.sj_kind[a.card] == 1 then
+        tr.buy[#tr.buy + 1] = {s.ante, D.JOKERS[s.sj_id[a.card]].key, s.money}
+    end
+end
+
+local function trace_json(tr, s)
+    local offer, act = {}, {}
+    for a, o in pairs(tr.offer) do
+        local l = {}
+        for k in pairs(o) do l[#l + 1] = k end
+        table.sort(l)
+        offer[tostring(a)] = l
+    end
+    for a, c in pairs(tr.act) do act[tostring(a)] = c end
+    return json.encode({a = tr.a, r = tr.r, offer = offer, act = act, buy = tr.buy, n_hand = s.n_hand, n_deck = s.n_deck, phase = s.phase})
+end
+
 local function play(deck, stake, seed)
     local s = E.new_run({seed = seed, deck = deck, stake = stake})
     for k, v in tostring(opt.set):gmatch("([%w_]+):(-?[%d%.]+)") do s[k] = tonumber(v) end
     local moves, econ_run, why = 0, 0, "max_moves"
     local curve, curve_ante = {}, 0
     local recs = rf and {}
+    local tr = opt.trace > 0 and trace_new() or nil
     while moves < opt.max_moves do
+        if tr then trace_top(tr, s) end
         MC.advance_forced(s)
         if MC.terminal(s) then why = "end" break end
         local ph = s.phase
+        if tr then trace_phase(tr, s, ph) end
         if opt.curve > 0 and s.ante ~= curve_ante then
             curve_ante = s.ante
+            if tr then trace_ante(tr, s) end
             local rent, dead, et = 0, 0, 0
             for k = 1, s.n_jok do
                 rent = rent + s.j_rental[k]
@@ -94,6 +172,7 @@ local function play(deck, stake, seed)
             end
             if ro_act then
                 if recs then recs[#recs + 1] = REC.encode_record(mc.F_root, mc, ro_e, sims, FE.PHASES[ph] or 0) end
+                if tr then trace_act(tr, s, ro_act) end
                 if not E.step(s, ro_act) then why = "step_failed:ro" break end
                 moves = moves + 1
                 goto continue
@@ -118,6 +197,7 @@ local function play(deck, stake, seed)
             if recs then recs[#recs + 1] = REC.encode_record(mc.F_root, mc, e, sims, FE.PHASES[ph] or 0) end
             mc:edge_action(e, step, view)
             if not FAIR then mc:commit(e) end
+            if tr then trace_act(tr, s, step) end
             if not E.step(s, step) then why = "step_failed:" .. ph .. ":" .. tostring(step.type) break end
             moves = moves + 1
         else
@@ -140,17 +220,35 @@ local function play(deck, stake, seed)
         rf:write(REC.encode_run(recs, won, math.min(ante, 255), FE.DECK_IDX[deck] or 0, stake, nrun))
     end
     s.eval_curve = table.concat(curve, ",")
+    if tr then
+        trace_top(tr, s)
+        s.eval_trace = trace_json(tr, s)
+    end
     return won, ante, why, moves, s
 end
 
 local function death_fields(s)
-    return string.format(',"blind":%d,"chips":%.0f,"need":%.0f,"money":%d,"n_jok":%d,"disc_left":%d', s.blind, s.chips, s.blind_chips, s.money, s.n_jok, s.discards_left) .. (opt.curve > 0 and string.format(',"curve":"%s"', s.eval_curve) or "")
+    return string.format(',"blind":%d,"chips":%.0f,"need":%.0f,"money":%d,"n_jok":%d,"disc_left":%d', s.blind, s.chips, s.blind_chips, s.money, s.n_jok, s.discards_left) .. (opt.curve > 0 and string.format(',"curve":"%s"', s.eval_curve) or "") .. (s.eval_trace and ',"trace":' .. s.eval_trace or "")
 end
 
 local DECKS, STAKES = ES.parse(opt.decks, tostring(opt.stakes))
 local fh = opt.out ~= "" and assert(io.open(opt.out, "wb")) or io.stdout
 local jf = opt.jsonl ~= "" and assert(io.open(opt.jsonl, "w")) or nil
-if opt.prefix ~= "" then
+if opt.list ~= "" then
+    local i = 0
+    for line in io.lines(opt.list) do
+        local d, seed = line:match("^(%S+)%s+(%S+)")
+        if d then
+            i = i + 1
+            if (i - 1) % opt.parts == opt.part then
+                local t0 = os.clock()
+                local w, a, why, mv, fs = play(d, STAKES[1], seed)
+                jf:write(string.format('{"deck":"%s","stake":%d,"seed":"%s","won":%d,"ante":%d,"time":%.2f,"end":"%s","moves":%d%s}\n', d, STAKES[1], seed, w, a, os.clock() - t0, why, mv, death_fields(fs)))
+                jf:flush()
+            end
+        end
+    end
+elseif opt.prefix ~= "" then
     local i = 0
     for _, d in ipairs(DECKS) do
         for _, stk in ipairs(STAKES) do
