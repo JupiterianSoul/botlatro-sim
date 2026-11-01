@@ -1,0 +1,1 @@
+unit|python3 tools/botsim/test/test_games.py

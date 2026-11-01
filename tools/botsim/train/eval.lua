@@ -12,6 +12,7 @@ local json = require("bot.sim.json")
 
 local opt = {who = "greedy", weights = "", sims = 32, K = 24, per = 6, decks = "", stakes = "", part = 0, parts = 1, out = "", max_moves = 3000, max_shop = 40,
     mix = -1, score_prior = 0, score_top = 6, score_temp = 4, skip_pen = 1, skip_ante = 1, type_mass = 0, tm_plays = 0, quick_clear = 0, pace = 0, pace_net = 0, prefix = "", first = 1, seeds = 10, jsonl = "", fair = 0, search_ph = "", rec = "", solver = "", solver_qc = 0, set = "", curve = 0, leaf_money = 0, leaf_rent = 0, leaf_dead = 0, rent_prior = 1, rent_from = 0, sell_dead = 0, c_puct = 1.5, worlds = 1, ro = 0, ro_a = 0, ro_z = 2, ro_c = 3, ro_h = 0, ro_ph = "shop,pack,blind_select", ro_from = 0, ro_mon = 0, ro_net = 0, ro_t = 0.25}
+opt.list, opt.digest = "", 0
 for _, a in ipairs(arg or {}) do
     local k, v = a:match("^([%w_]+)=(.*)$")
     if k then opt[k] = tonumber(v) or v end
@@ -21,7 +22,7 @@ local mc, rmc
 if opt.who == "net" then
     local W = WT.load(opt.weights)
     local function new_mc() return MC.new(NET.new(W), {K = opt.K, seed = 99991, alpha = 0.5, mix = opt.mix >= 0 and opt.mix or nil,
-        score_prior = opt.score_prior, score_top = opt.score_top, score_temp = opt.score_temp, skip_pen = opt.skip_pen, skip_ante = opt.skip_ante, type_mass = opt.type_mass, tm_plays = opt.tm_plays, quick_clear = opt.quick_clear, pace = opt.pace, pace_net = opt.pace_net, leaf_money = opt.leaf_money, leaf_rent = opt.leaf_rent, leaf_dead = opt.leaf_dead, rent_prior = opt.rent_prior, rent_from = opt.rent_from, c_puct = opt.c_puct, nodes = opt.sims + 2, full = true}) end
+        score_prior = opt.score_prior, score_top = opt.score_top, score_temp = opt.score_temp, skip_pen = opt.skip_pen, skip_ante = opt.skip_ante, type_mass = opt.type_mass, tm_plays = opt.tm_plays, quick_clear = opt.quick_clear, pace = opt.pace, pace_net = opt.pace_net, leaf_money = opt.leaf_money, leaf_rent = opt.leaf_rent, leaf_dead = opt.leaf_dead, rent_prior = opt.rent_prior, rent_from = opt.rent_from, c_puct = opt.c_puct, nodes = 2 * opt.sims + 2, full = true}) end
     mc = new_mc()
     if opt.ro > 0 then rmc = new_mc() end
 end
@@ -41,14 +42,27 @@ local st = {}
 
 local ro_choose = opt.ro > 0 and require("botsim.train.rollout").chooser(mc, rmc, opt) or nil
 
+local function game_key(deck, stake, seed)
+    local h, key = 7, deck .. "|" .. stake .. "|" .. seed
+    for i = 1, #key do h = (h * 1000003 + key:byte(i)) % 2147483629 end
+    return h * 1000003 % 2147483629
+end
+
 local function play(deck, stake, seed)
     local s = E.new_run({seed = seed, deck = deck, stake = stake})
+    if mc then
+        local h = game_key(deck, stake, seed)
+        mc:new_game(h)
+        if rmc then rmc:new_game(h + 1) end
+    end
+    local dig = 7
     for k, v in tostring(opt.set):gmatch("([%w_]+):(-?[%d%.]+)") do s[k] = tonumber(v) end
     local moves, econ_run, why = 0, 0, "max_moves"
     local curve, curve_ante = {}, 0
     local recs = rf and {}
     while moves < opt.max_moves do
         MC.advance_forced(s)
+        if opt.digest > 0 then dig = (dig * 1000003 + MC.obs_key(s, true)) % 4294967291 end
         if MC.terminal(s) then why = "end" break end
         local ph = s.phase
         if opt.curve > 0 and s.ante ~= curve_ante then
@@ -133,42 +147,64 @@ local function play(deck, stake, seed)
         end
         ::continue::
     end
-    local won = s.won == 1 and 1 or 0
+    local won = s.won == 1 and s.phase ~= "game_over" and 1 or 0
     local ante = won == 1 and s.win_ante + 1 or s.ante
     if recs then
         nrun = nrun + 1
-        rf:write(REC.encode_run(recs, won, math.min(ante, 255), FE.DECK_IDX[deck] or 0, stake, nrun))
+        local flag = s.won == 1 and 1 or 0
+        rf:write(REC.encode_run(recs, flag, math.min(flag == 1 and s.win_ante + 1 or s.ante, 255), FE.DECK_IDX[deck] or 0, stake, nrun))
     end
     s.eval_curve = table.concat(curve, ",")
+    s.eval_dig = dig
     return won, ante, why, moves, s
 end
 
+local function finite(x)
+    if x ~= x then return -1 end
+    return math.min(x, 1e300)
+end
+
 local function death_fields(s)
-    return string.format(',"blind":%d,"chips":%.0f,"need":%.0f,"money":%d,"n_jok":%d,"disc_left":%d', s.blind, s.chips, s.blind_chips, s.money, s.n_jok, s.discards_left) .. (opt.curve > 0 and string.format(',"curve":"%s"', s.eval_curve) or "")
+    return string.format(',"blind":%d,"chips":%.0f,"need":%.0f,"money":%d,"n_jok":%d,"disc_left":%d', s.blind, finite(s.chips), finite(s.blind_chips), s.money, s.n_jok, s.discards_left) .. (opt.curve > 0 and string.format(',"curve":"%s"', s.eval_curve) or "") .. (opt.digest > 0 and string.format(',"dig":"%.0f"', s.eval_dig) or "")
 end
 
 local DECKS, STAKES = ES.parse(opt.decks, tostring(opt.stakes))
 local fh = opt.out ~= "" and assert(io.open(opt.out, "wb")) or io.stdout
 local jf = opt.jsonl ~= "" and assert(io.open(opt.jsonl, "w")) or nil
-if opt.prefix ~= "" then
+if opt.list ~= "" then
+    local i = 0
+    for line in io.lines(opt.list) do
+        local d, seed, stk = line:match("^(%S+)%s+(%S+)%s*(%d*)")
+        if d then
+            i = i + 1
+            if (i - 1) % opt.parts == opt.part then
+                stk = tonumber(stk) or STAKES[1]
+                local t0 = os.clock()
+                local w, a, why, mv, fs = play(d, stk, seed)
+                jf:write(string.format('{"deck":"%s","stake":%d,"seed":"%s","won":%d,"ante":%d,"time":%.2f,"end":"%s","moves":%d%s}\n', d, stk, seed, w, a, os.clock() - t0, why, mv, death_fields(fs)))
+                jf:flush()
+            end
+        end
+    end
+elseif opt.prefix ~= "" then
     local i = 0
     for _, d in ipairs(DECKS) do
         for _, stk in ipairs(STAKES) do
-            local wins, antes, sq = 0, 0, 0
+            local wins, antes, sq, played = 0, 0, 0, 0
             for k = opt.first, opt.first + opt.seeds - 1 do
                 i = i + 1
                 if (i - 1) % opt.parts == opt.part then
                     local seed = string.format("%s%04d", opt.prefix, k)
                     local t0 = os.clock()
                     local w, a, why, mv, fs = play(d, stk, seed)
-                    wins, antes, sq = wins + w, antes + a, sq + a * a
+                    wins, antes, sq, played = wins + w, antes + a, sq + a * a, played + 1
                     if jf then
                         jf:write(string.format('{"deck":"%s","stake":%d,"seed":"%s","won":%d,"ante":%d,"time":%.2f,"end":"%s","moves":%d%s}\n', d, stk, seed, w, a, os.clock() - t0, why, mv, death_fields(fs)))
                         jf:flush()
                     end
                 end
             end
-            fh:write(json.encode({deck = d, stake = stk, n = opt.seeds, wins = wins, ante_sum = antes, ante_sq = sq}) .. "\n")
+            fh:write(json.encode({deck = d, stake = stk, n = played, wins = wins, ante_sum = antes, ante_sq = sq}) .. "\n")
             fh:flush()
         end
     end
@@ -178,12 +214,12 @@ for i, c in ipairs(ES.cells(opt.per, DECKS, STAKES)) do
         local wins, antes, sq = 0, 0, 0
         for k = 1, c.per do
             local t0 = os.clock()
-            local w, a, why, mv = play(c.deck, c.stake, ES.seed(c.deck, c.stake, k))
+            local w, a, why, mv, fs = play(c.deck, c.stake, ES.seed(c.deck, c.stake, k))
             wins = wins + w
             antes = antes + a
             sq = sq + a * a
             if jf then
-                jf:write(string.format('{"deck":"%s","stake":%d,"seed":"%s","won":%d,"ante":%d,"time":%.2f,"end":"%s","moves":%d}\n', c.deck, c.stake, ES.seed(c.deck, c.stake, k), w, a, os.clock() - t0, why, mv))
+                jf:write(string.format('{"deck":"%s","stake":%d,"seed":"%s","won":%d,"ante":%d,"time":%.2f,"end":"%s","moves":%d%s}\n', c.deck, c.stake, ES.seed(c.deck, c.stake, k), w, a, os.clock() - t0, why, mv, death_fields(fs)))
                 jf:flush()
             end
         end
