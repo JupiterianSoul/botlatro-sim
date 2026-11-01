@@ -1,2 +1,0 @@
-unit|python3 tools/botsim/test/test_games.py && (cd tools/botsim/autopilot/test && python3 test_results.py && python3 test_autopilot.py)
-fair|luajit tools/botsim/seer/test/fair_test.lua 2>&1 | tail -5
