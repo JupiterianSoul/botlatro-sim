@@ -6,10 +6,11 @@ local S = require("bot.seer.seer")
 local F = require("bot.seer.fair")
 local PL = require("bot.seer.play")
 local SC = require("botsim.seer.scramble")
+local ST = require("bot.sim.state")
 
 local opt = {who = "fair", budget = "lite", weights = "", prefix = "BENCH", first = 1, seeds = 1, decks = "b_red", stakes = "1",
     max_steps = 4000, out = "", sims = 32, K = 24, quick_clear = 0, pace = 0, pace_net = 0, type_mass = 0, tm_plays = 0, fair = 0, search_ph = "", solver = "", solver_qc = 0,
-    ro = 0, ro_a = 0, ro_z = 2, ro_c = 3, ro_h = 0, ro_ph = "shop,pack,blind_select", ro_from = 0, ro_mon = 0, ro_net = 0, ro_t = 0.25, max_shop = 40, rec = "", min_ante = 0, strict = 1}
+    ro = 0, ro_a = 0, ro_z = 2, ro_c = 3, ro_h = 0, ro_ph = "shop,pack,blind_select", ro_from = 0, ro_mon = 0, ro_net = 0, ro_t = 0.25, max_shop = 40, rec = "", min_ante = 0, strict = 1, force_jflip = 0}
 for _, a in ipairs(arg or {}) do
     local k, v = a:match("^%-*([%w_]+)=(.*)$")
     if k then
@@ -155,6 +156,12 @@ local function fallback(s)
     return nil
 end
 
+local function with_flips(s)
+    local v = ST.clone(s)
+    for k = 1, v.n_jok do v.j_flip[k] = 1 end
+    return v
+end
+
 local function run(setup, scrambled)
     digest = 7
     local s = E.new_run(setup)
@@ -188,7 +195,8 @@ local function run(setup, scrambled)
         end
         if F.voucher_hidden(s) then cov.vh = cov.vh + 1 end
         if s.phase == "play" and s.blind > 2 and D.BLINDS[s.blind].showdown then cov.final = D.BLINDS[s.blind].key end
-        local view = scrambled and SC.shuffled(s, string.format("SHUF%s_%d_%d", setup.seed, dec, s.step)) or s
+        local seen = opt.force_jflip > 0 and with_flips(s) or s
+        local view = scrambled and SC.shuffled(seen, string.format("SHUF%s_%d_%d", setup.seed, dec, s.step)) or seen
         local phase = s.phase
         local acts = pick(view)
         if not acts or #acts == 0 then cov.why = "no_action" break end
