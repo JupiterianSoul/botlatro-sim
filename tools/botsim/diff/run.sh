@@ -5,15 +5,16 @@ REPO="$(cd "$HERE/../../.." && pwd)"
 MODE=${1:?usage: run.sh generate <runs.jsonl> <out_dir> [procs] | run.sh replay <out_dir> <log.jsonl>...}
 shift
 SECS="${BOTSIM_SECONDS:-1500}"
+GAME="${BOTSIM_GAME_DIR:-$REPO}"
 
 WORK="$(mktemp -d /tmp/botsim_diff.XXXXXX)"
 trap 'pkill -f "love $WORK/game" 2>/dev/null; rm -rf "$WORK"' EXIT
 
-rsync -a --delete --exclude 'multiplayer/node_modules' "$REPO/assets/" "$WORK/game/"
+rsync -a --delete --exclude 'multiplayer/node_modules' "$GAME/assets/" "$WORK/game/"
 mv "$WORK/game/main.lua" "$WORK/game/game_main.lua"
 cp "$HERE/recorder.lua" "$WORK/game/main.lua"
 cp "$HERE/json.lua" "$WORK/game/botsim_json.lua"
-cp "$REPO/tools/turbo/turbo.lua" "$WORK/game/turbo.lua"
+cp "$GAME/tools/turbo/turbo.lua" "$WORK/game/turbo.lua"
 
 launch() {
     local tag="$1" out="$2"
@@ -44,7 +45,7 @@ if [ "$MODE" = generate ]; then
 elif [ "$MODE" = replay ]; then
     OUT="$1"
     shift
-    launch replay "$OUT" BOTSIM_MODE=replay BOTSIM_LOGS="$*"
+    launch "${BOTSIM_REPLAY_TAG:-replay}" "$OUT" BOTSIM_MODE=replay BOTSIM_LOGS="$*"
 else
     echo "unknown mode $MODE"
     exit 2

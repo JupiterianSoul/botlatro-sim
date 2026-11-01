@@ -7,6 +7,9 @@ inputs:
   ref:
     description: branch of the private repo
     default: botsim
+  full_dir:
+    description: when set, also put the whole game (assets and tools/turbo) in this folder, outside the checkout, for real game runs
+    default: ''
 runs:
   using: composite
   steps:
@@ -14,6 +17,7 @@ runs:
       env:
         KEY: ${{ inputs.key }}
         REF: ${{ inputs.ref }}
+        FULL_DIR: ${{ inputs.full_dir }}
       run: |
         set -euo pipefail
         if [ -z "$KEY" ]; then echo "::error::BOTSIM_GAME_KEY is not set"; exit 1; fi
@@ -23,9 +27,15 @@ runs:
         export GIT_SSH_COMMAND="ssh -i $d/key -o IdentitiesOnly=yes -o UserKnownHostsFile=$PWD/tools/botsim/cloud/github_known_hosts -o StrictHostKeyChecking=yes"
         git clone -q --depth 1 --filter=blob:none --sparse --branch "$REF" git@github.com:JupiterianSoul/Balatro-Overhaul.git "$d/g"
         git -C "$d/g" sparse-checkout set --no-cone /assets/game.lua /assets/challenges.lua /assets/functions/ /assets/bot/sim/data_centers.lua /assets/bot/sim/data_challenges.lua /assets/bot/sim/data_jokers.lua
+        if [ -n "$FULL_DIR" ]; then git -C "$d/g" sparse-checkout set --no-cone /assets/ /tools/turbo/; fi
         mkdir -p assets/bot/sim
         cp "$d/g/assets/game.lua" "$d/g/assets/challenges.lua" assets/
         cp -r "$d/g/assets/functions" assets/
         cp "$d/g"/assets/bot/sim/data_*.lua assets/bot/sim/
+        if [ -n "$FULL_DIR" ]; then
+          mkdir -p "$FULL_DIR"
+          cp -r "$d/g/assets" "$d/g/tools" "$FULL_DIR/"
+          echo "BOTSIM_GAME_COMMIT=$(git -C "$d/g" rev-parse HEAD)" >> "$GITHUB_ENV"
+        fi
         rm -rf "$d"
         ls assets/functions | wc -l
