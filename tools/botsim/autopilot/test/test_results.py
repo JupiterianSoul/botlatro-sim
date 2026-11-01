@@ -96,5 +96,26 @@ class ResultsTest(unittest.TestCase):
             self.assertIn("b_red", open(op).read())
 
 
+class RealWins(unittest.TestCase):
+    def rows(self, text):
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "g.jsonl")
+            with open(p, "w") as f:
+                f.write(text)
+            return results.parse_games([p])
+
+    def test_lost_final_boss_in_an_old_log_is_a_loss(self):
+        g = self.rows('{"deck":"b_red","stake":8,"seed":"A","won":1,"ante":9,"need":400000}\n')
+        self.assertEqual((g[0]["won"], g[0]["ante"]), (0, 8))
+
+    def test_closed_final_round_is_a_win(self):
+        g = self.rows('{"deck":"b_red","stake":8,"seed":"A","won":1,"ante":9,"need":0}\n')
+        self.assertEqual((g[0]["won"], g[0]["ante"]), (1, 9))
+
+    def test_same_run_row_is_merged_once(self):
+        r = {"t": 0, "step": "s", "checkpoint": "c", "who": "w", "set": "x", "deck": "b_red", "stake": 8, "n": 10, "wins": 1, "ante_sum": 40, "time_sum": 1.0, "fair": True, "ci_run": 7}
+        self.assertEqual(results.merge([r, dict(r), dict(r, ci_run=8)])[0]["n"], 20)
+
+
 if __name__ == "__main__":
     unittest.main()

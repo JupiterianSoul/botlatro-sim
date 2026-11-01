@@ -88,7 +88,7 @@ for i = 1, N do
     end
     sactions = sactions + #log
     santes = santes + st.ante
-    swins = swins + st.won
+    swins = swins + (st.won == 1 and st.phase ~= "game_over" and 1 or 0)
     slogs[i] = log
 end
 local t_spol = clock() - t0
