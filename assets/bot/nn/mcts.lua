@@ -159,7 +159,7 @@ end
 
 function M:value_of(s, p, ante_hat)
     local wa = s.win_ante > 0 and s.win_ante or 8
-    if s.won == 1 then return 1 end
+    if s.won == 1 and s.phase ~= "game_over" then return 1 end
     if s.phase ~= "game_over" and (self.leaf_money ~= 0 or self.leaf_rent ~= 0 or self.leaf_dead ~= 0) then
         return self:value_base(s, p, ante_hat, wa) + self:leaf_econ(s)
     end

@@ -8,7 +8,7 @@ local M = {}
 local LEAVE, SKIP = {type = "leave"}, {type = "skip"}
 
 local function score(w)
-    if w.won == 1 then return w.win_ante + 2 end
+    if w.won == 1 and w.phase ~= "game_over" then return w.win_ante + 2 end
     return w.ante + (w.blind_on_deck - 1) / 3
 end
 
