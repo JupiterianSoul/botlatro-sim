@@ -100,12 +100,19 @@ local function pool_of(s, slots)
     return pool
 end
 
-local function jokers_hidden(s)
-    if s.n_jok < 2 then return false end
+local function flipped_jokers(s)
+    local pos = {}
     for k = 1, s.n_jok do
-        if s.j_flip[k] ~= 1 then return false end
+        if s.j_flip[k] == 1 then pos[#pos + 1] = k end
     end
-    return true
+    return pos
+end
+
+local function perm_of(s, pos, order)
+    local perm = {}
+    for k = 1, s.n_jok do perm[k] = k end
+    for i = 1, #pos do perm[pos[i]] = order[i] end
+    return perm
 end
 
 local function permute_jokers(s, perm)
@@ -147,11 +154,12 @@ function F.sanitize(real)
     local pool = pool_of(b, slots)
     table.sort(pool)
     place(b, slots, pool)
-    if jokers_hidden(b) then
-        local perm = {}
-        for k = 1, b.n_jok do perm[k] = k end
-        table.sort(perm, joker_less(b))
-        permute_jokers(b, perm)
+    local fj = flipped_jokers(b)
+    if #fj >= 2 then
+        local order = {}
+        for i = 1, #fj do order[i] = fj[i] end
+        table.sort(order, joker_less(b))
+        permute_jokers(b, perm_of(b, fj, order))
     end
     b.fair_voucher_hidden = voucher_hidden(b) and 1 or 0
     if b.fair_voucher_hidden == 1 then b.voucher = 0 end
@@ -170,11 +178,12 @@ function F.world(base, key)
     local pool = pool_of(w, slots)
     shuffle(pool, #pool, key .. "deck")
     place(w, slots, pool)
-    if jokers_hidden(w) then
-        local perm = {}
-        for k = 1, w.n_jok do perm[k] = k end
-        shuffle(perm, #perm, key .. "jok")
-        permute_jokers(w, perm)
+    local fj = flipped_jokers(w)
+    if #fj >= 2 then
+        local order = {}
+        for i = 1, #fj do order[i] = fj[i] end
+        shuffle(order, #order, key .. "jok")
+        permute_jokers(w, perm_of(w, fj, order))
     end
     if base.fair_voucher_hidden == 1 then w.voucher = E.get_next_voucher(w) end
     return w

@@ -6,6 +6,8 @@ local SN = require("bot.sim.snapshot")
 local rng = require("bot.sim.rng")
 local S = require("bot.seer.seer")
 local F = require("bot.seer.fair")
+local D = require("bot.sim.data")
+local LK = require("botsim.seer.leaks")
 
 local passed, failed = 0, 0
 local current = ""
@@ -83,6 +85,42 @@ for _, st in ipairs(states) do
     end
 end
 
+local function late(boss, ante, jokers, after)
+    local s = E.new_run({seed = "FAIRLATE" .. boss, deck = "b_red", stake = 8})
+    E.step(s, {type = "skip"})
+    E.step(s, {type = "skip"})
+    s.ante = ante
+    for _, j in ipairs(jokers) do E.add_joker(s, j) end
+    s.boss_choice = D.BLIND_ID[boss]
+    s.money = 30
+    assert(E.step(s, {type = "select"}))
+    if after then after(s) end
+    states[#states + 1] = s
+    return s
+end
+
+local JK = {"j_joker", "j_mime", "j_duo", "j_blackboard"}
+for _, boss in ipairs({"bl_final_acorn", "bl_final_leaf", "bl_final_vessel", "bl_final_bell", "bl_final_heart"}) do late(boss, 8, JK) end
+late("bl_house", 6, JK)
+late("bl_mark", 6, JK)
+late("bl_wheel", 7, JK)
+late("bl_fish", 7, JK, function(s) E.step(s, {type = "play", cards = {1}}) end)
+late("bl_final_acorn", 8, JK, function(s) E.add_joker(s, "j_splash") end)
+do
+    local s = late("bl_hook", 7, JK, function(s)
+        s.chips = s.blind_chips
+        E.step(s, {type = "play", cards = {1}})
+    end)
+    states[#states] = nil
+    states[#states + 1] = ST.clone(s)
+    E.step(s, {type = "cash_out"})
+    states[#states + 1] = ST.clone(s)
+    if s.phase == "shop" then
+        E.step(s, {type = "leave"})
+        states[#states + 1] = ST.clone(s)
+    end
+end
+
 current = "sanitized view ignores hidden info"
 do
     local phases = {}
@@ -132,6 +170,95 @@ do
             ok(sh, "visible shop kept")
         end
     end
+end
+
+local function ser_full(s)
+    local out = {}
+    ser(s, out, {})
+    return table.concat(out)
+end
+
+local function same_view(s, v)
+    return ser_full(F.sanitize(s)) == ser_full(F.sanitize(v))
+end
+
+local function same_world(s, v, key)
+    return ser_full(F.world(F.sanitize(s), key)) == ser_full(F.world(F.sanitize(v), key))
+end
+
+current = "same key gives the same world from any hidden state"
+do
+    for i, s in ipairs(states) do
+        local v = variant(s, i)
+        ok(same_view(s, v), "same view with its caches (" .. s.phase .. " step " .. s.step .. ")")
+        ok(same_world(s, v, "WSAME" .. i), "same world (" .. s.phase .. " step " .. s.step .. ")")
+    end
+end
+
+current = "the world check catches every planted leak"
+do
+    local world0, san0 = F.world, F.sanitize
+    for name, leak in pairs(LK.world) do
+        local real
+        F.sanitize = function(x)
+            real = x
+            return san0(x)
+        end
+        F.world = function(base, key)
+            local w = world0(base, key)
+            leak(w, real, base)
+            return w
+        end
+        local caught = 0
+        for i, s in ipairs(states) do
+            if not same_world(s, variant(s, i), "WPLANT" .. i) then caught = caught + 1 end
+        end
+        F.sanitize, F.world = san0, world0
+        print(string.format("info: planted world leak %s seen on %d of %d states", name, caught, #states))
+        ok(caught > 0, "planted world leak seen: " .. name)
+    end
+    for name, leak in pairs(LK.sanitize) do
+        F.sanitize = function(x)
+            local b = san0(x)
+            leak(b, x)
+            return b
+        end
+        local caught = 0
+        for i, s in ipairs(states) do
+            if not same_view(s, variant(s, i)) then caught = caught + 1 end
+        end
+        F.sanitize = san0
+        print(string.format("info: planted view leak %s seen on %d of %d states", name, caught, #states))
+        ok(caught > 0, "planted view leak seen: " .. name)
+    end
+end
+
+current = "worlds do not correlate with the real future"
+do
+    local same, total, worlds, boss_same, boss_n = 0, 0, 0, 0, 0
+    for _, s in ipairs(states) do
+        if s.n_deck >= 20 then
+            local flipped = false
+            for i = 1, s.n_hand do flipped = flipped or s.c_flip[s.hand[i]] == 1 end
+            local base = F.sanitize(s)
+            local real_boss = E.get_new_boss(ST.clone(s))
+            for k = 1, 30 do
+                local w = F.world(base, string.format("FW%s_%d", s.seed, k))
+                if not flipped then
+                    worlds = worlds + 1
+                    for p = 1, s.n_deck do
+                        total = total + 1
+                        if w.deck[p] == s.deck[p] then same = same + 1 end
+                    end
+                end
+                boss_n = boss_n + 1
+                if E.get_new_boss(ST.clone(w)) == real_boss then boss_same = boss_same + 1 end
+            end
+        end
+    end
+    print(string.format("info: deck slots equal to the truth %d of %d, %.2f per world (a fair shuffle gives 1), next boss equal %d of %d", same, total, same / worlds, boss_same, boss_n))
+    ok(worlds > 0 and same / worlds < 1.5, "a world deck matches the truth no more than chance")
+    ok(boss_n > 0 and boss_same / boss_n < 0.4, "a world next boss matches the truth no more than chance")
 end
 
 current = "decisions ignore hidden info and leave the real state alone"
