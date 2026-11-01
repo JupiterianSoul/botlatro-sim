@@ -104,6 +104,36 @@ do
     T.eq(E.step(s, {type = "play", cards = {free}}), false, "bell refuses a hand without its forced card")
 end
 
+local function bell_with(key)
+    local s = fight("bl_final_bell")
+    local forced = 1
+    for i = 1, s.n_hand do
+        if s.c_forced[s.hand[i]] == 1 then forced = i end
+    end
+    s.cons[1], s.cons_ed[1] = key, 0
+    s.n_cons = 1
+    return s, forced, forced == 1 and 2 or 1
+end
+
+do
+    local s, _, free = bell_with("c_tower")
+    T.eq(E.step(s, {type = "use", card = 1, targets = {free}}), false, "bell: a one target tarot refuses another card, the forced one is selected too")
+end
+
+do
+    local s, forced = bell_with("c_lovers")
+    local c = s.hand[forced]
+    T.eq(E.step(s, {type = "use", card = 1, targets = {forced}}), true, "bell: a tarot on the forced card works")
+    T.eq(s.c_enh[c] ~= 0, true, "bell: the forced card took the tarot")
+end
+
+do
+    local s, forced, free = bell_with("c_magician")
+    local a, b = s.hand[forced], s.hand[free]
+    T.eq(E.step(s, {type = "use", card = 1, targets = {free}}), true, "bell: a two target tarot takes the forced card and the chosen one")
+    T.eq(s.c_enh[a] ~= 0 and s.c_enh[b] ~= 0, true, "bell: both cards changed")
+end
+
 do
     local base = {[5] = 25000, [6] = 60000, [7] = 110000, [8] = 200000}
     for ante, amount in pairs(base) do

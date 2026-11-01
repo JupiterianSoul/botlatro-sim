@@ -1198,11 +1198,26 @@ return function(E, I)
         return true
     end
 
+    function E.with_forced(s, targets)
+        for i = 1, s.n_hand do
+            if s.c_forced[s.hand[i]] == 1 then
+                local out = {i}
+                for j = 1, targets and #targets or 0 do
+                    if targets[j] == i then return targets end
+                    out[#out + 1] = targets[j]
+                end
+                return out
+            end
+        end
+        return targets
+    end
+
     function E.use(s, pos, targets)
         if s.phase ~= "play" and s.phase ~= "shop" then return false end
         if type(pos) ~= "number" or pos < 1 or pos > s.n_cons then return false end
         if not target_ok(s, targets) then return false end
         local cid = CONS_ID[s.cons[pos]]
+        if CONS[cid].config.max_highlighted or CONS[cid].name == "Aura" then targets = E.with_forced(s, targets) end
         if not can_use(s, cid, targets and #targets or 0, false, true) then return false end
         if CONS[cid].name == "Ankh" and s.n_jok >= s.joker_limit then return false end
         local ed = s.cons_ed[pos]

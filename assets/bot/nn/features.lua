@@ -902,6 +902,12 @@ local function target_rows(s, ab, k, t, ent, arg, cid, in_pack, area_cons)
     local nh = min(s.n_hand, M.MAXC)
     if hi > nh then hi = nh end
     local MSL = M.MAXSEL
+    local forced = 0
+    if not in_pack then
+        for i = 1, nh do
+            if s.c_forced[s.hand[i]] == 1 then forced = i end
+        end
+    end
     for n = lo, hi do
         if E.can_use_cons(s, cid, n, in_pack, area_cons) then
             if n == 0 then
@@ -910,19 +916,23 @@ local function target_rows(s, ab, k, t, ent, arg, cid, in_pack, area_cons)
             else
                 for i = 1, n do tsel[i] = i end
                 while true do
-                    local o = econ_row(ab, k, t, ent, arg, 0)
-                    ab.nc[k] = n
-                    local fa = ab.fa
-                    fa[o + A.n + n - 1] = 1
-                    local nd, nf = 0, 0
-                    for i = 1, n do
-                        ab.c[k * MSL + i - 1] = tsel[i] - 1
-                        local cid2 = s.hand[tsel[i]]
-                        if s.c_flip[cid2] == 1 then nf = nf + 1 elseif s.c_debuff[cid2] ~= 0 then nd = nd + 1 end
+                    local keep = forced == 0
+                    for i = 1, n do keep = keep or tsel[i] == forced end
+                    if keep then
+                        local o = econ_row(ab, k, t, ent, arg, 0)
+                        ab.nc[k] = n
+                        local fa = ab.fa
+                        fa[o + A.n + n - 1] = 1
+                        local nd, nf = 0, 0
+                        for i = 1, n do
+                            ab.c[k * MSL + i - 1] = tsel[i] - 1
+                            local cid2 = s.hand[tsel[i]]
+                            if s.c_flip[cid2] == 1 then nf = nf + 1 elseif s.c_debuff[cid2] ~= 0 then nd = nd + 1 end
+                        end
+                        fa[o + A.n_debuff] = nd / 5
+                        fa[o + A.n_flipped] = nf / 5
+                        k = k + 1
                     end
-                    fa[o + A.n_debuff] = nd / 5
-                    fa[o + A.n_flipped] = nf / 5
-                    k = k + 1
                     local i = n
                     while i >= 1 and tsel[i] == nh - n + i do i = i - 1 end
                     if i < 1 then break end

@@ -284,7 +284,8 @@ local function cons_options(s, cid, in_pack, area_cons, act)
     local sets = target_sets(s, cid)
     if sets then
         for i = 1, #sets do
-            if E.can_use_cons(s, cid, #sets[i], in_pack, area_cons) then
+            local has = in_pack or E.with_forced(s, sets[i]) == sets[i]
+            if has and E.can_use_cons(s, cid, #sets[i], in_pack, area_cons) then
                 local a = copy_action(act)
                 a.targets = sets[i]
                 out[#out + 1] = a
