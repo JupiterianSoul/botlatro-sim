@@ -11,7 +11,6 @@ local RUN_SECONDS = tonumber(os.getenv("BOTSIM_RUN_SECONDS") or "240") or 240
 local SHOP_CAP = tonumber(os.getenv("BOTSIM_SHOP_CAP") or "10") or 10
 local TAG = os.getenv("BOTSIM_TAG") or "rec"
 local STABLE = 3
-local TERMINAL_STABLE = 240
 local STUCK_UPDATES = 6000
 
 local J = require("botsim_json")
@@ -652,8 +651,7 @@ local function driver(dt)
             return
         end
         D.stable_n = D.stable_n + 1
-        local need = (phase == "game_over" or phase == "win") and TERMINAL_STABLE or STABLE
-        if D.settle_n < 2 or D.stable_n < need then return end
+        if D.settle_n < 2 or D.stable_n < STABLE then return end
         take_snapshot(phase)
         D.state = "ready"
         return
