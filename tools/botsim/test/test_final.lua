@@ -153,6 +153,15 @@ do
 end
 
 do
+    local s = fight("bl_wall", {ante = 5, jokers = {"j_joker"}})
+    for i = 1, s.n_hand do s.hand[i] = nil end
+    for i = 1, s.n_deck do s.deck[i] = nil end
+    s.n_hand, s.n_deck = 0, 0
+    T.ok(E.step(s, {type = "sell", area = "jokers", card = 1}), "sell with no cards left")
+    T.eq(s.phase, "game_over", "no cards left anywhere ends the round")
+end
+
+do
     local s = fight("bl_final_vessel", {ante = 5, jokers = {{"j_joker", {rental = true}}, {"j_mime", {rental = true}}}, money = 20})
     last_hand(s, 1)
     T.eq(s.phase, "round_eval", "rental round goes on")

@@ -2376,6 +2376,7 @@ function E.step(s, a)
         if s.n_pq > 0 then E.flush_pending(s) end
         if s.lux_x > 0 then lux_sync(s) end
         if s.phase == "blind_select" then ensure_orbital(s) end
+        if s.phase == "play" and s.n_hand < 1 and s.n_deck < 1 then end_round(s) end
         s.step = s.step + 1
     end
     return ok
