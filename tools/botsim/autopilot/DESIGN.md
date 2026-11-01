@@ -109,6 +109,10 @@ Before every `up` (paid.py): free precheck passed for this checkpoint, `paid.app
 
 Each game is played twice: normally, and with the bot shown a resampled hidden future at every decision (a world drawn from the visible state only, new key per decision) while its move is applied to the real state. A fair deterministic bot plays the identical action line both times. Output `{"who", "games", "identical", "diffs": [{"seed", "deck", "stake", "step", "phase"}]}`; exit 0 only if every game is identical. `who=cheat` is the control: the cheating Seer must differ on at least one game, or the check itself is broken.
 
+With `strict=1` (the default) it also compares a running digest of everything the player was given: every sanitized view, every sampled world and every net input. Same move with a different digest is a failure, because a leak that happened not to flip a move in these few games is still a leak. `strict=0` compares moves only.
+
+Flipped jokers almost never come up in real games, so a clean check says little about them. `force_jflip=1` shows the player every joker face down in both runs, which makes that hidden information exist on every decision. It is a test of the check, not a game, so its results are not measurements.
+
 ## CI work (botsim-work.yml)
 
 `gh workflow run botsim-work.yml --ref <ref> -f tag=<tag> -f jobs='<json>' -f chain=<ref or empty> -f dir=<dir>`; `jobs` is a list of `{"label", "cmd", "torch": bool, "timeout": minutes}`. run-name `botsim work <tag>`. Each matrix job gets the pinned LuaJIT, optional CPU torch (`tools/botsim/cloud/jobs/train/needs.json` versions), `$OUT`, `$CORES`, `GH_TOKEN` (actions read, to download earlier artifacts), uploads artifact `<tag>-<label>` (retention 30 days). A last job dispatches `botsim-autopilot.yml` with `command=tick` on `chain` when set, so CI steps advance without waiting for the hourly tick.

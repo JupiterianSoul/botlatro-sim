@@ -27,12 +27,15 @@ function M.variant(s, tag)
             v.c_flip[d] = 1
         end
     end
-    local all = v.n_jok >= 2
-    for k = 1, v.n_jok do if v.j_flip[k] ~= 1 then all = false end end
-    if all then
+    local fj = {}
+    for k = 1, v.n_jok do
+        if v.j_flip[k] == 1 then fj[#fj + 1] = k end
+    end
+    if #fj >= 2 then
+        local p, q = fj[1], fj[#fj]
         for _, f in ipairs(ST.JOKER_ARRAYS) do
             local a = v[f]
-            a[1], a[v.n_jok] = a[v.n_jok], a[1]
+            a[p], a[q] = a[q], a[p]
         end
     end
     if F.voucher_hidden(v) then v.voucher = (v.voucher % 10) + 1 end
