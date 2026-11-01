@@ -192,7 +192,7 @@ local function play(deck, stake, seed)
         end
     end
     while moves < opt.max_moves do
-            if tr then trace_top(tr, s) end
+        if tr then trace_top(tr, s) end
         do_forced(s)
         if opt.digest > 0 then dig = (dig * 1000003 + MC.obs_key(s, true)) % 4294967291 end
         if MC.terminal(s) then why = "end" break end
