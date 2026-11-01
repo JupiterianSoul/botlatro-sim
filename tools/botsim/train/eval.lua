@@ -11,7 +11,7 @@ local ES = require("botsim.train.evalset")
 local json = require("bot.sim.json")
 
 local opt = {who = "greedy", weights = "", sims = 32, K = 24, per = 6, decks = "", stakes = "", part = 0, parts = 1, out = "", max_moves = 3000, max_shop = 40,
-    mix = -1, score_prior = 0, score_top = 6, score_temp = 4, skip_pen = 1, skip_ante = 1, type_mass = 0, tm_plays = 0, quick_clear = 0, pace = 0, pace_net = 0, prefix = "", first = 1, seeds = 10, jsonl = "", fair = 0, search_ph = "", rec = "", solver = "", solver_qc = 0, set = "", curve = 0, leaf_money = 0, leaf_rent = 0, leaf_dead = 0, rent_prior = 1, rent_from = 0, sell_dead = 0, c_puct = 1.5, worlds = 1, ro = 0, ro_a = 0, ro_z = 2, ro_c = 3, ro_h = 0, ro_ph = "shop,pack,blind_select", ro_from = 0, ro_mon = 0, ro_net = 0, ro_t = 0.25}
+    mix = -1, score_prior = 0, score_top = 6, score_temp = 4, skip_pen = 1, skip_ante = 1, type_mass = 0, tm_plays = 0, quick_clear = 0, pace = 0, pace_net = 0, prefix = "", first = 1, seeds = 10, jsonl = "", fair = 0, search_ph = "", rec = "", solver = "", solver_qc = 0, set = "", curve = 0, leaf_money = 0, leaf_rent = 0, leaf_dead = 0, rent_prior = 1, rent_from = 0, sell_dead = 0, c_puct = 1.5, worlds = 1, ro = 0, ro_a = 0, ro_z = 2, ro_c = 3, ro_h = 0, ro_ph = "shop,pack,blind_select", ro_from = 0, ro_mon = 0, ro_net = 0, ro_t = 0.25, log = ""}
 for _, a in ipairs(arg or {}) do
     local k, v = a:match("^([%w_]+)=(.*)$")
     if k then opt[k] = tonumber(v) or v end
@@ -41,14 +41,71 @@ local st = {}
 
 local ro_choose = opt.ro > 0 and require("botsim.train.rollout").chooser(mc, rmc, opt) or nil
 
+local function positions(list)
+    local out = {}
+    for i = 1, #list do out[i] = string.format("%d", list[i]) end
+    return "[" .. table.concat(out, ",") .. "]"
+end
+
+local function action_line(a)
+    local t = a.type
+    if t == "play" or t == "discard" then
+        return string.format('{"type":"%s","cards":%s}', t, positions(a.cards))
+    elseif t == "use" or t == "pick" then
+        if a.targets and #a.targets > 0 then
+            return string.format('{"type":"%s","card":%d,"targets":%s}', t, a.card, positions(a.targets))
+        end
+        return string.format('{"type":"%s","card":%d}', t, a.card)
+    elseif t == "sell" then
+        return string.format('{"type":"sell","area":"%s","card":%d}', a.area, a.card)
+    elseif t == "reorder_jokers" then
+        return string.format('{"type":"reorder_jokers","order":%s}', positions(a.order))
+    elseif t == "buy" or t == "buy_and_use" or t == "redeem" or t == "open" then
+        return string.format('{"type":"%s","card":%d}', t, a.card)
+    end
+    return string.format('{"type":"%s"}', t)
+end
+
+local function open_log(deck, stake, seed)
+    if opt.log == "" then return nil end
+    return {path = string.format("%s/%s_s%d_%s", opt.log, deck, stake, seed),
+        string.format('{"seed":"%s","deck":"%s","stake":%d,"challenge":null}', seed, deck, stake)}
+end
+
+local function close_log(alog, s)
+    if not alog then return end
+    local f = assert(io.open(alog.path .. ".jsonl", "w"))
+    f:write(table.concat(alog, "\n"), "\n")
+    f:close()
+    f = assert(io.open(alog.path .. ".final", "w"))
+    f:write(require("bot.sim.snapshot").line(s), "\n")
+    f:close()
+end
+
+local CASH = {type = "cash_out"}
+
 local function play(deck, stake, seed)
     local s = E.new_run({seed = seed, deck = deck, stake = stake})
     for k, v in tostring(opt.set):gmatch("([%w_]+):(-?[%d%.]+)") do s[k] = tonumber(v) end
     local moves, econ_run, why = 0, 0, "max_moves"
     local curve, curve_ante = {}, 0
     local recs = rf and {}
+    local alog = open_log(deck, stake, seed)
+    local function do_step(w, act)
+        local line = alog and action_line(act)
+        local ok = E.step(w, act)
+        if ok and alog then alog[#alog + 1] = line end
+        return ok
+    end
+    local function do_forced(w)
+        if not alog then return MC.advance_forced(w) end
+        for _ = 1, 8 do
+            if w.phase ~= "round_eval" or w.won == 1 then return end
+            if not do_step(w, CASH) then return end
+        end
+    end
     while moves < opt.max_moves do
-        MC.advance_forced(s)
+        do_forced(s)
         if MC.terminal(s) then why = "end" break end
         local ph = s.phase
         if opt.curve > 0 and s.ante ~= curve_ante then
@@ -63,12 +120,12 @@ local function play(deck, stake, seed)
         end
         if opt.sell_dead > 0 and ph == "shop" then
             for k = s.n_jok, 1, -1 do
-                if s.j_perish[k] == 0 then E.step(s, {type = "sell", area = "jokers", card = k}) end
+                if s.j_perish[k] == 0 then do_step(s, {type = "sell", area = "jokers", card = k}) end
             end
         end
         if ph == "shop" or ph == "pack" then econ_run = econ_run + 1 else econ_run = 0 end
         if econ_run > opt.max_shop then
-            if not E.step(s, ph == "pack" and SKIP or LEAVE) then why = "stuck_econ:" .. ph break end
+            if not do_step(s, ph == "pack" and SKIP or LEAVE) then why = "stuck_econ:" .. ph break end
         elseif SOLVER and ph == "play" then
             SOLVER.last_cands = nil
             local acts = SOLVER:decide(s)
@@ -76,9 +133,9 @@ local function play(deck, stake, seed)
                 local r = TCH.encode(s, acts[1], {K = 32, neg = 16, n_sims = opt.sims}, FAIR.scores_of(SOLVER.last_cands or {}))
                 if r then recs[#recs + 1] = r end
             end
-            if not acts or not acts[1] or not E.step(s, acts[1]) then
+            if not acts or not acts[1] or not do_step(s, acts[1]) then
                 local fb = PL.fast_action(s)
-                if not fb or not E.step(s, fb) then why = "step_failed:play:solver" break end
+                if not fb or not do_step(s, fb) then why = "step_failed:play:solver" break end
             end
             moves = moves + 1
         elseif mc then
@@ -94,7 +151,7 @@ local function play(deck, stake, seed)
             end
             if ro_act then
                 if recs then recs[#recs + 1] = REC.encode_record(mc.F_root, mc, ro_e, sims, FE.PHASES[ph] or 0) end
-                if not E.step(s, ro_act) then why = "step_failed:ro" break end
+                if not do_step(s, ro_act) then why = "step_failed:ro" break end
                 moves = moves + 1
                 goto continue
             end
@@ -118,7 +175,7 @@ local function play(deck, stake, seed)
             if recs then recs[#recs + 1] = REC.encode_record(mc.F_root, mc, e, sims, FE.PHASES[ph] or 0) end
             mc:edge_action(e, step, view)
             if not FAIR then mc:commit(e) end
-            if not E.step(s, step) then why = "step_failed:" .. ph .. ":" .. tostring(step.type) break end
+            if not do_step(s, step) then why = "step_failed:" .. ph .. ":" .. tostring(step.type) break end
             moves = moves + 1
         else
             FE.state(s, F)
@@ -128,18 +185,20 @@ local function play(deck, stake, seed)
             local k = a and FE.find_action(AB, a, s) or -1
             if k < 0 then k = 0 end
             local fs = FE.to_step(AB, k, st, s)
-            if not E.step(s, fs) then why = "step_failed:" .. ph .. ":" .. tostring(fs.type) break end
+            if not do_step(s, fs) then why = "step_failed:" .. ph .. ":" .. tostring(fs.type) break end
             moves = moves + 1
         end
         ::continue::
     end
-    local won = s.won == 1 and 1 or 0
+    local won = s.won == 1 and s.phase ~= "game_over" and 1 or 0
     local ante = won == 1 and s.win_ante + 1 or s.ante
     if recs then
         nrun = nrun + 1
-        rf:write(REC.encode_run(recs, won, math.min(ante, 255), FE.DECK_IDX[deck] or 0, stake, nrun))
+        local flag = s.won == 1 and 1 or 0
+        rf:write(REC.encode_run(recs, flag, math.min(flag == 1 and s.win_ante + 1 or s.ante, 255), FE.DECK_IDX[deck] or 0, stake, nrun))
     end
     s.eval_curve = table.concat(curve, ",")
+    close_log(alog, s)
     return won, ante, why, moves, s
 end
 
