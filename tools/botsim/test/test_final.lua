@@ -21,7 +21,11 @@ end
 local function last_hand(s, part)
     s.hands_left = 1
     s.chips = s.blind_chips * part
-    return E.step(s, {type = "play", cards = {1}})
+    local pos = 1
+    for i = 1, s.n_hand do
+        if s.c_forced[s.hand[i]] == 1 then pos = i end
+    end
+    return E.step(s, {type = "play", cards = {pos}})
 end
 
 local function has(s, key)
