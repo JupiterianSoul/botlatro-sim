@@ -1,0 +1,1 @@
+fuzz|luajit tools/botsim/fuzz.lua 3000 | tail -3
