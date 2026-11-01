@@ -9,7 +9,7 @@ local SC = require("botsim.seer.scramble")
 
 local opt = {who = "fair", budget = "lite", weights = "", prefix = "BENCH", first = 1, seeds = 1, decks = "b_red", stakes = "1",
     max_steps = 4000, out = "", sims = 32, K = 24, quick_clear = 0, pace = 0, pace_net = 0, type_mass = 0, tm_plays = 0, fair = 0, search_ph = "", solver = "", solver_qc = 0,
-    ro = 0, ro_a = 0, ro_z = 2, ro_c = 3, ro_h = 0, ro_ph = "shop,pack,blind_select", ro_from = 0, ro_mon = 0, ro_net = 0, ro_t = 0.25, max_shop = 40, rec = "", min_ante = 0}
+    ro = 0, ro_a = 0, ro_z = 2, ro_c = 3, ro_h = 0, ro_ph = "shop,pack,blind_select", ro_from = 0, ro_mon = 0, ro_net = 0, ro_t = 0.25, max_shop = 40, rec = "", min_ante = 0, strict = 1}
 for _, a in ipairs(arg or {}) do
     local k, v = a:match("^%-*([%w_]+)=(.*)$")
     if k then
@@ -21,6 +21,70 @@ local function split(str)
     local t = {}
     for w in str:gmatch("[^,]+") do t[#t + 1] = w end
     return t
+end
+
+local digest = 7
+local MOD = 2147483629
+local str_h = {}
+
+local function h_num(v)
+    local x = (v % MOD) * 4096
+    if x ~= x then return 11 end
+    return math.floor(x) % MOD
+end
+
+local function h_str(x)
+    local v = str_h[x]
+    if not v then
+        v = 7
+        for i = 1, #x do v = (v * 131 + x:byte(i)) % MOD end
+        str_h[x] = v
+    end
+    return v
+end
+
+local function h_val(v)
+    local t = type(v)
+    if t == "number" then return h_num(v) end
+    if t == "string" then return h_str(v) end
+    if t == "boolean" then return v and 5 or 3 end
+    if t ~= "table" then return 1 end
+    local sum = 0
+    for k, x in pairs(v) do
+        sum = (sum + ((h_val(k) * 131 + h_val(x)) * 1000003) % MOD) % MOD
+    end
+    return sum
+end
+
+local function mix(h)
+    digest = (digest * 1000003 % MOD + h) % MOD
+end
+
+local function mix_buf(b, n)
+    for i = 0, n - 1 do mix(h_num(b[i] or 0)) end
+end
+
+if opt.strict > 0 then
+    local FE = require("bot.nn.features")
+    local san0, world0, state0 = F.sanitize, F.world, FE.state
+    F.sanitize = function(x)
+        local v = san0(x)
+        mix(h_val(v))
+        return v
+    end
+    F.world = function(base, key)
+        local w = world0(base, key)
+        mix(h_val(w))
+        return w
+    end
+    FE.state = function(s, buf)
+        local r = state0(s, buf)
+        mix_buf(buf.g, FE.GF)
+        mix_buf(buf.c, buf.nc * FE.CF)
+        mix_buf(buf.j, buf.nj * FE.JF)
+        mix_buf(buf.i, buf.ni * FE.IF)
+        return r
+    end
 end
 
 local b = F.BUDGETS[opt.budget] or F.BUDGETS.lite
@@ -92,6 +156,7 @@ local function fallback(s)
 end
 
 local function run(setup, scrambled)
+    digest = 7
     local s = E.new_run(setup)
     local pick = chooser()
     local line = {}
@@ -132,7 +197,7 @@ local function run(setup, scrambled)
             if #line >= opt.max_steps then break end
             if not E.step(s, acts[i]) then break end
             moved = true
-            line[#line + 1] = {key = F.action_key(acts[i]), phase = phase}
+            line[#line + 1] = {key = F.action_key(acts[i]), phase = phase, dg = digest}
         end
         if not moved then
             local fb = fallback(s)
@@ -141,7 +206,7 @@ local function run(setup, scrambled)
                 cov.why = "stuck"
                 break
             end
-            line[#line + 1] = {key = "fb:" .. F.action_key(fb), phase = phase}
+            line[#line + 1] = {key = "fb:" .. F.action_key(fb), phase = phase, dg = digest}
         end
         ::continue::
     end
@@ -168,13 +233,14 @@ for _, d in ipairs(split(opt.decks)) do
             local at
             for i = 1, math.max(#l1, #l2) do
                 local x, y = l1[i], l2[i]
-                if not x or not y or x.key ~= y.key then at = i break end
+                if not x or not y or x.key ~= y.key or x.dg ~= y.dg then at = i break end
             end
             if at then
                 local p = (l1[at] or l2[at]).phase
                 diffs[#diffs + 1] = {seed = setup.seed, deck = d, stake = setup.stake, step = at, phase = p}
-                print(string.format("diff %s %s stake %d at step %d (%s): %s vs %s", setup.seed, d, setup.stake, at, p,
-                    l1[at] and l1[at].key or "end", l2[at] and l2[at].key or "end"))
+                print(string.format("diff %s %s stake %d at step %d (%s): %s vs %s%s", setup.seed, d, setup.stake, at, p,
+                    l1[at] and l1[at].key or "end", l2[at] and l2[at].key or "end",
+                    l1[at] and l2[at] and l1[at].key == l2[at].key and " (same move, the player saw different inputs)" or ""))
             else
                 identical = identical + 1
                 print(string.format("same %s %s stake %d (%d steps)", setup.seed, d, setup.stake, #l1))
