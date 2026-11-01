@@ -21,6 +21,7 @@ Same types as `B.legal` in `assets/functions/bot_bridge.lua`, but cards are refe
 | `use` | `card`: position in consumables, `targets`: positions in hand (optional) |
 | `sell` | `area`: `jokers` or `consumables`, `card`: position |
 | `reorder_jokers` | `order`: permutation of joker positions |
+| `sort` | `by`: `rank` or `suit`, while a hand is dealt. The order stays for later draws. |
 | `buy`, `buy_and_use` | `card`: position in the shop jokers row |
 | `redeem` | `card`: position in the voucher row |
 | `open` | `card`: position in the booster row |
