@@ -1212,6 +1212,13 @@ return function(E, I)
         return true
     end
 
+    local sell_card = E.sell
+    function E.sell(s, area, pos)
+        local ok = sell_card(s, area, pos)
+        if ok and s.phase == "play" and s.blind > 2 and s.chips >= s.blind_chips then E.end_round(s) end
+        return ok
+    end
+
     local pin_state
     local function pin_less(a, b)
         local s = pin_state

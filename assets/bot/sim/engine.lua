@@ -2178,7 +2178,7 @@ end_round = function(s)
     if game_over then n_kill = 0 else flush_kills(s) end
     if not game_over then s.money = s.money - 3 * rentals end
     local won = s.ante == s.win_ante and is_boss and s.won == 0
-    if won then s.won = 1 end
+    if won and not game_over then s.won = 1 end
     if game_over then
         s.game_over = 1
         s.phase = "game_over"
