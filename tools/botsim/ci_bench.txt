@@ -1,0 +1,1 @@
+tests|luajit tools/botsim/fuzz.lua 500 | tail -1
