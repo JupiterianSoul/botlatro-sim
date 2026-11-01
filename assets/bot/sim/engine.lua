@@ -2182,7 +2182,7 @@ end_round = function(s)
     if game_over then n_kill = 0 else flush_kills(s) end
     if not game_over then s.money = s.money - 3 * rentals end
     local won = s.ante == s.win_ante and is_boss and s.won == 0
-    if won then s.won = 1 end
+    if won and not game_over then s.won = 1 end
     if game_over then
         s.game_over = 1
         s.phase = "game_over"
@@ -2386,6 +2386,7 @@ function E.step(s, a)
         if s.n_pq > 0 then E.flush_pending(s) end
         if s.lux_x > 0 then lux_sync(s) end
         if s.phase == "blind_select" then ensure_orbital(s) end
+        if s.phase == "play" and s.n_hand < 1 and s.n_deck < 1 then end_round(s) end
         s.step = s.step + 1
     end
     return ok
