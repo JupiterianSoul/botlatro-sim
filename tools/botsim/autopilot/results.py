@@ -27,8 +27,8 @@ def parse_games(paths):
                     "deck": d["deck"],
                     "stake": int(d.get("stake", 1)),
                     "seed": d.get("seed"),
-                    "won": 1 if d["won"] else 0,
-                    "ante": int(d.get("ante", 0)),
+                    "won": 1 if d["won"] and d.get("need", 0) == 0 else 0,
+                    "ante": int(d.get("ante", 0)) - (1 if d["won"] and d.get("need", 0) != 0 else 0),
                     "time": float(d.get("time", 0.0)),
                 })
     return games
@@ -89,7 +89,13 @@ def line(r, label):
 
 def merge(rows):
     out = {}
+    seen = set()
     for r in rows:
+        if r.get("ci_run") is not None:
+            once = (r["ci_run"], r.get("step"), r["checkpoint"], r["who"], r["set"], r["deck"], r["stake"])
+            if once in seen:
+                continue
+            seen.add(once)
         k = (r["checkpoint"], r["who"], r["set"], r["deck"], r["stake"], bool(r.get("fair")))
         m = out.get(k)
         if m is None:

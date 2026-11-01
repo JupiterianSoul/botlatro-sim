@@ -97,7 +97,7 @@ local function run_one(j)
     local line, s, capped = fo:play({seed = j.seed, deck = j.deck, stake = j.stake})
     local tm = os.clock() - t0
     return string.format('{"deck":"%s","stake":%d,"seed":"%s","won":%d,"ante":%d,"time":%.2f,"actions":%d,"decisions":%d,"searched":%d,"world_plans":%d,"capped":%s,"budget":"%s","worlds":%d,"s_per_decision":%.3f}',
-        j.deck, j.stake, j.seed, s.won == 1 and 1 or 0, S.final_ante(s), tm, #line, fo.decisions, fo.searched, fo.world_plans,
+        j.deck, j.stake, j.seed, s.won == 1 and s.phase ~= "game_over" and 1 or 0, s.won == 1 and s.phase ~= "game_over" and s.win_ante + 1 or s.ante, tm, #line, fo.decisions, fo.searched, fo.world_plans,
         capped and "true" or "false", opt.budget, fo.o.worlds, tm / math.max(1, fo.decisions))
 end
 
