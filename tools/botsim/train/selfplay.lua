@@ -136,7 +136,8 @@ for r = opt.first, opt.first + opt.runs - 1 do
         end
     end
     if live then
-    local won = s.won == 1 and 1 or 0
+    local flag = s.won == 1 and 1 or 0
+    local won = flag == 1 and s.phase ~= "game_over" and 1 or 0
     local final_ante = won == 1 and s.win_ante + 1 or s.ante
     wins = wins + won
     ante_sum = ante_sum + final_ante
@@ -151,7 +152,7 @@ for r = opt.first, opt.first + opt.runs - 1 do
         GL.append(GL.path(opt.recs, opt.seed), {type = "record", id = run_seed, deck = deck, stake = opt.stake, seed = run_seed,
             won = won, ante = final_ante, death = won == 0 and GL.blind_key(s, last_blind) or nil, moves = rec_moves})
     end
-    if fh then fh:write(REC.encode_run(recs, won, final_ante, FE.DECK_IDX[deck] or 0, opt.stake, r)) end
+    if fh then fh:write(REC.encode_run(recs, flag, flag == 1 and s.win_ante + 1 or s.ante, FE.DECK_IDX[deck] or 0, opt.stake, r)) end
     if opt.quiet == 0 then
         print(string.format("run %d deck %s ante %d won %d moves %d start %d", r, deck, final_ante, won, moves, target or 1))
     end
