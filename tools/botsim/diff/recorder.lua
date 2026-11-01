@@ -533,6 +533,25 @@ local function choose(phase)
     return nil, "no valid action"
 end
 
+local function select_for_listing(a)
+    if MODE ~= "replay" or not a.targets or not a.card or not G.hand then return end
+    local cons
+    for _, area in ipairs({G.consumeables, G.pack_cards}) do
+        for _, c in ipairs(area and area.cards or {}) do
+            if c.sort_id == a.card then cons = c.ability and c.ability.consumeable end
+        end
+    end
+    if type(cons) ~= "table" or cons.max_highlighted then return end
+    local sel = G.hand.highlighted
+    for _, id in ipairs(a.targets) do
+        for _, c in ipairs(G.hand.cards) do
+            local have = false
+            for _, h in ipairs(sel) do have = have or h == c end
+            if c.sort_id == id and not have then sel[#sel + 1] = c end
+        end
+    end
+end
+
 local function act_once()
     local phase = B.phase()
     if phase == "busy" or phase == "menu" then
@@ -552,14 +571,7 @@ local function act_once()
         end
         return finish_run(why == "log done" and "log_done" or why)
     end
-    if MODE == "replay" and a.targets and G.hand then
-        G.hand:unhighlight_all()
-        for _, id in ipairs(a.targets) do
-            for _, c in ipairs(G.hand.cards) do
-                if c.sort_id == id then G.hand:add_to_highlighted(c, true) end
-            end
-        end
-    end
+    select_for_listing(a)
     local ok, err = B.act(a)
     if not ok then
         R.refused = R.refused + 1
