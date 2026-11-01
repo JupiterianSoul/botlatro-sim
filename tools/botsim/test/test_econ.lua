@@ -128,3 +128,78 @@ T.eq(#scratch.hand, s.n_hand, "copy_into hand length")
 local nr = 0
 for _ in pairs(scratch.rng) do nr = nr + 1 end
 T.eq(nr, s.n_rk, "copy_into copies only used rng keys")
+
+do
+    local h = E.new_run({seed = "ECON0003", deck = "b_red", stake = 1})
+    E.step(h, {type = "select"})
+    T.eq(E.step(h, {type = "sort", by = "suit"}), true, "sort by suit works in a hand")
+    local EV = require("bot.sim.eval")
+    local ok = true
+    for i = 2, h.n_hand do
+        if EV.nominal_key_suit(h, h.hand[i - 1]) < EV.nominal_key_suit(h, h.hand[i]) then ok = false end
+    end
+    T.ok(ok, "hand is in suit order")
+    E.step(h, {type = "discard", cards = {1, 2}})
+    ok = true
+    for i = 2, h.n_hand do
+        if EV.nominal_key_suit(h, h.hand[i - 1]) < EV.nominal_key_suit(h, h.hand[i]) then ok = false end
+    end
+    T.ok(ok, "drawn cards keep the suit order")
+    E.step(h, {type = "sort", by = "rank"})
+    ok = true
+    for i = 2, h.n_hand do
+        if EV.nominal_key(h, h.hand[i - 1]) < EV.nominal_key(h, h.hand[i]) then ok = false end
+    end
+    T.ok(ok, "back to rank order")
+    T.eq(E.step(h, {type = "sort", by = "bad"}), false, "bad sort is refused")
+    local r = E.new_run({seed = "ECON0003", deck = "b_red", stake = 1})
+    T.eq(E.step(r, {type = "sort", by = "rank"}), false, "sort is refused outside a hand")
+end
+
+do
+    local u = E.new_run({seed = "ECON0004", deck = "b_red", stake = 1})
+    u.money = 200
+    to_shop(u)
+    T.eq(u.phase, "shop", "shop for the used_jokers case")
+    local id
+    local guard = 0
+    while not id and guard < 40 do
+        for i = 1, u.n_sj do if u.sj_kind[i] == 1 then id = u.sj_id[i] end end
+        if not id then E.step(u, {type = "reroll"}) end
+        guard = guard + 1
+    end
+    T.ok(id ~= nil, "a joker in the shop row")
+    if id then
+        local k = E.add_joker(u, id)
+        T.eq(E.key_used(u, false, id), true, "owned plus shop copy: key used")
+        u.j_eternal[k] = 0
+        T.eq(E.step(u, {type = "sell", area = "jokers", card = k}), true, "sold the owned copy")
+        T.eq(E.key_used(u, false, id), false, "the sale clears the key with a copy still in the shop")
+        local c = ST.clone(u)
+        T.eq(E.key_used(c, false, id), false, "a clone keeps the cleared key")
+    end
+    local w = E.new_run({seed = "ECON0004", deck = "b_red", stake = 1})
+    w.money = 200
+    to_shop(w)
+    local id2
+    guard = 0
+    while not id2 and guard < 40 do
+        for i = 1, w.n_sj do if w.sj_kind[i] == 1 then id2 = w.sj_id[i] end end
+        if not id2 then E.step(w, {type = "reroll"}) end
+        guard = guard + 1
+    end
+    if id2 then
+        T.eq(E.key_used(w, false, id2), true, "a shop copy alone keeps the key used")
+    end
+end
+
+do
+    local v = E.new_run({seed = "ECON0006", deck = "b_red", stake = 1})
+    E.step(v, {type = "select"})
+    v.blind_chips = 1
+    E.add_joker(v, "j_merry_andy", 0, {perish = 1})
+    v.discards_left = 5
+    E.step(v, {type = "play", cards = {1}})
+    T.eq(v.unused_discards, 5, "unused discards count before a perishing joker takes its discards away")
+    T.eq(v.discards_left < 5, true, "the perished joker took its discards")
+end

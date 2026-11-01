@@ -1,0 +1,60 @@
+name: botsim real game replay
+
+on:
+  push:
+    branches: ['ci-bench-truth', 'ci-bench-truth2']
+
+env:
+  BOTSIM_SECONDS: 6000
+  BOTSIM_RUN_SECONDS: 900
+  BOTSIM_MAX_STEPS: 2000
+  TURBO_SPEED: 64
+
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 170
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      max-parallel: 12
+      matrix:
+        job: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/game-files
+        with:
+          key: ${{ secrets.BOTSIM_GAME_KEY }}
+          full_dir: ${{ runner.temp }}/realgame
+      - uses: actions/cache@v4
+        with:
+          path: ~/love-11.5
+          key: love-11.5-appimage-extracted-v1
+      - name: LOVE and Xvfb
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb xauth rsync mesa-utils libgl1-mesa-dri luajit > /dev/null
+          if [ ! -x "$HOME/love-11.5/AppRun" ]; then
+            cd "$RUNNER_TEMP"
+            curl -fsSL -o love.AppImage https://github.com/love2d/love/releases/download/11.5/love-11.5-x86_64.AppImage
+            chmod +x love.AppImage
+            ./love.AppImage --appimage-extract > /dev/null
+            rm -rf "$HOME/love-11.5"
+            mv squashfs-root "$HOME/love-11.5"
+          fi
+          printf '#!/usr/bin/env bash\nexec "%s/love-11.5/AppRun" "$@"\n' "$HOME" | sudo tee /usr/local/bin/love > /dev/null
+          sudo chmod +x /usr/local/bin/love
+      - name: Replay
+        env:
+          BOTSIM_GAME_DIR: ${{ runner.temp }}/realgame
+          SDL_VIDEODRIVER: x11
+        run: |
+          export OUT="$PWD/out"
+          bash tools/botsim/truth/real.sh ${{ matrix.job }} 12 3
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: real-${{ matrix.job }}
+          path: out
+          retention-days: 30

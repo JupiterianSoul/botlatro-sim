@@ -11,6 +11,7 @@ local RUN_SECONDS = tonumber(os.getenv("BOTSIM_RUN_SECONDS") or "240") or 240
 local SHOP_CAP = tonumber(os.getenv("BOTSIM_SHOP_CAP") or "10") or 10
 local TAG = os.getenv("BOTSIM_TAG") or "rec"
 local STABLE = 3
+local TERMINAL_STABLE = 240
 local STUCK_UPDATES = 6000
 
 local J = require("botsim_json")
@@ -532,6 +533,25 @@ local function choose(phase)
     return nil, "no valid action"
 end
 
+local function select_for_listing(a)
+    if MODE ~= "replay" or not a.targets or not a.card or not G.hand then return end
+    local cons
+    for _, area in ipairs({G.consumeables, G.pack_cards}) do
+        for _, c in ipairs(area and area.cards or {}) do
+            if c.sort_id == a.card then cons = c.ability and c.ability.consumeable end
+        end
+    end
+    if type(cons) ~= "table" or cons.max_highlighted then return end
+    local sel = G.hand.highlighted
+    for _, id in ipairs(a.targets) do
+        for _, c in ipairs(G.hand.cards) do
+            local have = false
+            for _, h in ipairs(sel) do have = have or h == c end
+            if c.sort_id == id and not have then sel[#sel + 1] = c end
+        end
+    end
+end
+
 local function act_once()
     local phase = B.phase()
     if phase == "busy" or phase == "menu" then
@@ -551,6 +571,7 @@ local function act_once()
         end
         return finish_run(why == "log done" and "log_done" or why)
     end
+    select_for_listing(a)
     local ok, err = B.act(a)
     if not ok then
         R.refused = R.refused + 1
@@ -568,8 +589,23 @@ local function act_once()
     D.settle_n, D.stable_n, D.after = 0, 0, "action"
 end
 
+local function no_double_highlight()
+    if not CardArea or D.area_patched then return end
+    D.area_patched = true
+    local add = CardArea.add_to_highlighted
+    CardArea.add_to_highlighted = function(self, card, silent)
+        if self == G.hand then
+            for _, c in ipairs(self.highlighted) do
+                if c == card then return end
+            end
+        end
+        return add(self, card, silent)
+    end
+end
+
 local function driver(dt)
     D.t = D.t + dt
+    no_double_highlight()
     if not (G and G.STATE and G.STATES) then return end
     G.SETTINGS.GAMESPEED = TURBO_T.on and TURBO_T.speed or 4
     if D.quit_at then
@@ -616,7 +652,8 @@ local function driver(dt)
             return
         end
         D.stable_n = D.stable_n + 1
-        if D.settle_n < 2 or D.stable_n < STABLE then return end
+        local need = (phase == "game_over" or phase == "win") and TERMINAL_STABLE or STABLE
+        if D.settle_n < 2 or D.stable_n < need then return end
         take_snapshot(phase)
         D.state = "ready"
         return
