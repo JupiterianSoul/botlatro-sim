@@ -121,6 +121,12 @@ local function play(deck, stake, seed)
     local moves, econ_run, why = 0, 0, "max_moves"
     local curve, curve_ante = {}, 0
     local recs = rf and {}
+    if mc then
+        local h = 7
+        for k = 1, #seed do h = (h * 31 + seed:byte(k)) % 2147483646 end
+        mc.rnd = MC.new_rng(h)
+        if rmc then rmc.rnd = MC.new_rng(h + 1) end
+    end
     local tr = opt.trace > 0 and trace_new() or nil
     while moves < opt.max_moves do
         if tr then trace_top(tr, s) end
