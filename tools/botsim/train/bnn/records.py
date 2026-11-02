@@ -147,6 +147,7 @@ def parse(data, lazy=False):
 
 CHOSEN = 0.0
 UNJUDGED = 4294967295
+MASK = True
 ALL_DISC = False
 DISC_CAP = 400
 C_DEBUFF, C_FLIPPED, C_FORCED = 33, 34, 35
@@ -293,7 +294,7 @@ def collate(recs, dims, dtype=torch.float32):
         ajok[b, :na, :r["ajok"].shape[1]] = r["ajok"]
         afa[b, :na] = r["afa"]
         vis = r["visits"]
-        judged = vis >= 0
+        judged = vis >= 0 if MASK else vis > -2
         am[b, :na] = judged
         vis = np.maximum(vis, 0.0)
         tot = vis.sum()

@@ -156,6 +156,7 @@ def main():
     ap.add_argument("--depth-weight", type=float, default=0.0)
     ap.add_argument("--value-ante", type=int, default=0)
     ap.add_argument("--value-win", type=float, default=0.0)
+    ap.add_argument("--mask-unjudged", type=int, default=1)
     a = ap.parse_args()
     if a.threads:
         torch.set_num_threads(a.threads)
@@ -181,6 +182,7 @@ def main():
         sys.exit("no records")
     if len(val) > a.val_max:
         val = random.Random(a.seed).sample(val, a.val_max)
+    R.MASK = bool(a.mask_unjudged)
     if a.all_discards:
         assert dims["CF"] == 39 and dims["FA"] == 35 and dims["types"].split(",")[1] == "discard", "feature layout changed"
         R.ALL_DISC, R.DISC_CAP = True, a.all_discards

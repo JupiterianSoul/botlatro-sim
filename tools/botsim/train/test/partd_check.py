@@ -40,6 +40,11 @@ if base:
     ext = g[:, base:]
     assert ext.shape[1] == 10 and np.abs(ext).sum() > 0, "extended inputs are all zero"
     print("extended inputs nonzero share %.3f, power mean %.3f" % (float((ext != 0).mean()), float(ext[:, 9].mean())))
+R.MASK = False
+b2 = R.collate(masked, dims)
+assert float(b2["amask"].sum()) == float(sum(r["atype"].shape[0] for r in masked)), "mask off keeps every move"
+assert torch.allclose(b2["pi"].sum(1), torch.ones(len(masked))), "mask off targets sum to 1"
+R.MASK = True
 judged = sum(int((r["visits"] >= 0).sum()) for r in masked)
 total = sum(int(r["visits"].shape[0]) for r in masked)
 print("records %d, with unjudged moves %d, judged moves %d of %d" % (len(recs), len(masked), judged, total))
