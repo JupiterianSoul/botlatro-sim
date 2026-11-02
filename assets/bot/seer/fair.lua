@@ -24,7 +24,7 @@ F.BUDGETS = {
         solve = {beam = 6, plays = 3, discards = 6}},
 }
 
-F.DEFAULTS = {worlds = 4, eval_h = 1, max_cands = 3, sampler_seed = "FAIR", run_cap = 0, game_cap = 0, quick_clear = false, fast_top = 0}
+F.DEFAULTS = {worlds = 4, eval_h = 1, max_cands = 3, sampler_seed = "FAIR", run_cap = 0, game_cap = 0, quick_clear = false, fast_top = 0, honest = 0, eval_n = 0}
 
 F.REVEAL = {reroll = true, open = true, use = true, buy_and_use = true, pick = true, reroll_boss = true, skip = true,
     select = true, play = true, discard = true, cash_out = true, leave = true}
@@ -231,11 +231,69 @@ function F:finish_blind(c)
     end
 end
 
+local function draw_keep(c)
+    local suits, ranks = {0, 0, 0, 0}, {}
+    for i = 1, c.n_hand do
+        local id = c.hand[i]
+        suits[c.c_suit[id]] = (suits[c.c_suit[id]] or 0) + 1
+        ranks[c.c_rank[id]] = ranks[c.c_rank[id]] or i
+    end
+    local set
+    for x = 1, 4 do
+        if suits[x] == 4 then
+            set = {}
+            for i = 1, c.n_hand do
+                if c.c_suit[c.hand[i]] == x then set[i] = true end
+            end
+            break
+        end
+    end
+    if not set then
+        for hi = 14, 5, -1 do
+            local have, idx = 0, {}
+            for r = hi, hi - 4, -1 do
+                local p = ranks[r == 1 and 14 or r]
+                if p then
+                    have = have + 1
+                    idx[#idx + 1] = p
+                end
+            end
+            if have == 4 then
+                set = {}
+                for _, i in ipairs(idx) do set[i] = true end
+                break
+            end
+        end
+    end
+    if not set then return nil end
+    local d = {}
+    for i = c.n_hand, 1, -1 do
+        if not set[i] and #d < 5 and c.c_forced[c.hand[i]] ~= 1 then d[#d + 1] = i end
+    end
+    table.sort(d)
+    if #d == 0 then return nil end
+    return {type = "discard", cards = d}
+end
+
+function F:finish_fast(c)
+    local guard = 0
+    while c.phase == "play" and guard < 40 do
+        guard = guard + 1
+        local fb = PL.fast_action(c)
+        if fb and fb.type == "discard" and self.o.honest == 5 then fb = draw_keep(c) or fb end
+        if not fb or not E.step(c, fb) then return end
+    end
+end
+
 function F:evaluate(w, plan, phase, evaluator)
     local c = clone(w)
     if phase == "play" then
         if not E.step(c, plan[1]) then return -1e9, 0 end
-        self:finish_blind(c)
+        if self.o.honest > 0 then self:finish_fast(c) else self:finish_blind(c) end
+        if self.o.honest >= 2 then
+            if PL.cleared(c) then return 1 + 0.05 * c.hands_left + 0.01 * c.discards_left, 1 end
+            return math.min(1, c.chips / math.max(1, c.blind_chips)), 0
+        end
     else
         if not E.step(c, plan[1]) then return -1e9, 0 end
         for i = 2, #plan do
@@ -253,6 +311,77 @@ local function commit_prefix(plan, phase)
         out[#out + 1] = plan[i]
         if F.REVEAL[plan[i].type] then break end
     end
+    return out
+end
+
+local function keep_cands(w)
+    local out = {}
+    local function keep(set)
+        local d = {}
+        for i = w.n_hand, 1, -1 do
+            if not set[i] and #d < 5 and w.c_forced[w.hand[i]] ~= 1 then d[#d + 1] = i end
+        end
+        table.sort(d)
+        if #d > 0 then out[#out + 1] = {type = "discard", cards = d} end
+    end
+    local suits, ranks = {}, {}
+    for i = 1, w.n_hand do
+        local id = w.hand[i]
+        local x, r = w.c_suit[id], w.c_rank[id]
+        suits[x] = suits[x] or {}
+        suits[x][i] = true
+        suits[x].n = (suits[x].n or 0) + 1
+        ranks[r] = ranks[r] or {}
+        ranks[r][i] = true
+        ranks[r].n = (ranks[r].n or 0) + 1
+    end
+    local bs
+    for x = 1, 4 do
+        local g = suits[x]
+        if g and g.n >= 3 and (not bs or g.n > bs.n) then bs = g end
+    end
+    if bs then
+        local set = {}
+        for i in pairs(bs) do if i ~= "n" then set[i] = true end end
+        keep(set)
+    end
+    local groups = {}
+    for r = 14, 2, -1 do
+        if ranks[r] and ranks[r].n >= 2 then groups[#groups + 1] = ranks[r] end
+    end
+    if groups[1] then
+        local set = {}
+        for i in pairs(groups[1]) do if i ~= "n" then set[i] = true end end
+        keep(set)
+        if groups[2] then
+            for i in pairs(groups[2]) do if i ~= "n" then set[i] = true end end
+            keep(set)
+        end
+    end
+    local best_run, best_hi = 0, 0
+    for hi = 14, 5, -1 do
+        local have = 0
+        for r = hi, hi - 4, -1 do
+            if ranks[r == 1 and 14 or r] then have = have + 1 end
+        end
+        if have > best_run then best_run, best_hi = have, hi end
+    end
+    if best_run >= 3 then
+        local set = {}
+        for r = best_hi, best_hi - 4, -1 do
+            local g = ranks[r == 1 and 14 or r]
+            if g then
+                for i = 1, w.n_hand do
+                    if g[i] then
+                        set[i] = true
+                        break
+                    end
+                end
+            end
+        end
+        keep(set)
+    end
+    keep({})
     return out
 end
 
@@ -276,7 +405,7 @@ function F:decide_base(base, n)
         worlds[k] = F.world(base, string.format("W%s_%d_%d_%d", tostring(self.o.sampler_seed), base.step, base.ante, k))
     end
     local cands, by_key = {}, {}
-    for k = 1, n do
+    for k = 1, (phase == "play" and self.o.honest == 4) and 0 or n do
         local plan = self:propose(worlds[k])
         if plan and #plan > 0 then
             local key = phase == "play" and action_key(plan[1]) or plan_key(plan)
@@ -289,12 +418,58 @@ function F:decide_base(base, n)
             c.n = c.n + 1
         end
     end
-    if #cands == 0 then return nil end
+    if #cands == 0 and not (phase == "play" and self.o.honest == 4) then return nil end
     table.sort(cands, function(a, b)
         if a.n ~= b.n then return a.n > b.n end
         return a.first < b.first
     end)
     for i = #cands, self.o.max_cands + 1, -1 do cands[i] = nil end
+    if phase == "play" and self.o.honest > 0 then
+        local a = PL.fast_action(worlds[1])
+        if a then
+            local key = action_key(a)
+            local kept = false
+            for i = 1, #cands do kept = kept or action_key(cands[i].plan[1]) == key end
+            if not kept then cands[#cands + 1] = {plan = {S.copy_action(a)}, n = 0, first = n + 1} end
+        end
+        if self.o.honest >= 3 and worlds[1].discards_left > 0 then
+            local cs, _ = PL.best_play(worlds[1])
+            local list = keep_cands(worlds[1])
+            if cs then
+                local d = PL.discard_rest(worlds[1], cs)
+                if #d > 0 then list[#list + 1] = {type = "discard", cards = d} end
+            end
+            for _, x in ipairs(list) do
+                local key = action_key(x)
+                local kept = false
+                for i = 1, #cands do kept = kept or action_key(cands[i].plan[1]) == key end
+                if not kept then cands[#cands + 1] = {plan = {x}, n = 0, first = n + 1} end
+            end
+        end
+        if self.o.honest == 5 then
+            local vs, cs = {}, {}
+            local m = PL.scan(worlds[1], vs, cs)
+            local idx = {}
+            for i = 1, m do idx[i] = i end
+            table.sort(idx, function(a, b)
+                if vs[a] ~= vs[b] then return vs[a] > vs[b] end
+                return a < b
+            end)
+            for i = 1, math.min(3, m) do
+                local x = {type = "play", cards = {}}
+                for j, id in ipairs(cs[idx[i]]) do x.cards[j] = id end
+                local key = action_key(x)
+                local kept = false
+                for j = 1, #cands do kept = kept or action_key(cands[j].plan[1]) == key end
+                if not kept then cands[#cands + 1] = {plan = {x}, n = 0, first = n + 1} end
+            end
+        end
+        if #cands == 0 then return nil end
+        for k = n + 1, self.o.eval_n do
+            worlds[k] = F.world(base, string.format("W%s_%d_%d_%d", tostring(self.o.sampler_seed), base.step, base.ante, k))
+        end
+        n = math.max(n, self.o.eval_n)
+    end
     if self.o.net_propose and #cands > 1 then
         local a = self.o.net_propose(clone(worlds[1]))
         if a then

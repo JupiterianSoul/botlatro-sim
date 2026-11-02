@@ -10,7 +10,7 @@ local ST = require("bot.sim.state")
 
 local opt = {who = "fair", budget = "lite", weights = "", prefix = "BENCH", first = 1, seeds = 1, decks = "b_red", stakes = "1",
     max_steps = 4000, out = "", sims = 32, K = 24, quick_clear = 0, pace = 0, pace_net = 0, type_mass = 0, tm_plays = 0, fair = 0, search_ph = "", solver = "", solver_qc = 0,
-    ro = 0, ro_a = 0, ro_z = 2, ro_c = 3, ro_h = 0, ro_ph = "shop,pack,blind_select", ro_from = 0, ro_mon = 0, ro_net = 0, ro_t = 0.25, ro_plan = 0, ro_plan_c = 0, ro_planh = 0, ro_fast = 0, ro_useplanet = 0, ro_book = "", max_shop = 40, rec = "", min_ante = 0, strict = 1, force_jflip = 0}
+    ro = 0, ro_a = 0, ro_z = 2, ro_c = 3, ro_h = 0, ro_ph = "shop,pack,blind_select", ro_from = 0, ro_mon = 0, ro_net = 0, ro_t = 0.25, ro_plan = 0, ro_plan_c = 0, ro_planh = 0, ro_fast = 0, ro_useplanet = 0, ro_order = 0, solver_h = 0, solver_en = 0, ro_book = "", max_shop = 40, rec = "", min_ante = 0, strict = 1, force_jflip = 0}
 for _, a in ipairs(arg or {}) do
     local k, v = a:match("^%-*([%w_]+)=(.*)$")
     if k then
@@ -113,6 +113,7 @@ elseif opt.who == "net" then
     local MC = require("bot.nn.mcts")
     local net = NET.new(WT.load(opt.weights))
     local RO = require("botsim.train.rollout")
+    local PLAN = require("botsim.train.plan")
     forced = MC.advance_forced
     local function new_mc(nn)
         return MC.new(nn, {K = opt.K, seed = 99991, alpha = 0.5, nodes = opt.sims + 2, full = true, quick_clear = opt.quick_clear,
@@ -120,12 +121,27 @@ elseif opt.who == "net" then
     end
     chooser = function()
         local n = 0
-        local fo = opt.solver ~= "" and F.new({budget = opt.solver, quick_clear = opt.solver_qc > 0}) or nil
+        local fo = opt.solver ~= "" and F.new({budget = opt.solver, quick_clear = opt.solver_qc > 0, honest = opt.solver_h, eval_n = opt.solver_en}) or nil
         local rmc = opt.ro > 0 and new_mc(NET.new(WT.load(opt.weights))) or nil
+        local order_key
         return function(view)
             MC.advance_forced(view)
             if MC.terminal(view) then return nil end
             n = n + 1
+            if opt.ro_order > 0 and view.phase == "blind_select" then
+                local key = view.n_jok
+                for k = 1, view.n_jok do key = key .. "," .. view.j_uid[k] end
+                if key ~= order_key then
+                    order_key = key
+                    local o = PLAN.best_order(F.world(F.sanitize(view), "ORD_" .. view.ante))
+                    if o then
+                        local after = view.n_jok
+                        for k = 1, view.n_jok do after = after .. "," .. view.j_uid[o[k]] end
+                        order_key = after
+                        return {{type = "reorder_jokers", order = o}}
+                    end
+                end
+            end
             if fo and view.phase == "play" then return fo:decide(view) end
             local w = opt.fair > 0 and F.world(F.sanitize(view), "FW_" .. n) or view
             local sims = opt.sims
