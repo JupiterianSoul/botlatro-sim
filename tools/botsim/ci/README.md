@@ -16,3 +16,11 @@ The w3 base games are the b3 and b31 jobs of run 41430136626, so arms on these s
     tools/botsim/ci/cmp.sh /tmp/base /tmp/new o
 
 `cmp.sh BASE NEW ARM [BASEARM]` prints every deck and the pooled line per stake. The tests job now exits non-zero when a suite fails; older job lists did not, so read `output.txt` for those.
+
+Real wins, paired, as a sign test over the games only one side won (pairs of BASE:NEW directories):
+
+    python3 -I tools/botsim/ci/wins.py /tmp/base/g/b3-red:/tmp/new/g/z-red /tmp/base/g/b3-blue:/tmp/new/g/z-blue
+
+Clear rate per ante, both arms on their common seeds (comma separated directories):
+
+    python3 -I tools/botsim/ci/clear.py /tmp/base/g/b3-red,/tmp/base/g/b3-blue /tmp/new/g/z-red,/tmp/new/g/z-blue
