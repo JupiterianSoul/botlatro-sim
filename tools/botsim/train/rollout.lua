@@ -113,7 +113,7 @@ function M.chooser(mc, rmc, opt)
     if (opt.ro_book or "") ~= "" then P.load_scale(opt.ro_book) end
     local step = {type = "play", cards = {}}
     local ORDRO = (tonumber(opt.ro_ordro) or 0) > 0
-    local BASE0 = (tonumber(opt.ro_base) or 1) == 0
+    local BASEK = tonumber(opt.ro_base) or 1
     local MINT = (tonumber(opt.ro_mint) or 0) > 0
     local CVX = tonumber(opt.ro_cvx) or 0
 
@@ -177,7 +177,7 @@ function M.chooser(mc, rmc, opt)
             return math.max(w.ante, (RES.a[A] or w.ante) + (RES.nv[A] or opt.ro_net) * rmc.n_val[rmc.root] + RW * res_adj(RES, w))
         end
         if stop_ante > 0 and not MC.terminal(w) then
-            if BASE0 then v = 0 end
+            if BASEK ~= 1 then v = v * BASEK end
             if MINT then
                 local cap = w.interest_cap or 25
                 if opt.ro_mon ~= 0 and (w.no_interest or 0) == 0 and w.money >= 5 then
