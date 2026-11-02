@@ -340,5 +340,34 @@ do
     ok(quick(0) == 1 and quick(1) == 0, "no quick clear against The Ox with tie")
 end
 
+current = "solver_h=6 digs for the flush from the visible deck"
+do
+    local PL = require("bot.seer.play")
+    local s = E.new_run({seed = "FAIRDIG", deck = "b_black", stake = 8})
+    assert(E.step(s, {type = "select"}))
+    local ranks = {14, 12, 9, 6, 13, 7, 4, 2}
+    for i = 1, s.n_hand do
+        local id = s.hand[i]
+        s.c_rank[id] = ranks[i]
+        s.c_suit[id] = i <= 4 and 1 or (i % 3) + 2
+    end
+    local w = F.world(F.sanitize(s), "WDIG")
+    local fb = PL.fast_action(w)
+    ok(fb and fb.type == "discard", "the quick policy discards")
+    local deck = {}
+    for i = 1, w.n_deck do deck[i] = w.deck[i] end
+    local a = F.dig(w, fb, 16)
+    ok(a and a.type == "discard", "a discard")
+    local hearts = true
+    for _, p in ipairs(a and a.cards or {}) do hearts = hearts and w.c_suit[w.hand[p]] ~= 1 end
+    ok(hearts and #a.cards == 4, "keeps the four hearts")
+    local same = w.n_deck == #deck
+    for i = 1, #deck do same = same and w.deck[i] == deck[i] end
+    ok(same and w.n_hand == 8, "the world is not changed")
+    local w2 = ST.clone(w)
+    for i = 1, w2.n_deck do w2.deck[i] = deck[w2.n_deck + 1 - i] end
+    ok(F.action_key(F.dig(w2, fb, 16)) == F.action_key(a), "the choice does not depend on the world's draw order")
+end
+
 print(string.format("fair tests: %d passed, %d failed", passed, failed))
 if failed > 0 then os.exit(1) end

@@ -67,6 +67,11 @@ local function mix_buf(b, n)
 end
 
 if (tonumber(opt.shop_moves) or 1) == 0 then require("bot.nn.features").SHOP_MOVES = false end
+if (tonumber(opt.fe_ext) or 0) > 0 then
+    local FE, PLAN = require("bot.nn.features"), require("botsim.train.plan")
+    FE.EXT = true
+    FE.power = function(s) return PLAN.any_flipped(s) and 0 or PLAN.score(s) end
+end
 if opt.strict > 0 then
     local FE = require("bot.nn.features")
     local san0, world0, state0 = F.sanitize, F.world, FE.state

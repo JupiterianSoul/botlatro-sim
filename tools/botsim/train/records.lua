@@ -10,6 +10,7 @@ local u32, read_u32 = WT.u32, WT.read_u32
 
 M.MAGIC = "BSPR"
 M.VERSION = 2
+M.UNJUDGED = 4294967295
 
 local function u16(v)
     return char(v % 256, floor(v / 256) % 256)
@@ -71,11 +72,15 @@ function M.encode_record(F, mc, chosen, n_sims, phase)
     local out = {}
     local ef, ec = mc:root_edges()
     state_part(F, ec, chosen - ef, mc:root_q(), mc.n_val[mc.root], n_sims, phase, out)
+    local judged = mc.rec_judged
+    mc.rec_judged = nil
     for j = 0, ec - 1 do
         local e = ef + j
         local t = mc.e_type[e]
+        local n = mc.e_N[e]
+        if judged and not judged[e] then n = M.UNJUDGED end
         action_part(t, mc.e_nc[e], mc.e_c, e * FE.MAXSEL, t > 2 and FE.edge_ent(F, t, mc.e_arg[e]) or -1,
-            mc.e_N[e], mc.e_prior[e], mc.root_fa, j * FE.FA, out)
+            n, mc.e_prior[e], mc.root_fa, j * FE.FA, out)
     end
     return concat(out)
 end

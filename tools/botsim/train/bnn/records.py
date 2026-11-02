@@ -107,7 +107,7 @@ def _record(ctx, pos, won, final_ante):
                 aitem[a, ent] = 1.0
             elif k == 2:
                 ajok[a, ent] = 1.0
-        visits[a] = vis
+        visits[a] = -1.0 if vis == UNJUDGED else vis
         prior[a] = pr
         afa[a], pos = _sparse(data, pos, FA)
     return {
@@ -146,6 +146,7 @@ def parse(data, lazy=False):
 
 
 CHOSEN = 0.0
+UNJUDGED = 4294967295
 ALL_DISC = False
 DISC_CAP = 400
 C_DEBUFF, C_FLIPPED, C_FORCED = 33, 34, 35
@@ -291,9 +292,12 @@ def collate(recs, dims, dtype=torch.float32):
         aitem[b, :na, :r["aitem"].shape[1]] = r["aitem"]
         ajok[b, :na, :r["ajok"].shape[1]] = r["ajok"]
         afa[b, :na] = r["afa"]
-        am[b, :na] = 1
-        tot = r["visits"].sum()
-        pi[b, :na] = r["visits"] / tot if tot > 0 else 1.0 / na
+        vis = r["visits"]
+        judged = vis >= 0
+        am[b, :na] = judged
+        vis = np.maximum(vis, 0.0)
+        tot = vis.sum()
+        pi[b, :na] = vis / tot if tot > 0 else judged / max(1, judged.sum())
         if CHOSEN > 0 and r["chosen"] < na:
             pi[b, :na] *= 1.0 - CHOSEN
             pi[b, r["chosen"]] += CHOSEN

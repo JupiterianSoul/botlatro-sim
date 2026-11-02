@@ -51,6 +51,10 @@ local st = {}
 local PLAN = require("botsim.train.plan")
 local TEACH = (opt.teach > 0 or opt.blog > 0 or opt.t_skip ~= 0) and require("botsim.train.teach") or nil
 if (tonumber(opt.shop_moves) or 1) == 0 then FE.SHOP_MOVES = false end
+if (tonumber(opt.fe_ext) or 0) > 0 then
+    FE.EXT = true
+    FE.power = function(s) return PLAN.any_flipped(s) and 0 or PLAN.score(s) end
+end
 local ro_choose = opt.ro > 0 and require("botsim.train.rollout").chooser(mc, rmc, opt) or nil
 
 local D = require("bot.sim.data")

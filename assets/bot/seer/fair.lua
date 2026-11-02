@@ -25,7 +25,7 @@ F.BUDGETS = {
         solve = {beam = 6, plays = 3, discards = 6}},
 }
 
-F.DEFAULTS = {worlds = 4, eval_h = 1, max_cands = 3, sampler_seed = "FAIR", run_cap = 0, game_cap = 0, quick_clear = false, fast_top = 0, honest = 0, eval_n = 0, honest_final = 1, tie = 0, ff = 0}
+F.DEFAULTS = {worlds = 4, eval_h = 1, max_cands = 3, sampler_seed = "FAIR", run_cap = 0, game_cap = 0, quick_clear = false, fast_top = 0, honest = 0, eval_n = 0, honest_final = 1, tie = 0, ff = 0, dig_r = 4}
 
 F.REVEAL = {reroll = true, open = true, use = true, buy_and_use = true, pick = true, reroll_boss = true, skip = true,
     select = true, play = true, discard = true, cash_out = true, leave = true}
@@ -278,11 +278,66 @@ end
 
 F.draw_keep = draw_keep
 
+local keep_cands
+
+local function deck_sample(c, r)
+    local n = c.n_deck
+    local ids = {}
+    for i = 1, n do ids[i] = c.deck[i] end
+    table.sort(ids)
+    local x = (floor((c.hashed_seed or 0) * 1000003) + r * 7919 + (c.step or 0) * 104729 + n) % 2147483647 + 1
+    for i = n, 2, -1 do
+        x = (x * 48271) % 2147483647
+        local j = x % i + 1
+        ids[i], ids[j] = ids[j], ids[i]
+    end
+    return ids
+end
+
+local function dig(c, fb, R)
+    local need = c.blind_chips - c.chips
+    if need <= 0 or c.n_deck < 1 then return nil end
+    local list, seen = {}, {}
+    local function add(a)
+        if not a then return end
+        local k = action_key(a)
+        if not seen[k] then
+            seen[k] = true
+            list[#list + 1] = a
+        end
+    end
+    add(fb)
+    add(draw_keep(c))
+    for _, a in ipairs(keep_cands(c)) do add(a) end
+    if #list < 2 then return nil end
+    local decks = {}
+    for r = 1, R do decks[r] = deck_sample(c, r) end
+    local best, bv = nil, -1
+    for _, a in ipairs(list) do
+        local sv = 0
+        for r = 1, R do
+            local c2 = clone(c)
+            local d = decks[r]
+            for i = 1, #d do c2.deck[i] = d[i] end
+            if E.step(c2, a) and c2.phase == "play" then
+                local _, v = PL.best_play(c2, true)
+                sv = sv + math.min(v, need) / need
+            elseif PL.cleared(c2) then
+                sv = sv + 1
+            end
+        end
+        if sv > bv then best, bv = a, sv end
+    end
+    return best
+end
+F.dig = dig
+
 function F:finish_fast(c)
     local guard = 0
     while c.phase == "play" and guard < 40 do
         guard = guard + 1
         local fb = PL.fast_action(c, self.o.ff > 0)
+        if fb and fb.type == "discard" and self.o.honest == 6 then fb = dig(c, fb, self.o.dig_r) or fb end
         if fb and fb.type == "discard" and self.o.honest == 5 then fb = draw_keep(c) or fb end
         if not fb or not E.step(c, fb) then return end
     end
@@ -326,7 +381,7 @@ local function commit_prefix(plan, phase)
     return out
 end
 
-local function keep_cands(w)
+keep_cands = function(w)
     local out = {}
     local function keep(set)
         local d = {}
@@ -469,7 +524,7 @@ function F:decide_base(base, n)
                 if not kept then cands[#cands + 1] = {plan = {x}, n = 0, first = n + 1} end
             end
         end
-        if self.o.honest == 5 then
+        if self.o.honest >= 5 then
             local vs, cs = {}, {}
             local m = PL.scan(worlds[1], vs, cs)
             local idx = {}

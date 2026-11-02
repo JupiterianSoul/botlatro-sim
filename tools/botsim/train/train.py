@@ -56,7 +56,23 @@ def load_data(paths, window, val_every=0, stakes=None):
     return dims, runs, recs, val
 
 
-def losses(model, b, ante_w, policy_min_sims=0, out=None, val_w=1.0, adv_w=0.0, depth_w=0.0, val_ante=False):
+def widen(model, gf):
+    old = model.cfg["GF"]
+    cfg = dict(model.cfg)
+    cfg["GF"] = gf
+    new = Net(cfg)
+    sd = model.state_dict()
+    w = sd["t0.weight"]
+    nw = torch.zeros(w.shape[0], w.shape[1] + gf - old, dtype=w.dtype)
+    nw[:, :old] = w[:, :old]
+    nw[:, gf:] = w[:, old:]
+    sd["t0.weight"] = nw
+    new.load_state_dict(sd)
+    print(f"widened GF {old} -> {gf}")
+    return new
+
+
+def losses(model, b, ante_w, policy_min_sims=0, out=None, val_w=1.0, adv_w=0.0, depth_w=0.0, val_ante=False, val_win=0.0):
     z, ante, logits = model(b)
     if out is not None:
         out.append((torch.sigmoid(z).detach(), b["won"], ante.detach() * 8.0, b["ante"] * 8.0))
@@ -76,7 +92,10 @@ def losses(model, b, ante_w, policy_min_sims=0, out=None, val_w=1.0, adv_w=0.0, 
         pol = (pol * pm).sum() / pm.sum().clamp(min=1.0)
     else:
         pol = pol.mean()
-    val = Fn.binary_cross_entropy_with_logits(z, (b["ante"] * 8.0 / 9.0).clamp(0.0, 1.0) if val_ante else b["won"])
+    tgt = (b["ante"] * 8.0 / 9.0).clamp(0.0, 1.0) if val_ante else b["won"]
+    if val_win > 0:
+        tgt = (1.0 - val_win) * tgt + val_win * b["won"]
+    val = Fn.binary_cross_entropy_with_logits(z, tgt)
     aux = Fn.mse_loss(ante, b["ante"])
     return pol + val_w * val + ante_w * aux, pol.item(), val.item(), aux.item()
 
@@ -136,6 +155,7 @@ def main():
     ap.add_argument("--adv-weight", type=float, default=0.0)
     ap.add_argument("--depth-weight", type=float, default=0.0)
     ap.add_argument("--value-ante", type=int, default=0)
+    ap.add_argument("--value-win", type=float, default=0.0)
     a = ap.parse_args()
     if a.threads:
         torch.set_num_threads(a.threads)
@@ -168,6 +188,8 @@ def main():
     if a.epochs > 0:
         a.steps = min(a.steps, max(a.min_steps, math.ceil(a.epochs * len(recs) / a.batch)))
     model = Net.from_file(a.init) if a.init else Net(parse_cfg(a.cfg, dims))
+    if a.init and model.cfg["GF"] < dims["GF"]:
+        model = widen(model, dims["GF"])
     nw = sum(p.numel() for p in model.parameters())
     wins = sum(r["won"] for r in runs)
     print(f"records {len(recs)} runs {len(runs)} wins {wins} weights {nw} val {len(val)} steps {a.steps}")
@@ -188,7 +210,7 @@ def main():
             k0 = len(rows) - nm
             am = batch["amask"][k0:]
             batch["pi"][k0:] = (1 - a.mix_smooth) * batch["pi"][k0:] + a.mix_smooth * am / am.sum(-1, keepdim=True).clamp(min=1.0)
-        loss, lp, lv, la = losses(model, batch, a.ante_weight, a.policy_min_sims, val_w=a.value_weight, adv_w=a.adv_weight, depth_w=a.depth_weight, val_ante=bool(a.value_ante))
+        loss, lp, lv, la = losses(model, batch, a.ante_weight, a.policy_min_sims, val_w=a.value_weight, adv_w=a.adv_weight, depth_w=a.depth_weight, val_ante=bool(a.value_ante), val_win=a.value_win)
         opt.zero_grad()
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 5.0)

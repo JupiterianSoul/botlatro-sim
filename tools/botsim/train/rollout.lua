@@ -351,6 +351,11 @@ function M.chooser(mc, rmc, opt)
                 sum = sum + c.w
             end
             for _, c in ipairs(cands) do mc.e_N[c.e] = math.floor(32 * c.w / sum + 0.5) end
+            mc.rec_judged = nil
+            if (tonumber(opt.rec_mask) or 0) > 0 then
+                mc.rec_judged = {}
+                for _, c in ipairs(cands) do mc.rec_judged[c.e] = true end
+            end
         end
         if (tonumber(opt.ro_seq) or 0) > 0 and best.seq then return best.a, best.e, best.seq end
         return best.a, best.e

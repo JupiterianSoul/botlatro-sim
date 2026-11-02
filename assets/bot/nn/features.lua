@@ -56,9 +56,11 @@ local G, GF = layout({
     {"voucher", NV}, {"used_v", NV}, {"boss_rerolled", 1}, {"skips", 1}, {"interest_cap", 1}, {"discount", 1},
     {"inflation", 1}, {"prob", 1}, {"win_ante", 1}, {"pending_cons", 1}, {"disabled", 1}, {"no_interest", 1},
     {"pack_kind", 5}, {"pack_choices", 1}, {"reroll_cost", 1}, {"free_rerolls", 1}, {"first_buffoon", 1},
-    {"n_tags", 1}, {"shop_left", 1}, {"bias", 1},
+    {"n_tags", 1}, {"shop_left", 1}, {"bias", 1}, {"pool_seal", 4}, {"pool_ed", 4}, {"pool_bonus", 1}, {"power", 1},
 })
 M.G, M.GF = G, GF
+M.GF_BASE = G.pool_seal
+M.EXT = false
 
 local C, CF = layout({
     {"rank", 13}, {"suit", 4}, {"enh", 8}, {"ed", 4}, {"seal", 4}, {"debuff", 1}, {"flipped", 1}, {"forced", 1},
@@ -354,6 +356,19 @@ function M.state(s, F)
     g[G.n_tags] = min(s.n_tags, 10) / 3
     g[G.shop_left] = slog(s.money - s.bankrupt_at) / 5
     g[G.bias] = 1
+    if M.EXT then
+        local psl, ped, bon = G.pool_seal, G.pool_ed, 0
+        local c_seal, c_ed, c_bonus = s.c_seal, s.c_ed, s.c_bonus
+        for i = 1, n do
+            local cid = pool_ids[i]
+            local se, ed = c_seal[cid], c_ed[cid]
+            if se > 0 then g[psl + se - 1] = g[psl + se - 1] + 0.25 end
+            if ed > 0 then g[ped + ed - 1] = g[ped + ed - 1] + 0.25 end
+            bon = bon + c_bonus[cid]
+        end
+        g[G.pool_bonus] = slog(bon) / 5
+        if M.power then g[G.power] = M.power(s) / 4 end
+    end
 
     local nc = min(s.n_hand, M.MAXC)
     local cb = F.c
