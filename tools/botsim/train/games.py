@@ -4,7 +4,7 @@ import math
 import os
 import sys
 
-IGNORE_SAME = {"time"}
+IGNORE_SAME = {"time", "bl", "vl", "tch", "veto"}
 
 
 def part_files(root):
