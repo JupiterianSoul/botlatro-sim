@@ -31,6 +31,10 @@ function M.chooser(mc, rmc, opt)
             elseif ph == "play" and (opt.ro_fast or 0) == 1 then
                 local a = PL.fast_action(w, true)
                 if not a or not E.step(w, a) then break end
+            elseif ph == "play" and (opt.ro_fast or 0) == 3 then
+                local a = PL.fast_action(w, true)
+                if a and a.type == "discard" then a = F.draw_keep(w) or a end
+                if not a or not E.step(w, a) then break end
             elseif ph == "play" and (opt.ro_fast or 0) == 2 then
                 local acts = PL.solve(w, {beam = 3, plays = 2, discards = 3, kid_top = 8})
                 local stepped = false

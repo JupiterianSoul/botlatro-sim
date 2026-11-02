@@ -10,7 +10,7 @@ local ST = require("bot.sim.state")
 
 local opt = {who = "fair", budget = "lite", weights = "", prefix = "BENCH", first = 1, seeds = 1, decks = "b_red", stakes = "1",
     max_steps = 4000, out = "", sims = 32, K = 24, quick_clear = 0, pace = 0, pace_net = 0, type_mass = 0, tm_plays = 0, fair = 0, search_ph = "", solver = "", solver_qc = 0,
-    ro = 0, ro_a = 0, ro_z = 2, ro_c = 3, ro_h = 0, ro_ph = "shop,pack,blind_select", ro_from = 0, ro_mon = 0, ro_net = 0, ro_t = 0.25, ro_plan = 0, ro_plan_c = 0, ro_planh = 0, ro_fast = 0, ro_useplanet = 0, ro_order = 0, solver_h = 0, solver_en = 0, ro_book = "", max_shop = 40, rec = "", min_ante = 0, strict = 1, force_jflip = 0}
+    ro = 0, ro_a = 0, ro_z = 2, ro_c = 3, ro_h = 0, ro_ph = "shop,pack,blind_select", ro_from = 0, ro_mon = 0, ro_net = 0, ro_t = 0.25, ro_plan = 0, ro_plan_c = 0, ro_planh = 0, ro_fast = 0, ro_useplanet = 0, ro_order = 0, solver_h = 0, solver_en = 0, solver_hb = 0, ro_book = "", max_shop = 40, rec = "", min_ante = 0, strict = 1, force_jflip = 0}
 for _, a in ipairs(arg or {}) do
     local k, v = a:match("^%-*([%w_]+)=(.*)$")
     if k then
@@ -121,7 +121,7 @@ elseif opt.who == "net" then
     end
     chooser = function()
         local n = 0
-        local fo = opt.solver ~= "" and F.new({budget = opt.solver, quick_clear = opt.solver_qc > 0, honest = opt.solver_h, eval_n = opt.solver_en}) or nil
+        local fo = opt.solver ~= "" and F.new({budget = opt.solver, quick_clear = opt.solver_qc > 0, honest = opt.solver_h, eval_n = opt.solver_en, honest_final = opt.solver_hb > 0 and 0 or 1}) or nil
         local rmc = opt.ro > 0 and new_mc(NET.new(WT.load(opt.weights))) or nil
         local order_key
         return function(view)

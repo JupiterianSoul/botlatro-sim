@@ -13,7 +13,7 @@ local json = require("bot.sim.json")
 local opt = {who = "greedy", weights = "", sims = 32, K = 24, per = 6, decks = "", stakes = "", part = 0, parts = 1, out = "", max_moves = 3000, max_shop = 40,
     mix = -1, score_prior = 0, score_top = 6, score_temp = 4, skip_pen = 1, skip_ante = 1, type_mass = 0, tm_plays = 0, quick_clear = 0, pace = 0, pace_net = 0, prefix = "", first = 1, seeds = 10, jsonl = "", fair = 0, search_ph = "", rec = "", solver = "", solver_qc = 0, set = "", curve = 0, trace = 0, list = "", leaf_money = 0, leaf_rent = 0, leaf_dead = 0, rent_prior = 1, rent_from = 0, sell_dead = 0, c_puct = 1.5, worlds = 1, ro = 0, ro_a = 0, ro_z = 2, ro_c = 3, ro_h = 0, ro_ph = "shop,pack,blind_select", ro_from = 0, ro_mon = 0, ro_net = 0, ro_t = 0.25, log = ""}
 opt.digest = 0
-opt.solver_h, opt.solver_en = 0, 0
+opt.solver_h, opt.solver_en, opt.solver_hb = 0, 0, 0
 opt.swap_play, opt.swap_shop = 0, 0
 opt.ro_plan, opt.ro_plan_c, opt.ro_planh, opt.ro_fast, opt.ro_useplanet, opt.ro_order, opt.ro_book = 0, 0, 0, 0, 0, 0, ""
 for _, a in ipairs(arg or {}) do
@@ -32,7 +32,7 @@ end
 POL.shop = true
 local FAIR = opt.fair > 0 and require("bot.seer.fair") or nil
 local PL = require("bot.seer.play")
-local SOLVER = FAIR and opt.solver ~= "" and FAIR.new({budget = opt.solver, quick_clear = opt.solver_qc > 0, honest = opt.solver_h, eval_n = opt.solver_en}) or nil
+local SOLVER = FAIR and opt.solver ~= "" and FAIR.new({budget = opt.solver, quick_clear = opt.solver_qc > 0, honest = opt.solver_h, eval_n = opt.solver_en, honest_final = opt.solver_hb > 0 and 0 or 1}) or nil
 local SWAP = (opt.swap_play > 0 or opt.swap_shop > 0) and require("bot.seer.seer").new({}) or nil
 local SWAP_PH = {play = opt.swap_play > 0, shop = opt.swap_shop > 0, pack = opt.swap_shop > 0, blind_select = opt.swap_shop > 0}
 local REC = opt.rec ~= "" and mc and require("botsim.train.records") or nil

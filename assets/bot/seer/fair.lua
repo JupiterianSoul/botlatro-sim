@@ -2,6 +2,7 @@ local E = require("bot.sim.engine")
 local ST = require("bot.sim.state")
 local rng = require("bot.sim.rng")
 local S = require("bot.seer.seer")
+local D = require("bot.sim.data")
 local PL = require("bot.seer.play")
 
 local F = {}
@@ -24,7 +25,7 @@ F.BUDGETS = {
         solve = {beam = 6, plays = 3, discards = 6}},
 }
 
-F.DEFAULTS = {worlds = 4, eval_h = 1, max_cands = 3, sampler_seed = "FAIR", run_cap = 0, game_cap = 0, quick_clear = false, fast_top = 0, honest = 0, eval_n = 0}
+F.DEFAULTS = {worlds = 4, eval_h = 1, max_cands = 3, sampler_seed = "FAIR", run_cap = 0, game_cap = 0, quick_clear = false, fast_top = 0, honest = 0, eval_n = 0, honest_final = 1}
 
 F.REVEAL = {reroll = true, open = true, use = true, buy_and_use = true, pick = true, reroll_boss = true, skip = true,
     select = true, play = true, discard = true, cash_out = true, leave = true}
@@ -274,6 +275,8 @@ local function draw_keep(c)
     if #d == 0 then return nil end
     return {type = "discard", cards = d}
 end
+
+F.draw_keep = draw_keep
 
 function F:finish_fast(c)
     local guard = 0
@@ -535,7 +538,10 @@ function F:decide(real, n)
     local base = F.sanitize(real)
     local top = PL.FAST_TOP
     PL.FAST_TOP = self.o.fast_top or 0
+    local honest = self.o.honest
+    if self.o.honest_final == 0 and base.phase == "play" and base.blind > 2 and D.BLINDS[base.blind].showdown then self.o.honest = 0 end
     local acts, best = self:decide_base(base, n or self.o.worlds)
+    self.o.honest = honest
     PL.FAST_TOP = top
     return acts, best
 end
