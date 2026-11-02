@@ -1,5 +1,7 @@
 # CI bench helpers
 
+The working player is w4 (w3 plus `ro_base=0`) since 2026-11-02. Its templates are w4_bench.txt and w4_ladder.txt; the job labels still read b3 and b31 so arms.py works on both. The w4 base games already played: z and z1 of run 41435808952 (39001-39300 stake 8, 39501-39700 stake 1), gz of run 41466670731 (40001-40700 stake 8), zl of run 41449744058 (ladder, b_red 34001-34200, stakes 1 to 7). Compare with `cmp.sh BASE NEW ARM z`.
+
 Paired arms against w3 on BENCH 39001-39300 at stake 8 and 39501-39700 at stake 1, Red, Blue and Black.
 
 Build a job list and push it:
