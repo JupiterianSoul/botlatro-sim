@@ -19,6 +19,9 @@ F.BUDGETS = {
     std = {worlds = 8, eval_h = 2, max_cands = 4,
         seer = {},
         solve = {beam = 4, plays = 2, discards = 4}},
+    hi = {worlds = 16, eval_h = 2, max_cands = 6,
+        seer = {},
+        solve = {beam = 6, plays = 3, discards = 6}},
 }
 
 F.DEFAULTS = {worlds = 4, eval_h = 1, max_cands = 3, sampler_seed = "FAIR", run_cap = 0, game_cap = 0, quick_clear = false, fast_top = 0}

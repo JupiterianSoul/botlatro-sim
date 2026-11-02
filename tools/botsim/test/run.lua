@@ -50,7 +50,7 @@ function T.load_game_functions(path, names, env)
     return env
 end
 
-local files = {"test_rng", "test_eval", "test_score", "test_blinds", "test_final", "test_run", "test_econ", "test_preview"}
+local files = {"test_rng", "test_eval", "test_score", "test_blinds", "test_final", "test_run", "test_econ", "test_preview", "test_book"}
 for _, name in ipairs(files) do
     T.current = name
     local fn = assert(loadfile("tools/botsim/test/" .. name .. ".lua"))

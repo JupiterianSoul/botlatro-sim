@@ -569,5 +569,52 @@ do
     check(GL.path("a/g_{seed}.jsonl", 12) == "a/g_12.jsonl", "game log path takes the worker seed")
 end
 
+do
+    local P = require("botsim.train.plan")
+    local s = E.new_run({seed = "PLANTEST", deck = "b_red", stake = 8})
+    local c0 = ST.clone(s)
+    local v0 = P.eval(s)
+    check(v0 > 0, "plan power is positive on a new run")
+    check(s.n_hand == c0.n_hand and s.blind == c0.blind and s.money == c0.money, "plan eval leaves the state alone")
+    s.h_chips[D.H_FLUSH] = s.h_chips[D.H_FLUSH] + 60
+    s.h_mult[D.H_FLUSH] = s.h_mult[D.H_FLUSH] + 8
+    local v1, plan = P.eval(s)
+    check(v1 > v0, "levelling a hand raises plan power")
+    check(plan == D.H_FLUSH, "the levelled hand becomes the plan")
+    local before = P.score(s)
+    for c = 1, s.n_cards do
+        if s.c_suit[c] ~= s.c_suit[1] then s.c_alive[c] = 0 end
+    end
+    check(P.eval(s) > v1, "a deck of one suit makes the flush plan stronger")
+    check(P.score(s) >= before, "plan score follows power")
+    check(math.abs(P.tail(52, 4, 12, 3) - 0.0343) < 0.001, "chance of three of a rank in 12 cards")
+end
+
+do
+    local P = require("botsim.train.plan")
+    local s = E.new_run({seed = "PLANETTEST", deck = "b_red", stake = 8})
+    s.phase = "shop"
+    s.cons[1], s.cons[2] = "c_pluto", "c_fool"
+    s.n_cons = 2
+    local lv = s.h_level[D.H_HIGH]
+    P.use_planets(s, E.step)
+    check(s.h_level[D.H_HIGH] == lv + 1, "a held planet is used")
+    check(s.n_cons == 1 and s.cons[1] == "c_fool", "other consumables stay")
+end
+
+do
+    local P = require("botsim.train.plan")
+    local s = E.new_run({seed = "ORDERTEST", deck = "b_red", stake = 8})
+    s.n_jok = 0
+    E.add_joker(s, "j_cavendish")
+    E.add_joker(s, "j_joker")
+    local o, best, start = P.best_order(s)
+    check(o and o[1] == 2 and o[2] == 1, "plus mult goes before times mult")
+    check(best > start, "better order scores more")
+    check(P.best_order(s) ~= nil and s.n_jok == 2, "best_order leaves the state alone")
+    E.reorder(s, o)
+    check(P.best_order(s) == nil, "nothing to gain once ordered")
+end
+
 print(string.format("nn tests: %d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

@@ -13,6 +13,8 @@ local json = require("bot.sim.json")
 local opt = {who = "greedy", weights = "", sims = 32, K = 24, per = 6, decks = "", stakes = "", part = 0, parts = 1, out = "", max_moves = 3000, max_shop = 40,
     mix = -1, score_prior = 0, score_top = 6, score_temp = 4, skip_pen = 1, skip_ante = 1, type_mass = 0, tm_plays = 0, quick_clear = 0, pace = 0, pace_net = 0, prefix = "", first = 1, seeds = 10, jsonl = "", fair = 0, search_ph = "", rec = "", solver = "", solver_qc = 0, set = "", curve = 0, trace = 0, list = "", leaf_money = 0, leaf_rent = 0, leaf_dead = 0, rent_prior = 1, rent_from = 0, sell_dead = 0, c_puct = 1.5, worlds = 1, ro = 0, ro_a = 0, ro_z = 2, ro_c = 3, ro_h = 0, ro_ph = "shop,pack,blind_select", ro_from = 0, ro_mon = 0, ro_net = 0, ro_t = 0.25, log = ""}
 opt.digest = 0
+opt.swap_play, opt.swap_shop = 0, 0
+opt.ro_plan, opt.ro_plan_c, opt.ro_planh, opt.ro_fast, opt.ro_useplanet, opt.ro_order, opt.ro_book = 0, 0, 0, 0, 0, 0, ""
 for _, a in ipairs(arg or {}) do
     local k, v = a:match("^([%w_]+)=(.*)$")
     if k then opt[k] = tonumber(v) or v end
@@ -30,6 +32,8 @@ POL.shop = true
 local FAIR = opt.fair > 0 and require("bot.seer.fair") or nil
 local PL = require("bot.seer.play")
 local SOLVER = FAIR and opt.solver ~= "" and FAIR.new({budget = opt.solver, quick_clear = opt.solver_qc > 0}) or nil
+local SWAP = (opt.swap_play > 0 or opt.swap_shop > 0) and require("bot.seer.seer").new({}) or nil
+local SWAP_PH = {play = opt.swap_play > 0, shop = opt.swap_shop > 0, pack = opt.swap_shop > 0, blind_select = opt.swap_shop > 0}
 local REC = opt.rec ~= "" and mc and require("botsim.train.records") or nil
 local TCH = REC and SOLVER and require("botsim.seer.teacher") or nil
 local rf, nrun = REC and assert(io.open(opt.rec, "wb")), 0
@@ -40,12 +44,47 @@ local step = {type = "play", cards = {}}
 local F, AB = FE.new_state_buf(), FE.new_action_buf(1024)
 local st = {}
 
+local PLAN = require("botsim.train.plan")
 local ro_choose = opt.ro > 0 and require("botsim.train.rollout").chooser(mc, rmc, opt) or nil
 
 local D = require("bot.sim.data")
+local BOOSTER = require("bot.sim.data_centers").Booster
 
 local function trace_new()
-    return {a = {}, r = {}, offer = {}, act = {}, buy = {}}
+    return {a = {}, r = {}, offer = {}, act = {}, buy = {}, spend = {}, shops = {}}
+end
+
+local function joker_keys(s)
+    local j = {}
+    for k = 1, s.n_jok do j[k] = D.JOKERS[s.j_id[k]].key end
+    return j
+end
+
+local function cons_keys(s)
+    local c = {}
+    for k = 1, s.n_cons do c[k] = s.cons[k] end
+    return c
+end
+
+local function hand_cards(s)
+    local h = {}
+    for k = 1, s.n_hand do
+        local c = s.hand[k]
+        h[k] = {s.c_rank[c], s.c_suit[c], s.c_enh[c], s.c_ed[c], s.c_seal[c]}
+    end
+    return h
+end
+
+local function shop_item(s, k)
+    local kind, id = s.sj_kind[k], s.sj_id[k]
+    if kind == E.K_JOKER then return D.JOKERS[id].key end
+    if kind == E.K_CONS then return D.CONS[id].key end
+    return "card"
+end
+
+local function solver_clears(s)
+    local _, ok = PL.solve(s, {beam = 6, plays = 3, discards = 6})
+    return ok and 1 or 0
 end
 
 local function trace_ante(tr, s)
@@ -58,7 +97,8 @@ local function trace_ante(tr, s)
     for k = 1, #D.VOUCHERS do
         if s.used_v[k] ~= 0 and s.used_v[k] ~= false then v[#v + 1] = D.VOUCHERS[k].key end
     end
-    tr.a[#tr.a + 1] = {ante = s.ante, money = s.money, jok = j, lv = lv, n_deck = s.n_cards, v = v, limit = s.joker_limit}
+    local pv, ph = PLAN.eval(s)
+    tr.a[#tr.a + 1] = {ante = s.ante, money = s.money, jok = j, lv = lv, n_deck = s.n_cards, v = v, limit = s.joker_limit, plan = ph, pv = pv}
 end
 
 local function trace_top(tr, s)
@@ -74,7 +114,9 @@ end
 
 local function trace_phase(tr, s, ph)
     if ph == "play" and (not tr.cur or tr.cur.round ~= s.round) then
-        tr.cur = {round = s.round, ante = s.ante, blind = D.BLINDS[s.blind].key, need = s.blind_chips, chips = 0, best = 0, plays = 0, discards = 0, money = s.money}
+        tr.cur = {round = s.round, ante = s.ante, blind = D.BLINDS[s.blind].key, need = s.blind_chips, chips = 0, best = 0, plays = 0, discards = 0, money = s.money, hands = s.hands_left, disc = s.discards_left,
+            jok = joker_keys(s), lv = {}, cons = cons_keys(s), hsize = s.hand_size, sv = solver_clears(s), log = {}}
+        for k = 1, 12 do tr.cur.lv[k] = s.h_level[k] end
         tr.r[#tr.r + 1] = tr.cur
     elseif ph == "shop" or ph == "pack" then
         local o = tr.offer[s.ante]
@@ -85,6 +127,17 @@ local function trace_phase(tr, s, ph)
         if ph == "shop" then
             for k = 1, s.n_sj do
                 if s.sj_kind[k] == 1 then o[D.JOKERS[s.sj_id[k]].key] = 1 end
+            end
+            local v = tr.shops[#tr.shops]
+            if not v or v.round ~= s.round then
+                v = {round = s.round, ante = s.ante, money = s.money, jok = {}, vou = {}, pack = {}}
+                tr.shops[#tr.shops + 1] = v
+                for k = 1, s.n_sv do v.vou[k] = D.VOUCHERS[s.sv_id[k]].key end
+                for k = 1, s.n_sb do v.pack[k] = BOOSTER[s.sb_id[k]].key end
+            end
+            for k = 1, s.n_sj do
+                local key = shop_item(s, k)
+                v.jok[key] = E.shop_joker_cost(s, k)
             end
         end
     end
@@ -99,6 +152,22 @@ local function trace_act(tr, s, a)
     c[a.type] = (c[a.type] or 0) + 1
     if tr.cur and a.type == "play" then tr.cur.plays = tr.cur.plays + 1 end
     if tr.cur and a.type == "discard" then tr.cur.discards = tr.cur.discards + 1 end
+    if tr.cur and s.phase == "play" and (a.type == "play" or a.type == "discard") then
+        local _, bv = PL.best_play(s)
+        local l = tr.cur.log
+        l[#l + 1] = {t = a.type, c = {unpack(a.cards)}, best = bv, chips = s.chips, h = hand_cards(s)}
+    end
+    if a.type == "buy" or a.type == "buy_and_use" then
+        tr.spend[#tr.spend + 1] = {s.ante, a.type, shop_item(s, a.card), s.money, E.shop_joker_cost(s, a.card)}
+    elseif a.type == "redeem" then
+        tr.spend[#tr.spend + 1] = {s.ante, a.type, D.VOUCHERS[s.sv_id[a.card]].key, s.money, E.shop_voucher_cost(s, a.card)}
+    elseif a.type == "open" then
+        tr.spend[#tr.spend + 1] = {s.ante, a.type, BOOSTER[s.sb_id[a.card]].key, s.money}
+    elseif a.type == "sell" and a.area == "jokers" then
+        tr.spend[#tr.spend + 1] = {s.ante, a.type, D.JOKERS[s.j_id[a.card]].key, s.money}
+    elseif a.type == "use" then
+        tr.spend[#tr.spend + 1] = {s.ante, a.type, s.cons[a.card], s.money}
+    end
     if (a.type == "buy" or a.type == "buy_and_use") and s.sj_kind[a.card] == 1 then
         tr.buy[#tr.buy + 1] = {s.ante, D.JOKERS[s.sj_id[a.card]].key, s.money}
     end
@@ -113,7 +182,8 @@ local function trace_json(tr, s)
         offer[tostring(a)] = l
     end
     for a, c in pairs(tr.act) do act[tostring(a)] = c end
-    return json.encode({a = tr.a, r = tr.r, offer = offer, act = act, buy = tr.buy, n_hand = s.n_hand, n_deck = s.n_deck, phase = s.phase})
+    for k = 1, #tr.r - 1 do tr.r[k].log = nil end
+    return json.encode({a = tr.a, r = tr.r, offer = offer, act = act, buy = tr.buy, spend = tr.spend, shops = tr.shops, n_hand = s.n_hand, n_deck = s.n_deck, phase = s.phase})
 end
 
 local function game_key(deck, stake, seed)
@@ -174,6 +244,7 @@ local function play(deck, stake, seed)
     local dig = 7
     for k, v in tostring(opt.set):gmatch("([%w_]+):(-?[%d%.]+)") do s[k] = tonumber(v) end
     local moves, econ_run, why = 0, 0, "max_moves"
+    local order_key, order_moves = nil, 0
     local curve, curve_ante = {}, 0
     local recs = rf and {}
     local tr = opt.trace > 0 and trace_new() or nil
@@ -196,6 +267,23 @@ local function play(deck, stake, seed)
         do_forced(s)
         if opt.digest > 0 then dig = (dig * 1000003 + MC.obs_key(s, true)) % 4294967291 end
         if MC.terminal(s) then why = "end" break end
+        if opt.ro_useplanet > 0 then
+            PLAN.use_planets(s, function(w, a)
+                if tr then trace_act(tr, w, a) end
+                return do_step(w, a)
+            end)
+        end
+        if opt.ro_order > 0 and s.phase == "blind_select" then
+            local key = s.n_jok
+            for k = 1, s.n_jok do key = key .. "," .. s.j_uid[k] end
+            if key ~= order_key then
+                order_key = key
+                local o = PLAN.best_order(s)
+                if o and do_step(s, {type = "reorder_jokers", order = o}) then order_moves = order_moves + 1 end
+                order_key = s.n_jok
+                for k = 1, s.n_jok do order_key = order_key .. "," .. s.j_uid[k] end
+            end
+        end
         local ph = s.phase
         if tr then trace_phase(tr, s, ph) end
         if opt.curve > 0 and s.ante ~= curve_ante then
@@ -227,6 +315,15 @@ local function play(deck, stake, seed)
             if not acts or not acts[1] or not do_step(s, acts[1]) then
                 local fb = PL.fast_action(s)
                 if not fb or not do_step(s, fb) then why = "step_failed:play:solver" break end
+            end
+            moves = moves + 1
+        elseif SWAP and SWAP_PH[ph] then
+            local a = SWAP:choose(s)
+            if tr and a then trace_act(tr, s, a) end
+            if not a or not do_step(s, a) then
+                SWAP.plan = nil
+                local fb = ph == "play" and PL.fast_action(s) or ph == "shop" and LEAVE or ph == "pack" and SKIP or {type = "select"}
+                if not do_step(s, fb) then why = "step_failed:swap:" .. ph break end
             end
             moves = moves + 1
         elseif mc then
