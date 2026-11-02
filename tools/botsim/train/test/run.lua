@@ -614,6 +614,9 @@ do
     check(P.best_order(s) ~= nil and s.n_jok == 2, "best_order leaves the state alone")
     E.reorder(s, o)
     check(P.best_order(s) == nil, "nothing to gain once ordered")
+    check(not P.any_flipped(s), "no joker face down")
+    s.j_flip[2] = 1
+    check(P.any_flipped(s), "a face down joker stops reordering")
 end
 
 print(string.format("nn tests: %d passed, %d failed", passed, failed))

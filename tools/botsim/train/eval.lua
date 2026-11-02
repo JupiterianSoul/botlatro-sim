@@ -13,6 +13,8 @@ local json = require("bot.sim.json")
 local opt = {who = "greedy", weights = "", sims = 32, K = 24, per = 6, decks = "", stakes = "", part = 0, parts = 1, out = "", max_moves = 3000, max_shop = 40,
     mix = -1, score_prior = 0, score_top = 6, score_temp = 4, skip_pen = 1, skip_ante = 1, type_mass = 0, tm_plays = 0, quick_clear = 0, pace = 0, pace_net = 0, prefix = "", first = 1, seeds = 10, jsonl = "", fair = 0, search_ph = "", rec = "", solver = "", solver_qc = 0, set = "", curve = 0, trace = 0, list = "", leaf_money = 0, leaf_rent = 0, leaf_dead = 0, rent_prior = 1, rent_from = 0, sell_dead = 0, c_puct = 1.5, worlds = 1, ro = 0, ro_a = 0, ro_z = 2, ro_c = 3, ro_h = 0, ro_ph = "shop,pack,blind_select", ro_from = 0, ro_mon = 0, ro_net = 0, ro_t = 0.25, log = ""}
 opt.digest = 0
+opt.vlog = 0
+opt.ro_res, opt.ro_resw = "", 1
 opt.solver_h, opt.solver_en, opt.solver_hb = 0, 0, 0
 opt.swap_play, opt.swap_shop = 0, 0
 opt.ro_plan, opt.ro_plan_c, opt.ro_planh, opt.ro_fast, opt.ro_useplanet, opt.ro_order, opt.ro_book = 0, 0, 0, 0, 0, 0, ""
@@ -100,6 +102,18 @@ local function trace_ante(tr, s)
     end
     local pv, ph = PLAN.eval(s)
     tr.a[#tr.a + 1] = {ante = s.ante, money = s.money, jok = j, lv = lv, n_deck = s.n_cards, v = v, limit = s.joker_limit, plan = ph, pv = pv}
+end
+
+local function vlog_ante(vl, s)
+    local j, lv, c = {}, {}, cons_keys(s)
+    for k = 1, s.n_jok do
+        j[k] = {D.JOKERS[s.j_id[k]].key, s.j_ed[k], s.j_x[k], s.j_eternal[k]}
+    end
+    for k = 1, 12 do lv[k] = s.h_level[k] end
+    local w = FAIR and FAIR.world(FAIR.sanitize(s), "VL_" .. s.ante) or s
+    rmc:search(w, 0, {noise = 0, reuse = false, adaptive = true})
+    local pv = PLAN.eval(s)
+    vl[#vl + 1] = {ante = s.ante, money = s.money, jok = j, lv = lv, cons = c, n_deck = s.n_cards, limit = s.joker_limit, hsize = s.hand_size, pv = pv, need = PLAN.need(s), nv = rmc.n_val[rmc.root], ph = s.phase}
 end
 
 local function trace_top(tr, s)
@@ -249,6 +263,7 @@ local function play(deck, stake, seed)
     local curve, curve_ante = {}, 0
     local recs = rf and {}
     local tr = opt.trace > 0 and trace_new() or nil
+    local vl = opt.vlog > 0 and {} or nil
     local alog = open_log(deck, stake, seed)
     local function do_step(w, act)
         local line = alog and action_line(act)
@@ -274,7 +289,7 @@ local function play(deck, stake, seed)
                 return do_step(w, a)
             end)
         end
-        if opt.ro_order > 0 and s.phase == "blind_select" then
+        if opt.ro_order > 0 and s.phase == "blind_select" and not PLAN.any_flipped(s) then
             local key = s.n_jok
             for k = 1, s.n_jok do key = key .. "," .. s.j_uid[k] end
             if key ~= order_key then
@@ -290,6 +305,7 @@ local function play(deck, stake, seed)
         if opt.curve > 0 and s.ante ~= curve_ante then
             curve_ante = s.ante
             if tr then trace_ante(tr, s) end
+            if vl then vlog_ante(vl, s) end
             local rent, dead, et = 0, 0, 0
             for k = 1, s.n_jok do
                 rent = rent + s.j_rental[k]
@@ -392,6 +408,7 @@ local function play(deck, stake, seed)
         trace_top(tr, s)
         s.eval_trace = trace_json(tr, s)
     end
+    s.eval_vl = vl and json.encode(vl) or nil
     s.eval_dig = dig
     close_log(alog, s)
     return won, ante, why, moves, s
@@ -403,7 +420,7 @@ local function finite(x)
 end
 
 local function death_fields(s)
-    return string.format(',"blind":%d,"chips":%.0f,"need":%.0f,"money":%d,"n_jok":%d,"disc_left":%d', s.blind, finite(s.chips), finite(s.blind_chips), s.money, s.n_jok, s.discards_left) .. (opt.curve > 0 and string.format(',"curve":"%s"', s.eval_curve) or "") .. (opt.digest > 0 and string.format(',"dig":"%.0f"', s.eval_dig) or "") .. (s.eval_trace and ',"trace":' .. s.eval_trace or "")
+    return string.format(',"blind":%d,"chips":%.0f,"need":%.0f,"money":%d,"n_jok":%d,"disc_left":%d', s.blind, finite(s.chips), finite(s.blind_chips), s.money, s.n_jok, s.discards_left) .. (opt.curve > 0 and string.format(',"curve":"%s"', s.eval_curve) or "") .. (opt.digest > 0 and string.format(',"dig":"%.0f"', s.eval_dig) or "") .. (s.eval_trace and ',"trace":' .. s.eval_trace or "") .. (s.eval_vl and ',"vl":' .. s.eval_vl or "")
 end
 
 local DECKS, STAKES = ES.parse(opt.decks, tostring(opt.stakes))

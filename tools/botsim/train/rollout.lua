@@ -4,6 +4,7 @@ local F = require("bot.seer.fair")
 local S = require("bot.seer.seer")
 local P = require("botsim.train.plan")
 local PL = require("bot.seer.play")
+local D = require("bot.sim.data")
 
 local M = {}
 
@@ -14,7 +15,45 @@ local function score(w)
     return w.ante + (w.blind_on_deck - 1) / 3
 end
 
+local function load_res(path)
+    local f = assert(io.open(path, "r"))
+    local t = require("bot.sim.json").decode(f:read("*a"))
+    f:close()
+    local jok = {}
+    for i = 1, #D.JOKERS do jok[i] = t.j[D.JOKERS[i].key] or 0 end
+    t.jok = jok
+    return t
+end
+
+local function res_adj(t, w)
+    local c = w.ante <= 3 and t.E or t.L
+    local a = 0
+    local top, second, sum = 0, 0, 0
+    for k = 1, 12 do
+        local l = w.h_level[k]
+        sum = sum + l
+        if l > top then top, second = l, top elseif l > second then second = l end
+    end
+    local et = 0
+    for k = 1, w.n_jok do
+        a = a + t.jok[w.j_id[k]]
+        et = et + w.j_eternal[k]
+    end
+    a = a + c.money * math.min(math.max(w.money, 0), 60) / 25
+    a = a + c.njok * w.n_jok + c.free * (w.joker_limit - w.n_jok)
+    a = a + c.deck * (w.n_cards - 52) / 10 + c.hsize * (w.hand_size - 8)
+    a = a + c.top * top + c.second * second + c.sumlv * (sum - 12)
+    a = a + c.ncons * w.n_cons + c.eter * et
+    if c.pow ~= 0 then
+        local v = P.eval(w)
+        local pw = v > 0 and v * 4 / P.need(w) or 1 / 16
+        a = a + c.pow * math.max(-4, math.min(4, math.log(pw) / math.log(2)))
+    end
+    return a
+end
+
 function M.chooser(mc, rmc, opt)
+    local RES = (opt.ro_res or "") ~= "" and load_res(opt.ro_res) or nil
     if (opt.ro_book or "") ~= "" then P.load_scale(opt.ro_book) end
     local step = {type = "play", cards = {}}
 
@@ -64,6 +103,7 @@ function M.chooser(mc, rmc, opt)
                 v = v + opt.ro_net * rmc.n_val[rmc.root]
             end
             if (opt.ro_planh or 0) ~= 0 then v = v + opt.ro_planh * P.score(w) end
+            if RES then v = v + opt.ro_resw * res_adj(RES, w) end
         end
         return v
     end

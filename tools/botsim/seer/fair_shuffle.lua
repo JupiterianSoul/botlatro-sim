@@ -128,7 +128,7 @@ elseif opt.who == "net" then
             MC.advance_forced(view)
             if MC.terminal(view) then return nil end
             n = n + 1
-            if opt.ro_order > 0 and view.phase == "blind_select" then
+            if opt.ro_order > 0 and view.phase == "blind_select" and not PLAN.any_flipped(view) then
                 local key = view.n_jok
                 for k = 1, view.n_jok do key = key .. "," .. view.j_uid[k] end
                 if key ~= order_key then

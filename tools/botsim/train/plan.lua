@@ -244,6 +244,13 @@ function M.use_planets(w, stepper)
     end
 end
 
+function M.any_flipped(w)
+    for k = 1, w.n_jok do
+        if w.j_flip[k] == 1 then return true end
+    end
+    return false
+end
+
 function M.best_order(w)
     local n = w.n_jok
     if n < 2 then return nil end
