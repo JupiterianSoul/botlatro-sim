@@ -619,5 +619,44 @@ do
     check(P.any_flipped(s), "a face down joker stops reordering")
 end
 
+
+do
+    local T = require("botsim.train.teach")
+    local function give(s, key)
+        s.n_cons = s.n_cons + 1
+        s.cons[s.n_cons], s.cons_ed[s.n_cons], s.cons_ev[s.n_cons] = key, 0, 0
+        s.next_uid = s.next_uid + 1
+        s.cons_uid[s.n_cons] = s.next_uid
+    end
+    local s = play_state("TEACH1")
+    local t = T.new({})
+    give(s, "c_hanged_man")
+    local n0 = T.alive_count(s)
+    local a, why = t:move(s)
+    check(a and a.type == "use" and why == "use_hanged" and #a.targets == 2 and a.targets[1] ~= a.targets[2], "teach: hanged man on two cards")
+    check(a and E.step(s, a) and T.alive_count(s) == n0 - 2 and s.n_cons == 0, "teach: hanged man removes two cards")
+    local s2 = play_state("TEACH2")
+    give(s2, "c_pluto")
+    local a2, why2 = T.new({}):move(s2)
+    check(a2 and a2.type == "use" and why2 == "use_planet", "teach: uses a held planet")
+    local s3 = play_state("TEACH3")
+    s3.h_level[D.H_FLUSH] = 30
+    local t3 = T.new({})
+    t3:update_plan(s3)
+    check(t3.plan == D.H_FLUSH, "teach: flush plan when flush is levelled")
+    local _, by_suit = T.alive_count(s3)
+    local best = 1
+    for k = 2, 4 do if by_suit[k] > by_suit[best] then best = k end end
+    local key = ({"c_world", "c_sun", "c_moon", "c_star"})[best]
+    give(s3, key)
+    local a3 = t3:move(s3)
+    local off = true
+    for _, i in ipairs(a3 and a3.targets or {}) do if s3.c_suit[s3.hand[i]] == best then off = false end end
+    check(a3 and a3.type == "use" and off, "teach: suit tarot only on off-suit cards")
+    local s4 = play_state("TEACH4")
+    give(s4, "c_hanged_man")
+    local t4 = T.new({t_deck = 60})
+    check(t4:move(s4) == nil, "teach: no thinning under the deck floor")
+end
 print(string.format("nn tests: %d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)
