@@ -25,7 +25,7 @@ F.BUDGETS = {
         solve = {beam = 6, plays = 3, discards = 6}},
 }
 
-F.DEFAULTS = {worlds = 4, eval_h = 1, max_cands = 3, sampler_seed = "FAIR", run_cap = 0, game_cap = 0, quick_clear = false, fast_top = 0, honest = 0, eval_n = 0, honest_final = 1, tie = 0}
+F.DEFAULTS = {worlds = 4, eval_h = 1, max_cands = 3, sampler_seed = "FAIR", run_cap = 0, game_cap = 0, quick_clear = false, fast_top = 0, honest = 0, eval_n = 0, honest_final = 1, tie = 0, ff = 0}
 
 F.REVEAL = {reroll = true, open = true, use = true, buy_and_use = true, pick = true, reroll_boss = true, skip = true,
     select = true, play = true, discard = true, cash_out = true, leave = true}
@@ -282,7 +282,7 @@ function F:finish_fast(c)
     local guard = 0
     while c.phase == "play" and guard < 40 do
         guard = guard + 1
-        local fb = PL.fast_action(c)
+        local fb = PL.fast_action(c, self.o.ff > 0)
         if fb and fb.type == "discard" and self.o.honest == 5 then fb = draw_keep(c) or fb end
         if not fb or not E.step(c, fb) then return end
     end

@@ -35,7 +35,7 @@ end
 POL.shop = true
 local FAIR = opt.fair > 0 and require("bot.seer.fair") or nil
 local PL = require("bot.seer.play")
-local SOLVER = FAIR and opt.solver ~= "" and FAIR.new({budget = opt.solver, quick_clear = opt.solver_qc > 0, qc_cons = (tonumber(opt.solver_qcc) or 0) > 0, honest = opt.solver_h, eval_n = opt.solver_en, honest_final = opt.solver_hb > 0 and 0 or 1, tie = tonumber(opt.solver_tie) or 0}) or nil
+local SOLVER = FAIR and opt.solver ~= "" and FAIR.new({budget = opt.solver, quick_clear = opt.solver_qc > 0, qc_cons = (tonumber(opt.solver_qcc) or 0) > 0, honest = opt.solver_h, eval_n = opt.solver_en, honest_final = opt.solver_hb > 0 and 0 or 1, tie = tonumber(opt.solver_tie) or 0, ff = tonumber(opt.solver_ff) or 0}) or nil
 local SWAP = (opt.swap_play > 0 or opt.swap_shop > 0) and require("bot.seer.seer").new({}) or nil
 local SWAP_PH = {play = opt.swap_play > 0, shop = opt.swap_shop > 0, pack = opt.swap_shop > 0, blind_select = opt.swap_shop > 0}
 local REC = opt.rec ~= "" and mc and require("botsim.train.records") or nil
