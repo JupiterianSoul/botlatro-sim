@@ -216,6 +216,17 @@ function M:tarot_targets(s, cid)
     return nil
 end
 
+function M:use_now(s)
+    for k = s.n_cons, 1, -1 do
+        local cid, c = cons_of_key(s.cons[k])
+        if c and (c.set == SET_TAROT or c.set == SET_SPECTRAL) then
+            local t = self:tarot_targets(s, cid)
+            if t then return {type = "use", card = k, targets = #t > 0 and t or nil} end
+        end
+    end
+    return nil
+end
+
 local function planet_ok(s)
     return not (OBS and s.used_v[OBS] and s.used_v[OBS] ~= 0)
 end

@@ -118,6 +118,11 @@ function M.chooser(mc, rmc, opt)
     local CVX = tonumber(opt.ro_cvx) or 0
     local TOP = tonumber(opt.ro_top) or 0
     local VM = tonumber(opt.ro_vm) or 1
+    local TT = (tonumber(opt.ro_tarot) or 0) > 0 and require("botsim.train.teach").new({t_all = 1, t_deck = opt.t_deck}) or nil
+    local function use_tarot(w)
+        local u = TT:use_now(w)
+        return u and E.step(w, u)
+    end
     local root_money = 0
 
     local function jkey(w)
@@ -143,7 +148,8 @@ function M.chooser(mc, rmc, opt)
             end
             local ph = w.phase
             if ph == "shop" or ph == "pack" then econ_run = econ_run + 1 else econ_run = 0 end
-            if econ_run > opt.max_shop then
+            if TT and ph == "play" and w.n_cons > 0 and use_tarot(w) then
+            elseif econ_run > opt.max_shop then
                 if not E.step(w, ph == "pack" and SKIP or LEAVE) then break end
             elseif ph == "play" and (opt.ro_fast or 0) == 1 then
                 local a = PL.fast_action(w, true)
@@ -230,6 +236,7 @@ function M.chooser(mc, rmc, opt)
 
     return function(s, seed, moves)
         root_money = s.money
+        if TT then TT:update_plan(s) end
         local ef, ec = mc:root_edges()
         if ec < 2 then return nil end
         local order = {}
