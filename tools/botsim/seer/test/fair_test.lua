@@ -313,5 +313,32 @@ do
     ok(s1.ante > 1 or s1.phase == "game_over", "reached ante 2 or died")
 end
 
+current = "solver_tie keeps money against The Ox"
+do
+    local s = late("bl_ox", 6, JK, function(s)
+        s.money = 40
+        s.chips = s.blind_chips - 1
+    end)
+    states[#states] = nil
+    local w = F.world(F.sanitize(s), "WTIE")
+    local function val(tie, mp)
+        local o = {honest = 5, tie = tie}
+        for k, v in pairs(TINY) do o[k] = o[k] or v end
+        local c = ST.clone(w)
+        c.most_played = mp
+        return (F.new(o):evaluate(c, {{type = "play", cards = {1}}}, "play"))
+    end
+    ok(val(1, 12) < val(1, 1), "a clear that keeps the money ranks higher")
+    ok(val(0, 12) == val(0, 1), "no money term when off")
+    local function quick(tie)
+        local o = {honest = 5, tie = tie, quick_clear = true}
+        for k, v in pairs(TINY) do o[k] = o[k] or v end
+        local fo = F.new(o)
+        ok(fo:decide(ST.clone(s)) ~= nil, "a move")
+        return fo.quick
+    end
+    ok(quick(0) == 1 and quick(1) == 0, "no quick clear against The Ox with tie")
+end
+
 print(string.format("fair tests: %d passed, %d failed", passed, failed))
 if failed > 0 then os.exit(1) end

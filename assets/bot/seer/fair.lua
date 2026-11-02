@@ -25,7 +25,7 @@ F.BUDGETS = {
         solve = {beam = 6, plays = 3, discards = 6}},
 }
 
-F.DEFAULTS = {worlds = 4, eval_h = 1, max_cands = 3, sampler_seed = "FAIR", run_cap = 0, game_cap = 0, quick_clear = false, fast_top = 0, honest = 0, eval_n = 0, honest_final = 1}
+F.DEFAULTS = {worlds = 4, eval_h = 1, max_cands = 3, sampler_seed = "FAIR", run_cap = 0, game_cap = 0, quick_clear = false, fast_top = 0, honest = 0, eval_n = 0, honest_final = 1, tie = 0}
 
 F.REVEAL = {reroll = true, open = true, use = true, buy_and_use = true, pick = true, reroll_boss = true, skip = true,
     select = true, play = true, discard = true, cash_out = true, leave = true}
@@ -294,7 +294,16 @@ function F:evaluate(w, plan, phase, evaluator)
         if not E.step(c, plan[1]) then return -1e9, 0 end
         if self.o.honest > 0 then self:finish_fast(c) else self:finish_blind(c) end
         if self.o.honest >= 2 then
-            if PL.cleared(c) then return 1 + 0.05 * c.hands_left + 0.01 * c.discards_left, 1 end
+            if PL.cleared(c) then
+                local v = 1 + 0.05 * c.hands_left + 0.01 * c.discards_left
+                if self.o.tie > 0 then
+                    local lv, js = 0, 0
+                    for i = 1, 12 do lv = lv + c.h_level[i] end
+                    for k = 1, c.n_jok do js = js + 0.01 * c.j_ex[k] + 0.05 * c.j_mult[k] + 0.5 * c.j_x[k] end
+                    v = v + self.o.tie * (0.02 * c.money + 0.06 * lv + js)
+                end
+                return v, 1
+            end
             return math.min(1, c.chips / math.max(1, c.blind_chips)), 0
         end
     else
@@ -388,6 +397,8 @@ local function keep_cands(w)
     return out
 end
 
+local TIE_BOSS = {[D.BLIND_ID.bl_ox] = true, [D.BLIND_ID.bl_tooth] = true, [D.BLIND_ID.bl_arm] = true}
+
 function F.holds_tarot(s)
     if s.discards_used > 0 or s.round_hands_played > 0 or s.n_hand == 0 then return false end
     for i = 1, s.n_cons do
@@ -401,7 +412,7 @@ function F:decide_base(base, n)
     local phase = base.phase
     if base.won == 1 or phase == "game_over" or phase == "win" then return nil end
     if phase == "round_eval" then return {{type = "cash_out"}} end
-    if phase == "play" and self.o.quick_clear and not (self.o.qc_cons and F.holds_tarot(base)) then
+    if phase == "play" and self.o.quick_clear and not (self.o.qc_cons and F.holds_tarot(base)) and not (self.o.tie > 0 and TIE_BOSS[base.blind]) then
         local cs, v = PL.best_play(base)
         if cs and v >= base.blind_chips - base.chips then
             local cards = {}
