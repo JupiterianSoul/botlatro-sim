@@ -705,8 +705,10 @@ do
     end
     local sk = E.new_run({seed = "TSKIP", deck = "b_black", stake = 8})
     check(sk.phase == "blind_select" and not T.skip_safe(sk, 2.5), "teach: no skip into the big blind with no jokers at Gold")
+    check(not T.skip_safe(sk, -1), "teach: t_skip=-1 blocks a skip with no joker")
     for _, j in ipairs({"j_joker", "j_cavendish", "j_gros_michel"}) do E.add_joker(sk, j) end
     check(T.skip_safe(sk, 2.5), "teach: skip allowed with a strong build")
+    check(T.skip_safe(sk, -1), "teach: t_skip=-1 allows a skip with a joker")
 end
 print(string.format("nn tests: %d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

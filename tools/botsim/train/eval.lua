@@ -49,7 +49,7 @@ local F, AB = FE.new_state_buf(), FE.new_action_buf(1024)
 local st = {}
 
 local PLAN = require("botsim.train.plan")
-local TEACH = (opt.teach > 0 or opt.blog > 0 or opt.t_skip > 0) and require("botsim.train.teach") or nil
+local TEACH = (opt.teach > 0 or opt.blog > 0 or opt.t_skip ~= 0) and require("botsim.train.teach") or nil
 if (tonumber(opt.shop_moves) or 1) == 0 then FE.SHOP_MOVES = false end
 local ro_choose = opt.ro > 0 and require("botsim.train.rollout").chooser(mc, rmc, opt) or nil
 
@@ -293,7 +293,7 @@ local function play(deck, stake, seed)
         local ta, twhy
         if tch and tch.late and s.phase == "shop" and a.type == "leave" then
             ta, twhy = tch:leave_move(s)
-        elseif opt.t_skip > 0 and s.phase == "blind_select" and a.type == "skip" and not TEACH.skip_safe(s, opt.t_skip) then
+        elseif opt.t_skip ~= 0 and s.phase == "blind_select" and a.type == "skip" and not TEACH.skip_safe(s, opt.t_skip) then
             ta, twhy = {type = "select"}, "veto_skip"
             vetoes = vetoes + 1
         end
@@ -475,7 +475,7 @@ local function play(deck, stake, seed)
     end
     s.eval_vl = vl and json.encode(vl) or nil
     s.eval_tch = tch and json.encode(tch:report()) or nil
-    s.eval_veto = opt.t_skip > 0 and vetoes or nil
+    s.eval_veto = opt.t_skip ~= 0 and vetoes or nil
     if blog then
         blog[#blog + 1] = TEACH.build_row(s, uses)
         s.eval_bl = table.concat(blog, ",")

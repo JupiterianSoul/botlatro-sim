@@ -297,6 +297,7 @@ end
 
 function M.skip_safe(s, margin)
     if s.phase ~= "blind_select" or s.blind_on_deck == 3 then return true end
+    if margin < 0 then return s.n_jok > 0 end
     local b = s.blind_on_deck == 1 and 2 or s.boss_choice
     local bd = D.BLINDS[b]
     local need = E.get_blind_amount(s, s.ante) * (bd and bd.mult or 2) * s.ante_scaling

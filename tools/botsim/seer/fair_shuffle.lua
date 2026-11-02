@@ -127,7 +127,7 @@ elseif opt.who == "net" then
         local rmc = opt.ro > 0 and new_mc(NET.new(WT.load(opt.weights))) or nil
         local order_key
         local tch = opt.teach > 0 and require("botsim.train.teach").new(opt) or nil
-        local TS = opt.t_skip > 0 and require("botsim.train.teach") or nil
+        local TS = opt.t_skip ~= 0 and require("botsim.train.teach") or nil
         local function veto(view, a)
             if TS and a and view.phase == "blind_select" and a.type == "skip" and not TS.skip_safe(view, opt.t_skip) then return {type = "select"} end
             return a
