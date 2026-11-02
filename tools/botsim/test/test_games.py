@@ -2,12 +2,14 @@ import contextlib
 import io
 import json
 import os
+import struct
 import sys
 import tempfile
 import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "train"))
 import games as G
+import relabel as RL
 
 
 def line(seed, won=0, ante=3, need=100, deck="b_red", stake=8, **kw):
@@ -109,6 +111,18 @@ class Games(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(G.main(["x", "same", a, b]), 0)
             self.assertEqual(G.main(["x", "same", a, c]), 1)
+
+    def test_relabel_lost_final_boss(self):
+        head = b"BSPR" + bytes(28) + struct.pack("<H", 1) + b"x"
+        rec = bytes(20) + struct.pack("<H", 0)
+        run = lambda w, a: b"RUN2" + struct.pack("<IBBBBI", 1, w, a, 0, 8, 1) + rec
+        data = head + run(1, 9) + run(1, 9) + run(0, 3)
+        games = [{"won": 1, "ante": 9, "need": 0}, {"won": 1, "ante": 9, "need": 500}, {"won": 0, "ante": 3, "need": 100}]
+        new, n, changed = RL.relabel(data, games)
+        self.assertEqual((n, changed), (3, 1))
+        self.assertEqual(new, head + run(1, 9) + run(0, 8) + run(0, 3))
+        with self.assertRaises(ValueError):
+            RL.relabel(data, games[:2])
 
 
 if __name__ == "__main__":

@@ -72,7 +72,7 @@ for r = opt.first, opt.first + opt.runs - 1 do
             decisions = decisions + 1
         end
     end
-    local won = s.won == 1 and 1 or 0
+    local won = s.won == 1 and s.phase ~= "game_over" and 1 or 0
     local final_ante = won == 1 and s.win_ante + 1 or s.ante
     wins = wins + won
     ante_sum = ante_sum + final_ante

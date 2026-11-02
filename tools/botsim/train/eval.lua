@@ -385,8 +385,7 @@ local function play(deck, stake, seed)
     local ante = won == 1 and s.win_ante + 1 or s.ante
     if recs then
         nrun = nrun + 1
-        local flag = s.won == 1 and 1 or 0
-        rf:write(REC.encode_run(recs, flag, math.min(flag == 1 and s.win_ante + 1 or s.ante, 255), FE.DECK_IDX[deck] or 0, stake, nrun))
+        rf:write(REC.encode_run(recs, won, math.min(ante, 255), FE.DECK_IDX[deck] or 0, stake, nrun))
     end
     s.eval_curve = table.concat(curve, ",")
     if tr then

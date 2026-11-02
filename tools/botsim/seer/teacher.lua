@@ -78,7 +78,7 @@ function T.solved(setup, opts, index)
     local flag = s.won == 1 and 1 or 0
     local won = flag == 1 and s.phase ~= "game_over" and 1 or 0
     local final_ante = won == 1 and s.win_ante + 1 or s.ante
-    local blob = REC.encode_run(recs, flag, flag == 1 and s.win_ante + 1 or s.ante, FE.DECK_IDX[setup.deck] or 0, setup.stake or 1, index or 0)
+    local blob = REC.encode_run(recs, won, final_ante, FE.DECK_IDX[setup.deck] or 0, setup.stake or 1, index or 0)
     return blob, {records = #recs, skipped = skipped, won = won, final_ante = final_ante, line = r.line, state = s, lines = r.lines}
 end
 
@@ -125,7 +125,7 @@ function T.fair(setup, opts, index)
     local flag = fs.won == 1 and 1 or 0
     local won = flag == 1 and fs.phase ~= "game_over" and 1 or 0
     local final_ante = won == 1 and fs.win_ante + 1 or fs.ante
-    local blob = REC.encode_run(recs, flag, flag == 1 and fs.win_ante + 1 or fs.ante, FE.DECK_IDX[setup.deck] or 0, setup.stake or 1, index or 0)
+    local blob = REC.encode_run(recs, won, final_ante, FE.DECK_IDX[setup.deck] or 0, setup.stake or 1, index or 0)
     return blob, {records = #recs, skipped = skipped, won = won, final_ante = final_ante, line = line, state = fs, time = tm,
         decisions = fo.decisions, searched = fo.searched, net_picks = fo.net_picks}
 end
@@ -156,7 +156,7 @@ function T.run(setup, opts, index)
     local flag = s.won == 1 and 1 or 0
     local won = flag == 1 and s.phase ~= "game_over" and 1 or 0
     local final_ante = won == 1 and s.win_ante + 1 or s.ante
-    local blob = REC.encode_run(recs, flag, flag == 1 and s.win_ante + 1 or s.ante, FE.DECK_IDX[setup.deck] or 0, setup.stake or 1, index or 0)
+    local blob = REC.encode_run(recs, won, final_ante, FE.DECK_IDX[setup.deck] or 0, setup.stake or 1, index or 0)
     return blob, {records = #recs, skipped = skipped, won = won, final_ante = final_ante, line = line, state = s}
 end
 
