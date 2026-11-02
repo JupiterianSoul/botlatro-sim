@@ -276,7 +276,9 @@ function M.chooser(mc, rmc, opt)
                     mc:edge_action(e, step, base)
                     local t = step.type
                     local want = (base.phase == "shop" and (((t == "open" or t == "redeem") and sx % 2 == 1)
-                        or (t == "reroll" and math.floor(sx / 2) % 2 == 1)))
+                        or (t == "reroll" and math.floor(sx / 2) % 2 == 1)
+                        or (t == "sell" and math.floor(sx / 8) % 2 == 1)
+                        or ((t == "use" or t == "buy_and_use") and math.floor(sx / 16) % 2 == 1)))
                         or (base.phase == "pack" and math.floor(sx / 4) % 2 == 1)
                     if want then cands[#cands + 1] = {a = S.copy_action(step), e = e, v = 0, n = 0, h = {}} end
                 end
