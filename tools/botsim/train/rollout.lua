@@ -117,6 +117,8 @@ function M.chooser(mc, rmc, opt)
     local MINT = (tonumber(opt.ro_mint) or 0) > 0
     local CVX = tonumber(opt.ro_cvx) or 0
     local TOP = tonumber(opt.ro_top) or 0
+    local VM = tonumber(opt.ro_vm) or 1
+    local root_money = 0
 
     local function jkey(w)
         local key = w.n_jok
@@ -186,6 +188,7 @@ function M.chooser(mc, rmc, opt)
                 end
                 w.money = math.min(w.money, cap + 5)
             elseif opt.ro_mon ~= 0 then v = v + opt.ro_mon * math.min(math.max(w.money, 0), 50) / 50 end
+            if VM ~= 1 then w.money = math.floor(root_money + VM * (w.money - root_money) + 0.5) end
             if opt.ro_net ~= 0 then
                 rmc:search(w, 0, {noise = 0, reuse = false, adaptive = true})
                 v = v + opt.ro_net * rmc.n_val[rmc.root]
@@ -226,6 +229,7 @@ function M.chooser(mc, rmc, opt)
     end
 
     return function(s, seed, moves)
+        root_money = s.money
         local ef, ec = mc:root_edges()
         if ec < 2 then return nil end
         local order = {}
