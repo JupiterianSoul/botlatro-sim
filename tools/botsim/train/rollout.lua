@@ -116,6 +116,7 @@ function M.chooser(mc, rmc, opt)
     local BASEK = tonumber(opt.ro_base) or 1
     local MINT = (tonumber(opt.ro_mint) or 0) > 0
     local CVX = tonumber(opt.ro_cvx) or 0
+    local TOP = tonumber(opt.ro_top) or 0
 
     local function jkey(w)
         local key = w.n_jok
@@ -123,7 +124,7 @@ function M.chooser(mc, rmc, opt)
         return key
     end
 
-    local function run(w, stop_ante)
+    local function run_body(w, stop_ante)
         local moves, econ_run = 0, 0
         local okey
         while moves < 400 do
@@ -193,6 +194,15 @@ function M.chooser(mc, rmc, opt)
             if RES then v = v + RW * res_adj(RES, w) end
         end
         if CVX > 0 then v = 9 * (math.max(v, 0) / 9) ^ CVX end
+        return v
+    end
+
+    local function run(w, stop_ante)
+        if TOP <= 0 then return run_body(w, stop_ante) end
+        local top0 = PL.FAST_TOP
+        PL.FAST_TOP = TOP
+        local v = run_body(w, stop_ante)
+        PL.FAST_TOP = top0
         return v
     end
 
