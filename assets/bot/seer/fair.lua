@@ -388,11 +388,20 @@ local function keep_cands(w)
     return out
 end
 
+function F.holds_tarot(s)
+    if s.discards_used > 0 or s.round_hands_played > 0 or s.n_hand == 0 then return false end
+    for i = 1, s.n_cons do
+        local c = D.CONS[D.CONS_ID[s.cons[i]]]
+        if c and c.set ~= 2 then return true end
+    end
+    return false
+end
+
 function F:decide_base(base, n)
     local phase = base.phase
     if base.won == 1 or phase == "game_over" or phase == "win" then return nil end
     if phase == "round_eval" then return {{type = "cash_out"}} end
-    if phase == "play" and self.o.quick_clear then
+    if phase == "play" and self.o.quick_clear and not (self.o.qc_cons and F.holds_tarot(base)) then
         local cs, v = PL.best_play(base)
         if cs and v >= base.blind_chips - base.chips then
             local cards = {}

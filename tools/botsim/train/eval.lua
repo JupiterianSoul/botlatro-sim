@@ -13,6 +13,7 @@ local json = require("bot.sim.json")
 local opt = {who = "greedy", weights = "", sims = 32, K = 24, per = 6, decks = "", stakes = "", part = 0, parts = 1, out = "", max_moves = 3000, max_shop = 40,
     mix = -1, score_prior = 0, score_top = 6, score_temp = 4, skip_pen = 1, skip_ante = 1, type_mass = 0, tm_plays = 0, quick_clear = 0, pace = 0, pace_net = 0, prefix = "", first = 1, seeds = 10, jsonl = "", fair = 0, search_ph = "", rec = "", solver = "", solver_qc = 0, set = "", curve = 0, trace = 0, list = "", leaf_money = 0, leaf_rent = 0, leaf_dead = 0, rent_prior = 1, rent_from = 0, sell_dead = 0, c_puct = 1.5, worlds = 1, ro = 0, ro_a = 0, ro_z = 2, ro_c = 3, ro_h = 0, ro_ph = "shop,pack,blind_select", ro_from = 0, ro_mon = 0, ro_net = 0, ro_t = 0.25, log = ""}
 opt.digest = 0
+opt.teach, opt.blog, opt.t_skip = 0, 0, 0
 opt.vlog = 0
 opt.ro_res, opt.ro_resw = "", 1
 opt.solver_h, opt.solver_en, opt.solver_hb = 0, 0, 0
@@ -26,7 +27,7 @@ end
 local mc, rmc
 if opt.who == "net" then
     local W = WT.load(opt.weights)
-    local function new_mc() return MC.new(NET.new(W), {K = opt.K, seed = 99991, alpha = 0.5, mix = opt.mix >= 0 and opt.mix or nil,
+    local function new_mc() return MC.new(NET.new(W), {K = opt.K, seed = 99991, alpha = 0.5, term_full = (tonumber(opt.term_full) or 0) > 0, mix = opt.mix >= 0 and opt.mix or nil,
         score_prior = opt.score_prior, score_top = opt.score_top, score_temp = opt.score_temp, skip_pen = opt.skip_pen, skip_ante = opt.skip_ante, type_mass = opt.type_mass, tm_plays = opt.tm_plays, quick_clear = opt.quick_clear, pace = opt.pace, pace_net = opt.pace_net, leaf_money = opt.leaf_money, leaf_rent = opt.leaf_rent, leaf_dead = opt.leaf_dead, rent_prior = opt.rent_prior, rent_from = opt.rent_from, c_puct = opt.c_puct, nodes = 2 * opt.sims + 2, full = true}) end
     mc = new_mc()
     if opt.ro > 0 then rmc = new_mc() end
@@ -34,7 +35,7 @@ end
 POL.shop = true
 local FAIR = opt.fair > 0 and require("bot.seer.fair") or nil
 local PL = require("bot.seer.play")
-local SOLVER = FAIR and opt.solver ~= "" and FAIR.new({budget = opt.solver, quick_clear = opt.solver_qc > 0, honest = opt.solver_h, eval_n = opt.solver_en, honest_final = opt.solver_hb > 0 and 0 or 1}) or nil
+local SOLVER = FAIR and opt.solver ~= "" and FAIR.new({budget = opt.solver, quick_clear = opt.solver_qc > 0, qc_cons = (tonumber(opt.solver_qcc) or 0) > 0, honest = opt.solver_h, eval_n = opt.solver_en, honest_final = opt.solver_hb > 0 and 0 or 1}) or nil
 local SWAP = (opt.swap_play > 0 or opt.swap_shop > 0) and require("bot.seer.seer").new({}) or nil
 local SWAP_PH = {play = opt.swap_play > 0, shop = opt.swap_shop > 0, pack = opt.swap_shop > 0, blind_select = opt.swap_shop > 0}
 local REC = opt.rec ~= "" and mc and require("botsim.train.records") or nil
@@ -48,6 +49,8 @@ local F, AB = FE.new_state_buf(), FE.new_action_buf(1024)
 local st = {}
 
 local PLAN = require("botsim.train.plan")
+local TEACH = (opt.teach > 0 or opt.blog > 0 or opt.t_skip > 0) and require("botsim.train.teach") or nil
+if (tonumber(opt.shop_moves) or 1) == 0 then FE.SHOP_MOVES = false end
 local ro_choose = opt.ro > 0 and require("botsim.train.rollout").chooser(mc, rmc, opt) or nil
 
 local D = require("bot.sim.data")
@@ -114,6 +117,16 @@ local function vlog_ante(vl, s)
     rmc:search(w, 0, {noise = 0, reuse = false, adaptive = true})
     local pv = PLAN.eval(s)
     vl[#vl + 1] = {ante = s.ante, money = s.money, jok = j, lv = lv, cons = c, n_deck = s.n_cards, limit = s.joker_limit, hsize = s.hand_size, pv = pv, need = PLAN.need(s), nv = rmc.n_val[rmc.root], ph = s.phase}
+    if opt.vlog > 1 then
+        local m0, nvm = w.money, {}
+        for i, m in ipairs({0, math.min(m0, 25), m0 + 10, m0 + 25}) do
+            w.money = m
+            rmc:search(w, 0, {noise = 0, reuse = false, adaptive = true})
+            nvm[i] = rmc.n_val[rmc.root]
+        end
+        w.money = m0
+        vl[#vl].nvm = nvm
+    end
 end
 
 local function trace_top(tr, s)
@@ -265,10 +278,29 @@ local function play(deck, stake, seed)
     local tr = opt.trace > 0 and trace_new() or nil
     local vl = opt.vlog > 0 and {} or nil
     local alog = open_log(deck, stake, seed)
+    local tch = opt.teach > 0 and TEACH.new(opt) or nil
+    local uses, blog, blog_ante = 0, opt.blog > 0 and {} or nil, 0
     local function do_step(w, act)
         local line = alog and action_line(act)
+        if blog and (act.type == "use" or act.type == "buy_and_use" or (act.type == "pick" and w.pk_kind[act.card] == E.K_CONS)) then uses = uses + 1 end
         local ok = E.step(w, act)
         if ok and alog then alog[#alog + 1] = line end
+        return ok
+    end
+    local vetoes = 0
+    local function teach_late(a)
+        if not a then return false end
+        local ta, twhy
+        if tch and tch.late and s.phase == "shop" and a.type == "leave" then
+            ta, twhy = tch:leave_move(s)
+        elseif opt.t_skip > 0 and s.phase == "blind_select" and a.type == "skip" and not TEACH.skip_safe(s, opt.t_skip) then
+            ta, twhy = {type = "select"}, "veto_skip"
+            vetoes = vetoes + 1
+        end
+        if not ta then return false end
+        if tr then trace_act(tr, s, ta) end
+        local ok = do_step(s, ta)
+        if tch then tch:note(s.phase, twhy, ok) end
         return ok
     end
     local function do_forced(w)
@@ -302,6 +334,10 @@ local function play(deck, stake, seed)
         end
         local ph = s.phase
         if tr then trace_phase(tr, s, ph) end
+        if blog and s.ante ~= blog_ante then
+            blog_ante = s.ante
+            blog[#blog + 1] = TEACH.build_row(s, uses)
+        end
         if opt.curve > 0 and s.ante ~= curve_ante then
             curve_ante = s.ante
             if tr then trace_ante(tr, s) end
@@ -320,6 +356,21 @@ local function play(deck, stake, seed)
             end
         end
         if ph == "shop" or ph == "pack" then econ_run = econ_run + 1 else econ_run = 0 end
+        if tch and econ_run <= opt.max_shop then
+            local ta, twhy = tch:move(s)
+            if ta and opt.teach == 2 and twhy:sub(1, 4) ~= "use_" then ta = nil end
+            if ta then
+                if tr then trace_act(tr, s, ta) end
+                local ok = do_step(s, ta)
+                tch:note(ph, twhy, ok)
+                if ok then
+                    moves = moves + 1
+                    goto continue
+                end
+            else
+                tch:note(ph, nil)
+            end
+        end
         if econ_run > opt.max_shop then
             if not do_step(s, ph == "pack" and SKIP or LEAVE) then why = "stuck_econ:" .. ph break end
         elseif SOLVER and ph == "play" then
@@ -350,15 +401,25 @@ local function play(deck, stake, seed)
             if opt.search_ph ~= "" and not ("," .. opt.search_ph .. ","):find("," .. ph .. ",", 1, true) then sims = 0 end
             mc:search(view, sims, {noise = 0, reuse = not FAIR, adaptive = true})
             local e = mc:choose(0)
-            local ro_act, ro_e = nil, nil
+            local ro_act, ro_e, ro_seq = nil, nil, nil
             if ro_choose and sims > 0 and e and ("," .. opt.ro_ph .. ","):find("," .. ph .. ",", 1, true) and stake >= opt.ro_from then
-                ro_act, ro_e = ro_choose(s, seed, moves)
+                ro_act, ro_e, ro_seq = ro_choose(s, seed, moves)
+            end
+            if teach_late(ro_act) then
+                moves = moves + 1
+                goto continue
             end
             if ro_act then
                 if recs then recs[#recs + 1] = REC.encode_record(mc.F_root, mc, ro_e, sims, FE.PHASES[ph] or 0) end
                 if tr then trace_act(tr, s, ro_act) end
                 if not do_step(s, ro_act) then why = "step_failed:ro" break end
                 moves = moves + 1
+                for i = 2, ro_seq and #ro_seq or 0 do
+                    if s.phase ~= "shop" then break end
+                    if tr then trace_act(tr, s, ro_seq[i]) end
+                    if not do_step(s, ro_seq[i]) then break end
+                    moves = moves + 1
+                end
                 goto continue
             end
             if FAIR and sims > 0 and opt.worlds > 1 and e then
@@ -380,6 +441,10 @@ local function play(deck, stake, seed)
             if not e then why = "no_edge:" .. ph break end
             if recs then recs[#recs + 1] = REC.encode_record(mc.F_root, mc, e, sims, FE.PHASES[ph] or 0) end
             mc:edge_action(e, step, view)
+            if teach_late(step) then
+                moves = moves + 1
+                goto continue
+            end
             if not FAIR then mc:commit(e) end
             if tr then trace_act(tr, s, step) end
             if not do_step(s, step) then why = "step_failed:" .. ph .. ":" .. tostring(step.type) break end
@@ -409,6 +474,12 @@ local function play(deck, stake, seed)
         s.eval_trace = trace_json(tr, s)
     end
     s.eval_vl = vl and json.encode(vl) or nil
+    s.eval_tch = tch and json.encode(tch:report()) or nil
+    s.eval_veto = opt.t_skip > 0 and vetoes or nil
+    if blog then
+        blog[#blog + 1] = TEACH.build_row(s, uses)
+        s.eval_bl = table.concat(blog, ",")
+    end
     s.eval_dig = dig
     close_log(alog, s)
     return won, ante, why, moves, s
@@ -420,7 +491,7 @@ local function finite(x)
 end
 
 local function death_fields(s)
-    return string.format(',"blind":%d,"chips":%.0f,"need":%.0f,"money":%d,"n_jok":%d,"disc_left":%d', s.blind, finite(s.chips), finite(s.blind_chips), s.money, s.n_jok, s.discards_left) .. (opt.curve > 0 and string.format(',"curve":"%s"', s.eval_curve) or "") .. (opt.digest > 0 and string.format(',"dig":"%.0f"', s.eval_dig) or "") .. (s.eval_trace and ',"trace":' .. s.eval_trace or "") .. (s.eval_vl and ',"vl":' .. s.eval_vl or "")
+    return string.format(',"blind":%d,"chips":%.0f,"need":%.0f,"money":%d,"n_jok":%d,"disc_left":%d', s.blind, finite(s.chips), finite(s.blind_chips), s.money, s.n_jok, s.discards_left) .. (opt.curve > 0 and string.format(',"curve":"%s"', s.eval_curve) or "") .. (opt.digest > 0 and string.format(',"dig":"%.0f"', s.eval_dig) or "") .. (s.eval_trace and ',"trace":' .. s.eval_trace or "") .. (s.eval_vl and ',"vl":' .. s.eval_vl or "") .. (s.eval_tch and ',"tch":' .. s.eval_tch or "") .. (s.eval_veto and ',"veto":' .. s.eval_veto or "") .. (s.eval_bl and ',"bl":"' .. s.eval_bl .. '"' or "")
 end
 
 local DECKS, STAKES = ES.parse(opt.decks, tostring(opt.stakes))

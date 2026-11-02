@@ -112,13 +112,32 @@ function M.chooser(mc, rmc, opt)
     local RW = tonumber(opt.ro_resw) or 1
     if (opt.ro_book or "") ~= "" then P.load_scale(opt.ro_book) end
     local step = {type = "play", cards = {}}
+    local ORDRO = (tonumber(opt.ro_ordro) or 0) > 0
+    local BASE0 = (tonumber(opt.ro_base) or 1) == 0
+    local MINT = (tonumber(opt.ro_mint) or 0) > 0
+    local CVX = tonumber(opt.ro_cvx) or 0
+
+    local function jkey(w)
+        local key = w.n_jok
+        for k = 1, w.n_jok do key = key .. "," .. w.j_uid[k] end
+        return key
+    end
 
     local function run(w, stop_ante)
         local moves, econ_run = 0, 0
+        local okey
         while moves < 400 do
             MC.advance_forced(w)
             if MC.terminal(w) or (stop_ante > 0 and w.ante >= stop_ante) then break end
             if (opt.ro_useplanet or 0) > 0 then P.use_planets(w, E.step) end
+            if ORDRO and w.phase == "blind_select" and not P.any_flipped(w) then
+                local key = jkey(w)
+                if key ~= okey then
+                    local o = P.best_order(w)
+                    if o then E.step(w, {type = "reorder_jokers", order = o}) end
+                    okey = jkey(w)
+                end
+            end
             local ph = w.phase
             if ph == "shop" or ph == "pack" then econ_run = econ_run + 1 else econ_run = 0 end
             if econ_run > opt.max_shop then
@@ -158,7 +177,14 @@ function M.chooser(mc, rmc, opt)
             return math.max(w.ante, (RES.a[A] or w.ante) + (RES.nv[A] or opt.ro_net) * rmc.n_val[rmc.root] + RW * res_adj(RES, w))
         end
         if stop_ante > 0 and not MC.terminal(w) then
-            if opt.ro_mon ~= 0 then v = v + opt.ro_mon * math.min(math.max(w.money, 0), 50) / 50 end
+            if BASE0 then v = 0 end
+            if MINT then
+                local cap = w.interest_cap or 25
+                if opt.ro_mon ~= 0 and (w.no_interest or 0) == 0 and w.money >= 5 then
+                    v = v + opt.ro_mon * (w.interest_amount or 1) * math.min(math.floor(w.money / 5), cap / 5) / 5
+                end
+                w.money = math.min(w.money, cap + 5)
+            elseif opt.ro_mon ~= 0 then v = v + opt.ro_mon * math.min(math.max(w.money, 0), 50) / 50 end
             if opt.ro_net ~= 0 then
                 rmc:search(w, 0, {noise = 0, reuse = false, adaptive = true})
                 v = v + opt.ro_net * rmc.n_val[rmc.root]
@@ -166,6 +192,7 @@ function M.chooser(mc, rmc, opt)
             if (opt.ro_planh or 0) ~= 0 then v = v + opt.ro_planh * P.score(w) end
             if RES then v = v + RW * res_adj(RES, w) end
         end
+        if CVX > 0 then v = 9 * (math.max(v, 0) / 9) ^ CVX end
         return v
     end
 
@@ -239,6 +266,37 @@ function M.chooser(mc, rmc, opt)
                 if e then cands[#cands + 1] = {a = S.copy_action(x.a), seq = x.seq, e = e, v = 0, n = 0, h = {}} end
             end
         end
+        local sx = tonumber(opt.ro_shopx) or 0
+        if sx > 0 and #cands < ec then
+            local have = {}
+            for _, c in ipairs(cands) do if not c.seq then have[c.e] = true end end
+            for i = 0, ec - 1 do
+                local e = ef + i
+                if not have[e] then
+                    mc:edge_action(e, step, base)
+                    local t = step.type
+                    local want = (base.phase == "shop" and (((t == "open" or t == "redeem") and sx % 2 == 1)
+                        or (t == "reroll" and math.floor(sx / 2) % 2 == 1)))
+                        or (base.phase == "pack" and math.floor(sx / 4) % 2 == 1)
+                    if want then cands[#cands + 1] = {a = S.copy_action(step), e = e, v = 0, n = 0, h = {}} end
+                end
+            end
+        end
+        if (tonumber(opt.ro_teach) or 0) > 0 then
+            local ta = require("botsim.train.teach").new(opt):move(base)
+            local dup = false
+            for _, c in ipairs(cands) do
+                if not c.seq and ta and same_action(c.a, ta) then dup = true end
+            end
+            if ta and not dup and (base.phase == "shop" or base.phase == "pack") then
+                local e
+                for i = 0, ec - 1 do
+                    mc:edge_action(ef + i, step, base)
+                    if same_action(step, ta) then e = ef + i break end
+                end
+                if e or opt.rec == "" then cands[#cands + 1] = {a = ta, e = e or cands[1].e, v = 0, n = 0, h = {}} end
+            end
+        end
         local stop_ante = opt.ro_h > 0 and s.ante + opt.ro_h or 0
         local alive = cands
         local check = opt.ro_a > 0 and opt.ro_a or opt.ro + 1
@@ -271,6 +329,7 @@ function M.chooser(mc, rmc, opt)
             end
             for _, c in ipairs(cands) do mc.e_N[c.e] = math.floor(32 * c.w / sum + 0.5) end
         end
+        if (tonumber(opt.ro_seq) or 0) > 0 and best.seq then return best.a, best.e, best.seq end
         return best.a, best.e
     end
 end

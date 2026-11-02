@@ -4,6 +4,7 @@ local E = require("bot.sim.engine")
 local BUF = require("bot.nn.buf")
 
 local M = {}
+M.SHOP_MOVES = true
 
 local log, min, max = math.log, math.min, math.max
 
@@ -996,7 +997,7 @@ local function owned_rows(s, ab, F, k, shop)
             k = target_rows(s, ab, k, T.use, ent, p, cid, false, true)
         end
     end
-    if shop and s.n_jok >= 2 then
+    if shop and s.n_jok >= 2 and M.SHOP_MOVES then
         local nj = s.n_jok
         for i = 1, nj do
             for j = 1, nj do

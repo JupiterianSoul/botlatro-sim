@@ -619,5 +619,94 @@ do
     check(P.any_flipped(s), "a face down joker stops reordering")
 end
 
+
+do
+    local T = require("botsim.train.teach")
+    local function give(s, key)
+        s.n_cons = s.n_cons + 1
+        s.cons[s.n_cons], s.cons_ed[s.n_cons], s.cons_ev[s.n_cons] = key, 0, 0
+        s.next_uid = s.next_uid + 1
+        s.cons_uid[s.n_cons] = s.next_uid
+    end
+    local s = play_state("TEACH1")
+    local t = T.new({})
+    give(s, "c_hanged_man")
+    local n0 = T.alive_count(s)
+    local a, why = t:move(s)
+    check(a and a.type == "use" and why == "use_hanged" and #a.targets == 2 and a.targets[1] ~= a.targets[2], "teach: hanged man on two cards")
+    check(a and E.step(s, a) and T.alive_count(s) == n0 - 2 and s.n_cons == 0, "teach: hanged man removes two cards")
+    local s2 = play_state("TEACH2")
+    give(s2, "c_pluto")
+    local a2, why2 = T.new({}):move(s2)
+    check(a2 and a2.type == "use" and why2 == "use_planet", "teach: uses a held planet")
+    local s3 = play_state("TEACH3")
+    s3.h_level[D.H_FLUSH] = 30
+    local t3 = T.new({})
+    t3:update_plan(s3)
+    check(t3.plan == D.H_FLUSH, "teach: flush plan when flush is levelled")
+    local _, by_suit = T.alive_count(s3)
+    local best = 1
+    for k = 2, 4 do if by_suit[k] > by_suit[best] then best = k end end
+    local key = ({"c_world", "c_sun", "c_moon", "c_star"})[best]
+    give(s3, key)
+    local a3 = t3:move(s3)
+    local off = true
+    for _, i in ipairs(a3 and a3.targets or {}) do if s3.c_suit[s3.hand[i]] == best then off = false end end
+    check(a3 and a3.type == "use" and off, "teach: suit tarot only on off-suit cards")
+    local s4 = play_state("TEACH4")
+    give(s4, "c_hanged_man")
+    local t4 = T.new({t_deck = 60})
+    check(t4:move(s4) == nil, "teach: no thinning under the deck floor")
+    local s5 = play_state("TEACH5")
+    s5.h_level[D.H_PAIR] = 30
+    local t5 = T.new({t_all = 1})
+    give(s5, "c_death")
+    local a5, why5 = t5:move(s5)
+    check(a5 and why5 == "use_death" and #a5.targets == 2 and a5.targets[1] < a5.targets[2], "teach: death copies a plan card onto an off-plan card")
+    local src = a5 and s5.hand[a5.targets[2]]
+    local dst = a5 and s5.hand[a5.targets[1]]
+    check(a5 and E.step(s5, a5) and s5.c_rank[dst] == s5.c_rank[src] and s5.c_suit[dst] == s5.c_suit[src], "teach: death result")
+    local s6 = play_state("TEACH6")
+    give(s6, "c_empress")
+    local a6, why6 = T.new({t_all = 1}):move(s6)
+    check(a6 and why6 == "use_enh" and #a6.targets >= 1 and E.step(s6, a6), "teach: empress on plan cards")
+    local s7 = play_state("TEACH7")
+    s7.money = 12
+    give(s7, "c_hermit")
+    local a7, why7 = T.new({t_all = 1}):move(s7)
+    check(a7 and why7 == "use_free" and E.step(s7, a7) and s7.money == 24, "teach: hermit doubles money")
+    local s8 = play_state("TEACH8")
+    give(s8, "c_empress")
+    check(T.new({}):move(s8) == nil, "teach: t1 holds an empress")
+    local PLY = require("bot.seer.play")
+    local s9 = play_state("TEACH9")
+    s9.blind_chips = 1
+    for _ = 1, 20 do
+        if s9.phase == "shop" then break end
+        if s9.phase == "play" then E.step(s9, PLY.fast_action(s9)) else MC.advance_forced(s9) end
+    end
+    local cel
+    for k = 1, #D.BOOST do if D.BOOST[k].kind_id == 2 and not cel then cel = k end end
+    check(s9.phase == "shop" and s9.n_sb >= 1 and cel, "teach: test shop reached")
+    if s9.phase == "shop" and cel then
+        s9.sb_id[1] = cel
+        s9.money = 50
+        local a9 = T.new({}):move(s9)
+        check(a9 and a9.type == "open" and a9.card == 1, "teach: t1 opens a celestial pack above the reserve")
+        local tl = T.new({t_late = 1})
+        check(tl:move(s9) == nil, "teach: t_late leaves the shop to the search first")
+        local a10, why10 = tl:leave_move(s9)
+        check(a10 and a10.type == "open" and why10 == "open_celestial", "teach: t_late opens the pack when the search leaves")
+        s9.money = 12
+        local a11 = T.new({}):move(s9)
+        check(not (a11 and a11.type == "open"), "teach: fixed reserve keeps 25")
+        local a12 = T.new({t_res = -1}):move(s9)
+        check(a12 and a12.type == "open", "teach: dynamic reserve spends at ante 1")
+    end
+    local sk = E.new_run({seed = "TSKIP", deck = "b_black", stake = 8})
+    check(sk.phase == "blind_select" and not T.skip_safe(sk, 2.5), "teach: no skip into the big blind with no jokers at Gold")
+    for _, j in ipairs({"j_joker", "j_cavendish", "j_gros_michel"}) do E.add_joker(sk, j) end
+    check(T.skip_safe(sk, 2.5), "teach: skip allowed with a strong build")
+end
 print(string.format("nn tests: %d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

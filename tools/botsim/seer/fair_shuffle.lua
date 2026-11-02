@@ -11,6 +11,7 @@ local ST = require("bot.sim.state")
 local opt = {who = "fair", budget = "lite", weights = "", prefix = "BENCH", first = 1, seeds = 1, decks = "b_red", stakes = "1",
     max_steps = 4000, out = "", sims = 32, K = 24, quick_clear = 0, pace = 0, pace_net = 0, type_mass = 0, tm_plays = 0, fair = 0, search_ph = "", solver = "", solver_qc = 0,
     ro = 0, ro_a = 0, ro_z = 2, ro_c = 3, ro_h = 0, ro_ph = "shop,pack,blind_select", ro_from = 0, ro_mon = 0, ro_net = 0, ro_t = 0.25, ro_plan = 0, ro_plan_c = 0, ro_planh = 0, ro_fast = 0, ro_useplanet = 0, ro_order = 0, solver_h = 0, solver_en = 0, solver_hb = 0, ro_book = "", max_shop = 40, rec = "", min_ante = 0, strict = 1, force_jflip = 0}
+opt.teach, opt.t_skip = 0, 0
 for _, a in ipairs(arg or {}) do
     local k, v = a:match("^%-*([%w_]+)=(.*)$")
     if k then
@@ -65,6 +66,7 @@ local function mix_buf(b, n)
     for i = 0, n - 1 do mix(h_num(b[i] or 0)) end
 end
 
+if (tonumber(opt.shop_moves) or 1) == 0 then require("bot.nn.features").SHOP_MOVES = false end
 if opt.strict > 0 then
     local FE = require("bot.nn.features")
     local san0, world0, state0 = F.sanitize, F.world, FE.state
@@ -116,18 +118,29 @@ elseif opt.who == "net" then
     local PLAN = require("botsim.train.plan")
     forced = MC.advance_forced
     local function new_mc(nn)
-        return MC.new(nn, {K = opt.K, seed = 99991, alpha = 0.5, nodes = opt.sims + 2, full = true, quick_clear = opt.quick_clear,
+        return MC.new(nn, {K = opt.K, seed = 99991, alpha = 0.5, term_full = (tonumber(opt.term_full) or 0) > 0, nodes = opt.sims + 2, full = true, quick_clear = opt.quick_clear,
             type_mass = opt.type_mass, tm_plays = opt.tm_plays, pace = opt.pace, pace_net = opt.pace_net})
     end
     chooser = function()
         local n = 0
-        local fo = opt.solver ~= "" and F.new({budget = opt.solver, quick_clear = opt.solver_qc > 0, honest = opt.solver_h, eval_n = opt.solver_en, honest_final = opt.solver_hb > 0 and 0 or 1}) or nil
+        local fo = opt.solver ~= "" and F.new({budget = opt.solver, quick_clear = opt.solver_qc > 0, qc_cons = (tonumber(opt.solver_qcc) or 0) > 0, honest = opt.solver_h, eval_n = opt.solver_en, honest_final = opt.solver_hb > 0 and 0 or 1}) or nil
         local rmc = opt.ro > 0 and new_mc(NET.new(WT.load(opt.weights))) or nil
         local order_key
+        local tch = opt.teach > 0 and require("botsim.train.teach").new(opt) or nil
+        local TS = opt.t_skip > 0 and require("botsim.train.teach") or nil
+        local function veto(view, a)
+            if TS and a and view.phase == "blind_select" and a.type == "skip" and not TS.skip_safe(view, opt.t_skip) then return {type = "select"} end
+            return a
+        end
         return function(view)
             MC.advance_forced(view)
             if MC.terminal(view) then return nil end
             n = n + 1
+            if tch then
+                local ta, twhy = tch:move(view)
+                if ta and opt.teach == 2 and twhy:sub(1, 4) ~= "use_" then ta = nil end
+                if ta then return {ta} end
+            end
             if opt.ro_order > 0 and view.phase == "blind_select" and not PLAN.any_flipped(view) then
                 local key = view.n_jok
                 for k = 1, view.n_jok do key = key .. "," .. view.j_uid[k] end
@@ -151,12 +164,18 @@ elseif opt.who == "net" then
             local e = mc:choose(0)
             if not e then return nil end
             if opt.ro > 0 and sims > 0 and ("," .. opt.ro_ph .. ","):find("," .. view.phase .. ",", 1, true) and view.stake >= opt.ro_from then
-                local a = RO.chooser(mc, rmc, opt)(view, "", n)
-                if a then return {a} end
+                local a, _, sq = RO.chooser(mc, rmc, opt)(view, "", n)
+                if sq then return sq end
+                if a and tch and tch.late and view.phase == "shop" and a.type == "leave" then a = tch:leave_move(view) or a end
+                if a then return {veto(view, a)} end
             end
             local st = {type = "play", cards = {}}
             mc:edge_action(e, st, w)
-            return {S.copy_action(st)}
+            if tch and tch.late and view.phase == "shop" and st.type == "leave" then
+                local ta = tch:leave_move(view)
+                if ta then return {ta} end
+            end
+            return {veto(view, S.copy_action(st))}
         end
     end
 else

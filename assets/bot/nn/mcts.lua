@@ -71,6 +71,7 @@ function M.new(net, opts)
     self.K = opts.K or 24
     self.c_puct = opts.c_puct or 1.5
     self.alpha = opts.alpha or 0.5
+    self.term_full = opts.term_full
     self.mix = opts.mix
     self.leaf_money = opts.leaf_money or 0
     self.leaf_rent = opts.leaf_rent or 0
@@ -180,7 +181,7 @@ function M:value_base(s, p, ante_hat, wa)
         if a < 0 then a = 0 elseif a > 1 then a = 1 end
         return (1 - m) * p + m * a
     end
-    if s.phase == "game_over" then return self.alpha * min(s.ante, wa) / (wa + 1) end
+    if s.phase == "game_over" then return (self.term_full and 1 or self.alpha) * min(s.ante, wa) / (wa + 1) end
     local a = ante_hat * 8 / (wa + 1)
     if a < 0 then a = 0 elseif a > 1 then a = 1 end
     return (1 - self.alpha) * p + self.alpha * a
