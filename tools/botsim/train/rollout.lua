@@ -5,6 +5,7 @@ local S = require("bot.seer.seer")
 local P = require("botsim.train.plan")
 local PL = require("bot.seer.play")
 local D = require("bot.sim.data")
+local ST = require("bot.sim.state")
 
 local M = {}
 
@@ -52,8 +53,63 @@ local function res_adj(t, w)
     return a
 end
 
+local function apply(w, c)
+    if c.seq then
+        for i = 1, #c.seq do
+            if not E.step(w, c.seq[i]) then return false end
+        end
+        return true
+    end
+    return E.step(w, c.a)
+end
+
+local function same_action(x, y)
+    if x.type ~= y.type or x.card ~= y.card then return false end
+    if x.type == "sell" then return x.area == y.area end
+    return true
+end
+
+local function joker_extras(base, cands)
+    if base.phase ~= "shop" then return {} end
+    local out = {}
+    local function have(a)
+        for _, c in ipairs(cands) do
+            if not c.seq and same_action(c.a, a) then return true end
+        end
+        return false
+    end
+    local sell
+    if base.n_jok >= base.joker_limit then
+        local bv
+        for j = 1, base.n_jok do
+            if base.j_eternal[j] == 0 then
+                local w = ST.clone(base)
+                if E.sell(w, "jokers", j) then
+                    local v = P.eval(w)
+                    if not bv or v > bv then bv, sell = v, j end
+                end
+            end
+        end
+        if not sell then return out end
+    end
+    for k = 1, base.n_sj do
+        if base.sj_kind[k] == 1 then
+            local buy = {type = "buy", card = k}
+            local w = ST.clone(base)
+            if sell then
+                local sa = {type = "sell", area = "jokers", card = sell}
+                if E.step(w, sa) and E.step(w, buy) then out[#out + 1] = {a = sa, seq = {sa, buy}} end
+            elseif not have(buy) and E.step(w, buy) then
+                out[#out + 1] = {a = buy}
+            end
+        end
+    end
+    return out
+end
+
 function M.chooser(mc, rmc, opt)
     local RES = (opt.ro_res or "") ~= "" and load_res(opt.ro_res) or nil
+    local RW = tonumber(opt.ro_resw) or 1
     if (opt.ro_book or "") ~= "" then P.load_scale(opt.ro_book) end
     local step = {type = "play", cards = {}}
 
@@ -96,6 +152,11 @@ function M.chooser(mc, rmc, opt)
             moves = moves + 1
         end
         local v = score(w)
+        if RES and RES.cal and stop_ante > 0 and not MC.terminal(w) then
+            rmc:search(w, 0, {noise = 0, reuse = false, adaptive = true})
+            local A = tostring(math.min(w.ante, 8))
+            return math.max(w.ante, (RES.a[A] or w.ante) + (RES.nv[A] or opt.ro_net) * rmc.n_val[rmc.root] + RW * res_adj(RES, w))
+        end
         if stop_ante > 0 and not MC.terminal(w) then
             if opt.ro_mon ~= 0 then v = v + opt.ro_mon * math.min(math.max(w.money, 0), 50) / 50 end
             if opt.ro_net ~= 0 then
@@ -103,7 +164,7 @@ function M.chooser(mc, rmc, opt)
                 v = v + opt.ro_net * rmc.n_val[rmc.root]
             end
             if (opt.ro_planh or 0) ~= 0 then v = v + opt.ro_planh * P.score(w) end
-            if RES then v = v + opt.ro_resw * res_adj(RES, w) end
+            if RES then v = v + RW * res_adj(RES, w) end
         end
         return v
     end
@@ -168,6 +229,16 @@ function M.chooser(mc, rmc, opt)
                 if be then cands[#cands + 1] = {a = ba, e = be, v = 0, n = 0, h = {}, p = opt.ro_plan * bv} end
             end
         end
+        if (tonumber(opt.ro_swap) or 0) > 0 then
+            for _, x in ipairs(joker_extras(base, cands)) do
+                local e
+                for i = 0, ec - 1 do
+                    mc:edge_action(ef + i, step, base)
+                    if same_action(step, x.a) then e = ef + i break end
+                end
+                if e then cands[#cands + 1] = {a = S.copy_action(x.a), seq = x.seq, e = e, v = 0, n = 0, h = {}} end
+            end
+        end
         local stop_ante = opt.ro_h > 0 and s.ante + opt.ro_h or 0
         local alive = cands
         local check = opt.ro_a > 0 and opt.ro_a or opt.ro + 1
@@ -175,7 +246,7 @@ function M.chooser(mc, rmc, opt)
             local key = string.format("RO%s_%d_%d", seed, moves, r)
             for _, c in ipairs(alive) do
                 local w = F.world(base, key)
-                local v = (E.step(w, c.a) and run(w, stop_ante) or -100) + (c.p or 0)
+                local v = (apply(w, c) and run(w, stop_ante) or -100) + (c.p or 0)
                 c.v = c.v + v
                 c.n = r
                 c.h[r] = v
