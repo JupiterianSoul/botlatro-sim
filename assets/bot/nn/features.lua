@@ -367,7 +367,7 @@ function M.state(s, F)
             bon = bon + c_bonus[cid]
         end
         g[G.pool_bonus] = slog(bon) / 5
-        if M.power then g[G.power] = M.power(s) / 4 end
+        if M.power and (F.power or not M.power_root) then g[G.power] = M.power(s) / 4 end
     end
 
     local nc = min(s.n_hand, M.MAXC)

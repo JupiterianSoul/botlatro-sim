@@ -54,6 +54,10 @@ if (tonumber(opt.shop_moves) or 1) == 0 then FE.SHOP_MOVES = false end
 if (tonumber(opt.fe_ext) or 0) > 0 then
     FE.EXT = true
     FE.power = function(s) return PLAN.any_flipped(s) and 0 or PLAN.score(s) end
+    if mc and mc.net.GF <= FE.G.power and (tonumber(opt.fe_all) or 0) == 0 then
+        FE.power_root = true
+        mc.F_root.power = true
+    end
 end
 local ro_choose = opt.ro > 0 and require("botsim.train.rollout").chooser(mc, rmc, opt) or nil
 

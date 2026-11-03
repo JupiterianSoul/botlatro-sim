@@ -9,6 +9,7 @@ local REC = require("botsim.train.records")
 local T = {}
 
 local F = FE.new_state_buf(true)
+F.power = true
 local AB = FE.new_action_buf(1024, true)
 
 local rng_x = 1
