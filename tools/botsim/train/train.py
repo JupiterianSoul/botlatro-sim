@@ -73,7 +73,7 @@ def widen(model, gf):
     return new
 
 
-def losses(model, b, ante_w, policy_min_sims=0, out=None, val_w=1.0, adv_w=0.0, depth_w=0.0, val_ante=False, val_win=0.0, ref=None):
+def losses(model, b, ante_w, policy_min_sims=0, out=None, val_w=1.0, adv_w=0.0, depth_w=0.0, val_ante=False, val_win=0.0, ref=None, ref_full=False):
     z, ante, logits = model(b)
     if out is not None:
         out.append((torch.sigmoid(z).detach(), b["won"], ante.detach() * 8.0, b["ante"] * 8.0))
@@ -82,8 +82,12 @@ def losses(model, b, ante_w, policy_min_sims=0, out=None, val_w=1.0, adv_w=0.0, 
     pi = b["pi"]
     if ref is not None:
         with torch.no_grad():
-            p0 = Fn.softmax(ref(b)[2], -1) * (b["amask"] - b["judged"])
-            pi = p0 + (1.0 - p0.sum(-1, keepdim=True)) * pi
+            if ref_full:
+                p0 = Fn.softmax(ref(b)[2], -1) * b["amask"]
+                pi = p0 / p0.sum(-1, keepdim=True).clamp(min=1e-12)
+            else:
+                p0 = Fn.softmax(ref(b)[2], -1) * (b["amask"] - b["judged"])
+                pi = p0 + (1.0 - p0.sum(-1, keepdim=True)) * pi
     pol = -(pi * lp).sum(-1)
     if adv_w > 0 or depth_w > 0:
         wt = torch.ones_like(pol)
@@ -106,7 +110,7 @@ def losses(model, b, ante_w, policy_min_sims=0, out=None, val_w=1.0, adv_w=0.0, 
     return pol + val_w * val + ante_w * aux, pol.item(), val.item(), aux.item()
 
 
-def validate(model, val, dims, batch, policy_min_sims, ref=None):
+def validate(model, val, dims, batch, policy_min_sims, ref=None, ref_full=False):
     if not val:
         return None
     model.eval()
@@ -114,7 +118,7 @@ def validate(model, val, dims, batch, policy_min_sims, ref=None):
     with torch.no_grad():
         for i in range(0, len(val), batch):
             chunk = val[i:i + batch]
-            _, lp, lv, la = losses(model, R.collate(chunk, dims), 1.0, policy_min_sims, pairs, ref=ref)
+            _, lp, lv, la = losses(model, R.collate(chunk, dims), 1.0, policy_min_sims, pairs, ref=ref, ref_full=ref_full)
             for k, x in enumerate((lp, lv, la)):
                 tot[k] += x * len(chunk)
             n += len(chunk)
@@ -164,6 +168,7 @@ def main():
     ap.add_argument("--value-win", type=float, default=0.0)
     ap.add_argument("--mask-unjudged", type=int, default=1)
     ap.add_argument("--anchor", type=int, default=0)
+    ap.add_argument("--only", default="")
     a = ap.parse_args()
     if a.threads:
         torch.set_num_threads(a.threads)
@@ -205,14 +210,20 @@ def main():
         ref = copy.deepcopy(model).eval()
         for p in ref.parameters():
             p.requires_grad_(False)
-    nw = sum(p.numel() for p in model.parameters())
+    full = a.anchor > 1 and ref is not None
+    if a.only:
+        keep = [x for x in a.only.split(",") if x]
+        for n, p in model.named_parameters():
+            p.requires_grad_(any(n == x or n.startswith(x + ".") for x in keep))
+        print("training only " + ",".join(n for n, p in model.named_parameters() if p.requires_grad))
+    nw = sum(p.numel() for p in model.parameters() if p.requires_grad)
     wins = sum(r["won"] for r in runs)
     print(f"records {len(recs)} runs {len(runs)} wins {wins} weights {nw} val {len(val)} steps {a.steps}")
-    opt = torch.optim.AdamW(model.parameters(), lr=a.lr, weight_decay=a.wd)
+    opt = torch.optim.AdamW([p for p in model.parameters() if p.requires_grad], lr=a.lr, weight_decay=a.wd)
     warm = max(0, min(a.warmup, a.steps - 1))
     sched = torch.optim.lr_scheduler.LambdaLR(opt, lambda k: (k + 1) / warm if k < warm else
                                               0.5 * (1 + math.cos(math.pi * (k - warm) / max(1, a.steps - warm))))
-    v0 = validate(model, val, dims, a.batch, a.policy_min_sims, ref) if a.init else None
+    v0 = validate(model, val, dims, a.batch, a.policy_min_sims, ref, full) if a.init else None
     if v0:
         print("val0 " + json.dumps(v0, separators=(",", ":")))
     t0 = time.time()
@@ -225,7 +236,7 @@ def main():
             k0 = len(rows) - nm
             am = batch["amask"][k0:]
             batch["pi"][k0:] = (1 - a.mix_smooth) * batch["pi"][k0:] + a.mix_smooth * am / am.sum(-1, keepdim=True).clamp(min=1.0)
-        loss, lp, lv, la = losses(model, batch, a.ante_weight, a.policy_min_sims, val_w=a.value_weight, adv_w=a.adv_weight, depth_w=a.depth_weight, val_ante=bool(a.value_ante), val_win=a.value_win, ref=ref)
+        loss, lp, lv, la = losses(model, batch, a.ante_weight, a.policy_min_sims, val_w=a.value_weight, adv_w=a.adv_weight, depth_w=a.depth_weight, val_ante=bool(a.value_ante), val_win=a.value_win, ref=ref, ref_full=full)
         opt.zero_grad()
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 5.0)
@@ -241,7 +252,7 @@ def main():
                   f"{step * a.batch / (time.time() - t0):.0f} samples/s")
             last = {"policy": round(acc[0] / n, 4), "value": round(acc[1] / n, 4), "ante": round(acc[2] / n, 4)}
             acc = [0.0, 0.0, 0.0, 0]
-    v1 = validate(model, val, dims, a.batch, a.policy_min_sims, ref)
+    v1 = validate(model, val, dims, a.batch, a.policy_min_sims, ref, full)
     summary = {"records": len(recs), "runs": len(runs), "wins": wins, "steps": a.steps, "epochs": round(a.steps * a.batch / len(recs), 3),
                "train": last, "val": v1, "val0": v0}
     print("summary " + json.dumps(summary, separators=(",", ":")))
