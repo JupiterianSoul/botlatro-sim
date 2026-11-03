@@ -41,7 +41,7 @@ def relabel(data, games):
         for _ in range(nrec):
             pos = skip_record(data, pos)
         k += 1
-    if k != len(games):
+    if k + 1 < len(games):
         raise ValueError("runs %d, games %d" % (k, len(games)))
     return bytes(out), k, changed
 
