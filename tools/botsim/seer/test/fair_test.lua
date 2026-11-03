@@ -340,6 +340,37 @@ do
     ok(quick(0) == 1 and quick(1) == 0, "no quick clear against The Ox with tie")
 end
 
+current = "solver_sell sells a joker against Verdant Leaf"
+do
+    local s = late("bl_final_leaf", 8, JK)
+    states[#states] = nil
+    local w = F.world(F.sanitize(s), "WLEAF")
+    local a = F.leaf_sell(w)
+    ok(a and a.type == "sell" and a.area == "jokers", "a sell candidate")
+    local c = ST.clone(s)
+    ok(E.step(c, a) and c.blind_disabled ~= 0 and c.n_jok == #JK - 1, "the sale disables the boss")
+    local function first(sell)
+        local o = {honest = 5, sell = sell}
+        for k, v in pairs(TINY) do o[k] = o[k] or v end
+        local acts = F.new(o):decide(ST.clone(s))
+        return acts and acts[1]
+    end
+    local a0 = first(0)
+    ok(a0 and a0.type ~= "sell", "no sale when off")
+    local a1 = first(1)
+    ok(a1 and a1.type == "sell", "sells when on")
+    local b = late("bl_final_bell", 8, JK)
+    states[#states] = nil
+    ok(F.leaf_sell(F.world(F.sanitize(b), "WLEAF")) == nil, "no sale against another boss without Luchador")
+    local l = late("bl_final_vessel", 8, {"j_joker", "j_luchador"})
+    states[#states] = nil
+    local la = F.leaf_sell(F.world(F.sanitize(l), "WLEAF"))
+    ok(la and la.card == 2, "sells Luchador against a final boss")
+    local m = late("bl_wall", 6, {"j_joker", "j_luchador"})
+    states[#states] = nil
+    ok(F.leaf_sell(F.world(F.sanitize(m), "WLEAF")) == nil, "keeps Luchador before the final boss")
+end
+
 current = "solver_h=6 digs for the flush from the visible deck"
 do
     local PL = require("bot.seer.play")

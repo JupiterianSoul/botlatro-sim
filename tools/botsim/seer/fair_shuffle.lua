@@ -128,7 +128,7 @@ elseif opt.who == "net" then
     end
     chooser = function()
         local n = 0
-        local fo = opt.solver ~= "" and F.new({budget = opt.solver, quick_clear = opt.solver_qc > 0, qc_cons = (tonumber(opt.solver_qcc) or 0) > 0, honest = opt.solver_h, eval_n = opt.solver_en, honest_final = opt.solver_hb > 0 and 0 or 1, tie = tonumber(opt.solver_tie) or 0, ff = tonumber(opt.solver_ff) or 0}) or nil
+        local fo = opt.solver ~= "" and F.new({budget = opt.solver, quick_clear = opt.solver_qc > 0, qc_cons = (tonumber(opt.solver_qcc) or 0) > 0, honest = opt.solver_h, eval_n = opt.solver_en, honest_final = opt.solver_hb > 0 and 0 or 1, tie = tonumber(opt.solver_tie) or 0, ff = tonumber(opt.solver_ff) or 0, sell = tonumber(opt.solver_sell) or 0}) or nil
         local rmc = opt.ro > 0 and new_mc(NET.new(WT.load(opt.weights))) or nil
         local order_key
         local tch = opt.teach > 0 and require("botsim.train.teach").new(opt) or nil

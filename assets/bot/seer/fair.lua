@@ -25,7 +25,7 @@ F.BUDGETS = {
         solve = {beam = 6, plays = 3, discards = 6}},
 }
 
-F.DEFAULTS = {worlds = 4, eval_h = 1, max_cands = 3, sampler_seed = "FAIR", run_cap = 0, game_cap = 0, quick_clear = false, fast_top = 0, honest = 0, eval_n = 0, honest_final = 1, tie = 0, ff = 0, dig_r = 4}
+F.DEFAULTS = {worlds = 4, eval_h = 1, max_cands = 3, sampler_seed = "FAIR", run_cap = 0, game_cap = 0, quick_clear = false, fast_top = 0, honest = 0, eval_n = 0, honest_final = 1, tie = 0, ff = 0, dig_r = 4, sell = 0}
 
 F.REVEAL = {reroll = true, open = true, use = true, buy_and_use = true, pick = true, reroll_boss = true, skip = true,
     select = true, play = true, discard = true, cash_out = true, leave = true}
@@ -454,6 +454,26 @@ end
 
 local TIE_BOSS = {[D.BLIND_ID.bl_ox] = true, [D.BLIND_ID.bl_tooth] = true, [D.BLIND_ID.bl_arm] = true}
 
+function F.leaf_sell(w)
+    if w.blind <= 2 or w.blind_disabled ~= 0 or w.n_jok < 1 then return nil end
+    if w.blind ~= D.BLIND_ID.bl_final_leaf then
+        if not D.BLINDS[w.blind].showdown then return nil end
+        for k = 1, w.n_jok do
+            if w.j_id[k] == D.JOKER_ID.j_luchador and w.j_debuff[k] == 0 and w.j_eternal[k] == 0 then return {type = "sell", area = "jokers", card = k} end
+        end
+        return nil
+    end
+    local bk, bv = nil, -1
+    for k = 1, w.n_jok do
+        local c = clone(w)
+        if E.step(c, {type = "sell", area = "jokers", card = k}) and c.phase == "play" then
+            local _, v = PL.best_play(c)
+            if v and v > bv then bk, bv = k, v end
+        end
+    end
+    return bk and {type = "sell", area = "jokers", card = bk} or nil
+end
+
 function F.holds_tarot(s)
     if s.discards_used > 0 or s.round_hands_played > 0 or s.n_hand == 0 then return false end
     for i = 1, s.n_cons do
@@ -547,6 +567,10 @@ function F:decide_base(base, n)
             worlds[k] = F.world(base, string.format("W%s_%d_%d_%d", tostring(self.o.sampler_seed), base.step, base.ante, k))
         end
         n = math.max(n, self.o.eval_n)
+    end
+    if phase == "play" and self.o.sell > 0 and #cands > 0 then
+        local a = F.leaf_sell(worlds[1])
+        if a then cands[#cands + 1] = {plan = {a}, n = 0, first = n + 1} end
     end
     if self.o.net_propose and #cands > 1 then
         local a = self.o.net_propose(clone(worlds[1]))
