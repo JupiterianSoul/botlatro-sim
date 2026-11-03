@@ -347,6 +347,8 @@ do
     local w = F.world(F.sanitize(s), "WLEAF")
     local a = F.leaf_sell(w)
     ok(a and a.type == "sell" and a.area == "jokers", "a sell candidate")
+    local all = F.leaf_sells(w, 9)
+    ok(#all == #JK and all[1].card == a.card, "every joker a candidate with solver_sell=2, best first")
     local c = ST.clone(s)
     ok(E.step(c, a) and c.blind_disabled ~= 0 and c.n_jok == #JK - 1, "the sale disables the boss")
     local function first(sell)

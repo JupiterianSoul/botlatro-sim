@@ -454,24 +454,38 @@ end
 
 local TIE_BOSS = {[D.BLIND_ID.bl_ox] = true, [D.BLIND_ID.bl_tooth] = true, [D.BLIND_ID.bl_arm] = true}
 
-function F.leaf_sell(w)
-    if w.blind <= 2 or w.blind_disabled ~= 0 or w.n_jok < 1 then return nil end
+function F.leaf_sells(w, m)
+    local out = {}
+    if w.blind <= 2 or w.blind_disabled ~= 0 or w.n_jok < 1 then return out end
     if w.blind ~= D.BLIND_ID.bl_final_leaf then
-        if not D.BLINDS[w.blind].showdown then return nil end
+        if not D.BLINDS[w.blind].showdown then return out end
         for k = 1, w.n_jok do
-            if w.j_id[k] == D.JOKER_ID.j_luchador and w.j_debuff[k] == 0 and w.j_eternal[k] == 0 then return {type = "sell", area = "jokers", card = k} end
+            if w.j_id[k] == D.JOKER_ID.j_luchador and w.j_debuff[k] == 0 and w.j_eternal[k] == 0 then
+                out[1] = {type = "sell", area = "jokers", card = k}
+                return out
+            end
         end
-        return nil
+        return out
     end
-    local bk, bv = nil, -1
+    local vs = {}
     for k = 1, w.n_jok do
         local c = clone(w)
         if E.step(c, {type = "sell", area = "jokers", card = k}) and c.phase == "play" then
             local _, v = PL.best_play(c)
-            if v and v > bv then bk, bv = k, v end
+            out[#out + 1] = {type = "sell", area = "jokers", card = k}
+            vs[k] = v or 0
         end
     end
-    return bk and {type = "sell", area = "jokers", card = bk} or nil
+    table.sort(out, function(a, b)
+        if vs[a.card] ~= vs[b.card] then return vs[a.card] > vs[b.card] end
+        return a.card < b.card
+    end)
+    for i = #out, (m or 1) + 1, -1 do out[i] = nil end
+    return out
+end
+
+function F.leaf_sell(w)
+    return F.leaf_sells(w, 1)[1]
 end
 
 function F.holds_tarot(s)
@@ -569,8 +583,7 @@ function F:decide_base(base, n)
         n = math.max(n, self.o.eval_n)
     end
     if phase == "play" and self.o.sell > 0 and #cands > 0 then
-        local a = F.leaf_sell(worlds[1])
-        if a then cands[#cands + 1] = {plan = {a}, n = 0, first = n + 1} end
+        for _, a in ipairs(F.leaf_sells(worlds[1], self.o.sell > 1 and 9 or 1)) do cands[#cands + 1] = {plan = {a}, n = 0, first = n + 1} end
     end
     if self.o.net_propose and #cands > 1 then
         local a = self.o.net_propose(clone(worlds[1]))
