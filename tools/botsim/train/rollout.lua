@@ -118,6 +118,8 @@ function M.chooser(mc, rmc, opt)
     local CVX = tonumber(opt.ro_cvx) or 0
     local TOP = tonumber(opt.ro_top) or 0
     local VM = tonumber(opt.ro_vm) or 1
+    local H2 = {}
+    for a in tostring(opt.ro_h2 or ""):gmatch("%d+") do H2[tonumber(a)] = true end
     local TT = (tonumber(opt.ro_tarot) or 0) > 0 and require("botsim.train.teach").new({t_all = 1, t_deck = opt.t_deck}) or nil
     local function use_tarot(w)
         local u = TT:use_now(w)
@@ -320,7 +322,7 @@ function M.chooser(mc, rmc, opt)
                 if e or opt.rec == "" then cands[#cands + 1] = {a = ta, e = e or cands[1].e, v = 0, n = 0, h = {}} end
             end
         end
-        local stop_ante = opt.ro_h > 0 and s.ante + opt.ro_h or 0
+        local stop_ante = opt.ro_h > 0 and s.ante + opt.ro_h + (H2[s.ante] and 1 or 0) or 0
         local alive = cands
         local check = opt.ro_a > 0 and opt.ro_a or opt.ro + 1
         for r = 1, opt.ro do
