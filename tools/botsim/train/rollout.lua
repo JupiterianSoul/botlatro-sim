@@ -116,6 +116,7 @@ function M.chooser(mc, rmc, opt)
     local BASEK = tonumber(opt.ro_base) or 1
     local MINT = (tonumber(opt.ro_mint) or 0) > 0
     local CVX = tonumber(opt.ro_cvx) or 0
+    local WINB = tonumber(opt.ro_winb) or 0
     local TOP = tonumber(opt.ro_top) or 0
     local VM = tonumber(opt.ro_vm) or 1
     local H2 = {}
@@ -182,6 +183,7 @@ function M.chooser(mc, rmc, opt)
             moves = moves + 1
         end
         local v = score(w)
+        if WINB ~= 0 and w.won == 1 then v = v + WINB end
         if RES and RES.cal and stop_ante > 0 and not MC.terminal(w) then
             rmc:search(w, 0, {noise = 0, reuse = false, adaptive = true})
             local A = tostring(math.min(w.ante, 8))
