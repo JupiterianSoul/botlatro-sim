@@ -2,6 +2,11 @@ import json
 import sys
 
 OLD_RUN, OLD_NET = "41618195576", "n12-n12a"
+REPO = " -R JupiterianSoul/botlatro-sim"
+WAIT = ("for i in $(seq 1 300); do [ \"$(gh run view {r}" + REPO + " --json status -q .status)\" = completed ] && break; sleep 60; done; "
+        "gh run download {r}" + REPO + " -n {n} -D net; ")
+POLL = ("for i in $(seq 1 300); do gh run download {r}" + REPO + " -n {n} -D net 2>/dev/null && break; rm -rf net; "
+        "[ \"$(gh run view {r}" + REPO + " --json status -q .status)\" = completed ] && break; sleep 60; done; ")
 
 
 def main(argv):
@@ -22,6 +27,9 @@ def main(argv):
             else:
                 continue
             cmd = j["cmd"].replace(OLD_RUN, run).replace("-n " + OLD_NET + " ", "-n " + net + " ")
+            cmd = cmd.replace("-n n12-n12b ", "-n " + net + " ")
+            assert cmd.startswith(WAIT.format(r=run, n=net)), lab
+            cmd = POLL.format(r=run, n=net) + cmd[len(WAIT.format(r=run, n=net)):]
             if "nofe" in flags:
                 cmd = cmd.replace(" fe_ext=1 ", " ")
             out.append(dict(j, label=new, cmd=cmd))
