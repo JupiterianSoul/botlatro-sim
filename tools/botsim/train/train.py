@@ -110,7 +110,7 @@ def losses(model, b, ante_w, policy_min_sims=0, out=None, val_w=1.0, adv_w=0.0, 
     return pol + val_w * val + ante_w * aux, pol.item(), val.item(), aux.item()
 
 
-def validate(model, val, dims, batch, policy_min_sims, ref=None, ref_full=False):
+def validate(model, val, dims, batch, policy_min_sims, ref=None, ref_full=False, val_ante=False, val_win=0.0):
     if not val:
         return None
     model.eval()
@@ -118,7 +118,7 @@ def validate(model, val, dims, batch, policy_min_sims, ref=None, ref_full=False)
     with torch.no_grad():
         for i in range(0, len(val), batch):
             chunk = val[i:i + batch]
-            _, lp, lv, la = losses(model, R.collate(chunk, dims), 1.0, policy_min_sims, pairs, ref=ref, ref_full=ref_full)
+            _, lp, lv, la = losses(model, R.collate(chunk, dims), 1.0, policy_min_sims, pairs, val_ante=val_ante, val_win=val_win, ref=ref, ref_full=ref_full)
             for k, x in enumerate((lp, lv, la)):
                 tot[k] += x * len(chunk)
             n += len(chunk)
@@ -223,7 +223,7 @@ def main():
     warm = max(0, min(a.warmup, a.steps - 1))
     sched = torch.optim.lr_scheduler.LambdaLR(opt, lambda k: (k + 1) / warm if k < warm else
                                               0.5 * (1 + math.cos(math.pi * (k - warm) / max(1, a.steps - warm))))
-    v0 = validate(model, val, dims, a.batch, a.policy_min_sims, ref, full) if a.init else None
+    v0 = validate(model, val, dims, a.batch, a.policy_min_sims, ref, full, bool(a.value_ante), a.value_win) if a.init else None
     if v0:
         print("val0 " + json.dumps(v0, separators=(",", ":")))
     t0 = time.time()
@@ -252,7 +252,7 @@ def main():
                   f"{step * a.batch / (time.time() - t0):.0f} samples/s")
             last = {"policy": round(acc[0] / n, 4), "value": round(acc[1] / n, 4), "ante": round(acc[2] / n, 4)}
             acc = [0.0, 0.0, 0.0, 0]
-    v1 = validate(model, val, dims, a.batch, a.policy_min_sims, ref, full)
+    v1 = validate(model, val, dims, a.batch, a.policy_min_sims, ref, full, bool(a.value_ante), a.value_win)
     summary = {"records": len(recs), "runs": len(runs), "wins": wins, "steps": a.steps, "epochs": round(a.steps * a.batch / len(recs), 3),
                "train": last, "val": v1, "val0": v0}
     print("summary " + json.dumps(summary, separators=(",", ":")))
