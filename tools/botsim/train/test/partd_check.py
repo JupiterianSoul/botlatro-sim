@@ -3,6 +3,7 @@ import sys
 
 import numpy as np
 import torch
+import torch.nn.functional as Fn
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
@@ -45,6 +46,24 @@ b2 = R.collate(masked, dims)
 assert float(b2["amask"].sum()) == float(sum(r["atype"].shape[0] for r in masked)), "mask off keeps every move"
 assert torch.allclose(b2["pi"].sum(1), torch.ones(len(masked))), "mask off targets sum to 1"
 R.MASK = True
+R.ANCHOR = True
+b3 = R.collate(masked, dims)
+assert torch.equal(b3["amask"], b2["amask"]), "anchor keeps every move in the softmax"
+assert torch.equal(b3["judged"], b["amask"]), "anchor marks the judged moves"
+assert torch.equal(b3["pi"], b["pi"]), "anchor keeps the judged targets"
+m = Net.from_file(sys.argv[3]) if len(sys.argv) > 3 else None
+if m is not None:
+    if m.cfg["GF"] < dims["GF"]:
+        from train import widen
+        m = widen(m, dims["GF"])
+    from train import losses
+    with torch.no_grad():
+        _, lp0, _, _ = losses(m, b3, 1.0, ref=m)
+        p = Fn.softmax(m(b3)[2], -1)
+        pi = p * (b3["amask"] - b3["judged"]) + (1 - (p * (b3["amask"] - b3["judged"])).sum(-1, keepdim=True)) * b3["pi"]
+        assert torch.allclose(pi.sum(-1), torch.ones(len(masked)), atol=1e-4), "anchored targets sum to 1"
+    print("anchored policy loss at the start %.4f" % lp0)
+R.ANCHOR = False
 judged = sum(int((r["visits"] >= 0).sum()) for r in masked)
 total = sum(int(r["visits"].shape[0]) for r in masked)
 print("records %d, with unjudged moves %d, judged moves %d of %d" % (len(recs), len(masked), judged, total))

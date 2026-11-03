@@ -148,6 +148,7 @@ def parse(data, lazy=False):
 CHOSEN = 0.0
 UNJUDGED = 4294967295
 MASK = True
+ANCHOR = False
 ALL_DISC = False
 DISC_CAP = 400
 C_DEBUFF, C_FLIPPED, C_FORCED = 33, 34, 35
@@ -275,6 +276,7 @@ def collate(recs, dims, dtype=torch.float32):
     ajok = np.zeros((B, A, J), np.float32)
     afa = np.zeros((B, A, dims["FA"]), np.float32)
     am = np.zeros((B, A), np.float32)
+    jd = np.zeros((B, A), np.float32)
     pi = np.zeros((B, A), np.float32)
     won = np.zeros(B, np.float32)
     ante = np.zeros(B, np.float32)
@@ -295,7 +297,8 @@ def collate(recs, dims, dtype=torch.float32):
         afa[b, :na] = r["afa"]
         vis = r["visits"]
         judged = vis >= 0 if MASK else vis > -2
-        am[b, :na] = judged
+        am[b, :na] = 1 if ANCHOR else judged
+        jd[b, :na] = judged
         vis = np.maximum(vis, 0.0)
         tot = vis.sum()
         pi[b, :na] = vis / tot if tot > 0 else judged / max(1, judged.sum())
@@ -309,5 +312,5 @@ def collate(recs, dims, dtype=torch.float32):
     return {
         "g": t(g), "c": t(c), "cmask": t(cm), "j": t(j), "jmask": t(jm), "i": t(it), "imask": t(im),
         "atype": torch.as_tensor(at), "asel": t(asel), "aitem": t(aitem), "ajok": t(ajok), "afa": t(afa),
-        "amask": t(am), "pi": t(pi), "won": t(won), "ante": t(ante), "nsims": t(nsims),
+        "amask": t(am), "judged": t(jd), "pi": t(pi), "won": t(won), "ante": t(ante), "nsims": t(nsims),
     }
