@@ -619,6 +619,39 @@ do
     check(P.any_flipped(s), "a face down joker stops reordering")
 end
 
+do
+    local P = require("botsim.train.plan")
+    local sets = {
+        {"j_cavendish", "j_joker"},
+        {"j_blueprint", "j_cavendish", "j_joker", "j_duo"},
+        {"j_brainstorm", "j_joker", "j_cavendish", "j_baron", "j_trio"},
+        {"j_cavendish", "j_photograph", "j_blueprint", "j_joker", "j_hologram"},
+        {"j_joker", "j_duo", "j_brainstorm", "j_blueprint", "j_cavendish"},
+        {"j_baron", "j_joker"},
+    }
+    local same, moved = 0, 0
+    for i, set in ipairs(sets) do
+        for _, deck in ipairs({"b_red", "b_checkered", "b_abandoned"}) do
+            local s = E.new_run({seed = "FASTORDER" .. i, deck = deck, stake = 8})
+            s.n_jok = 0
+            for _, key in ipairs(set) do E.add_joker(s, key) end
+            local before = {}
+            for k = 1, s.n_jok do before[k] = s.j_uid[k] end
+            local o1, b1, s1 = P.best_order_ref(s)
+            local o2, b2, s2 = P.best_order(s)
+            local ok = (o1 == nil) == (o2 == nil) and b1 == b2 and s1 == s2
+            if ok and o1 then
+                for k = 1, #o1 do ok = ok and o1[k] == o2[k] end
+                moved = moved + 1
+            end
+            for k = 1, s.n_jok do ok = ok and s.j_uid[k] == before[k] end
+            if ok then same = same + 1 end
+        end
+    end
+    check(same == #sets * 3, "fast best_order matches the reference (" .. same .. " of " .. #sets * 3 .. ")")
+    check(moved > 0, "the joker sets include ones that get reordered")
+end
+
 
 do
     local T = require("botsim.train.teach")

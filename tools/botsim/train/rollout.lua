@@ -113,6 +113,8 @@ function M.chooser(mc, rmc, opt)
     if (opt.ro_book or "") ~= "" then P.load_scale(opt.ro_book) end
     local step = {type = "play", cards = {}}
     local ORDRO = (tonumber(opt.ro_ordro) or 0) > 0
+    local ORDMEMO = (tonumber(opt.ro_ordro) or 0) == 2
+    local omemo = {}
     local BASEK = tonumber(opt.ro_base) or 1
     local MINT = (tonumber(opt.ro_mint) or 0) > 0
     local CVX = tonumber(opt.ro_cvx) or 0
@@ -134,6 +136,23 @@ function M.chooser(mc, rmc, opt)
         return key
     end
 
+    local function idkey(w)
+        local key = w.n_jok
+        for k = 1, w.n_jok do key = key .. "," .. w.j_id[k] .. ":" .. w.j_ed[k] end
+        return key
+    end
+
+    local function order_for(w)
+        if not ORDMEMO then return P.best_order(w) end
+        local ik = idkey(w)
+        local o = omemo[ik]
+        if o == nil then
+            o = P.best_order(w) or false
+            omemo[ik] = o
+        end
+        return o
+    end
+
     local function run_body(w, stop_ante)
         local moves, econ_run = 0, 0
         local okey
@@ -144,7 +163,7 @@ function M.chooser(mc, rmc, opt)
             if ORDRO and w.phase == "blind_select" and not P.any_flipped(w) then
                 local key = jkey(w)
                 if key ~= okey then
-                    local o = P.best_order(w)
+                    local o = order_for(w)
                     if o then E.step(w, {type = "reorder_jokers", order = o}) end
                     okey = jkey(w)
                 end
@@ -240,6 +259,7 @@ function M.chooser(mc, rmc, opt)
 
     return function(s, seed, moves)
         root_money = s.money
+        if ORDMEMO then omemo = {} end
         if TT then TT:update_plan(s) end
         local ef, ec = mc:root_edges()
         if ec < 2 then return nil end
