@@ -287,6 +287,7 @@ local function play(deck, stake, seed)
     local vl = opt.vlog > 0 and {} or nil
     local alog = open_log(deck, stake, seed)
     local tch = opt.teach > 0 and TEACH.new(opt) or nil
+    local ud = (tonumber(opt.use_deck) or 0) > 0 and require("botsim.train.teach").new({t_all = 1, t_deck = opt.t_deck}) or nil
     local uses, blog, blog_ante = 0, opt.blog > 0 and {} or nil, 0
     local function do_step(w, act)
         local line = alog and action_line(act)
@@ -364,6 +365,17 @@ local function play(deck, stake, seed)
             end
         end
         if ph == "shop" or ph == "pack" then econ_run = econ_run + 1 else econ_run = 0 end
+        if ud and ph == "play" and s.n_cons > 0 then
+            ud:update_plan(s)
+            local m = ud:deck_moves(s)[1]
+            if m then
+                if tr then trace_act(tr, s, m) end
+                if do_step(s, m) then
+                    moves = moves + 1
+                    goto continue
+                end
+            end
+        end
         if tch and econ_run <= opt.max_shop then
             local ta, twhy = tch:move(s)
             if ta and opt.teach == 2 and twhy:sub(1, 4) ~= "use_" then ta = nil end

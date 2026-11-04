@@ -216,6 +216,31 @@ function M:tarot_targets(s, cid)
     return nil
 end
 
+local DECK_WHY = {hanged = true, suit = true, death = true, cryptid = true, wild = true}
+
+function M:deck_moves(s)
+    local out = {}
+    if s.phase == "pack" then
+        for i = 1, s.n_pk do
+            local cid = s.pk_kind[i] == K_CONS and s.pk_id[i]
+            local c = cid and D.CONS[cid]
+            if c and (c.set == SET_TAROT or c.set == SET_SPECTRAL) then
+                local t, why = self:tarot_targets(s, cid)
+                if t and DECK_WHY[why] then out[#out + 1] = {type = "pick", card = i, targets = #t > 0 and t or nil} end
+            end
+        end
+    elseif s.phase == "play" then
+        for k = s.n_cons, 1, -1 do
+            local cid, c = cons_of_key(s.cons[k])
+            if c and (c.set == SET_TAROT or c.set == SET_SPECTRAL) then
+                local t, why = self:tarot_targets(s, cid)
+                if t and DECK_WHY[why] then out[#out + 1] = {type = "use", card = k, targets = #t > 0 and t or nil} end
+            end
+        end
+    end
+    return out
+end
+
 function M:use_now(s)
     for k = s.n_cons, 1, -1 do
         local cid, c = cons_of_key(s.cons[k])

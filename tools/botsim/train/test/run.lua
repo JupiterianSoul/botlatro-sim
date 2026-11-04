@@ -582,10 +582,24 @@ do
     check(v1 > v0, "levelling a hand raises plan power")
     check(plan == D.H_FLUSH, "the levelled hand becomes the plan")
     local before = P.score(s)
+    local r0 = P.reach(s, D.H_FLUSH)
+    check(r0 > 0.3 and r0 < 0.7, "flush reach of a full deck")
+    local s2 = ST.clone(s)
+    local n2 = 0
+    for c = 1, s2.n_cards do
+        if n2 < 3 and s2.c_suit[c] ~= s2.c_suit[1] then
+            s2.c_suit[c] = s2.c_suit[1]
+            n2 = n2 + 1
+        end
+    end
+    check(P.reach(s2, D.H_FLUSH) > r0, "three cards turned to one suit raise flush reach")
+    check(P.reach(s, nil) == 0, "no plan, no reach")
     for c = 1, s.n_cards do
         if s.c_suit[c] ~= s.c_suit[1] then s.c_alive[c] = 0 end
     end
     check(P.eval(s) > v1, "a deck of one suit makes the flush plan stronger")
+    check(P.reach(s, D.H_FLUSH) > 0.99, "a deck of one suit always reaches a flush")
+    check(P.reach(s2, D.H_PAIR) > 0.5 and P.reach(s, D.H_PAIR) == 0, "pair reach comes from the rank rows")
     check(P.score(s) >= before, "plan score follows power")
     check(math.abs(P.tail(52, 4, 12, 3) - 0.0343) < 0.001, "chance of three of a rank in 12 cards")
 end
@@ -714,6 +728,17 @@ do
     tu:update_plan(s7b)
     local u7 = tu:use_now(s7b)
     check(u7 and u7.type == "use" and E.step(s7b, u7) and s7b.n_cons == 0, "teach: use_now uses a held empress (ro_tarot)")
+    local s7c = play_state("TEACH7C")
+    give(s7c, "c_empress")
+    give(s7c, "c_hanged_man")
+    local td = T.new({t_all = 1})
+    td.plan, td.plan_ante = D.H_PAIR, s7c.ante
+    local dm = td:deck_moves(s7c)
+    local n7 = T.alive_count(s7c)
+    check(#dm == 1 and dm[1].type == "use" and dm[1].targets and #dm[1].targets == 2, "teach: deck_moves keeps only the deck tarot (hanged man on two cards)")
+    check(dm[1] and E.step(s7c, dm[1]) and T.alive_count(s7c) == n7 - 2, "teach: deck_moves hanged man removes two cards")
+    td.plan = nil
+    check(#td:deck_moves(s7c) == 0, "teach: no plan, no deck move")
     local s7c = play_state("TEACH7C")
     give(s7c, "c_pluto")
     tu:update_plan(s7c)

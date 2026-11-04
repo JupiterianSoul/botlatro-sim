@@ -69,6 +69,21 @@ local function same_action(x, y)
     return true
 end
 
+
+local function same_pick(x, y)
+    if x.type ~= y.type or x.card ~= y.card then return false end
+    local a, b = x.targets or {}, y.targets or {}
+    if #a ~= #b then return false end
+    local sa, sb = {}, {}
+    for i = 1, #a do sa[i], sb[i] = a[i], b[i] end
+    table.sort(sa)
+    table.sort(sb)
+    for i = 1, #sa do
+        if sa[i] ~= sb[i] then return false end
+    end
+    return true
+end
+
 local function joker_extras(base, cands)
     if base.phase ~= "shop" then return {} end
     local out = {}
@@ -121,6 +136,16 @@ function M.chooser(mc, rmc, opt)
     local WINB = tonumber(opt.ro_winb) or 0
     local TOP = tonumber(opt.ro_top) or 0
     local VM = tonumber(opt.ro_vm) or 1
+    local ECON = tonumber(opt.ro_econ) or 0
+    local ECON_A = tonumber(opt.ro_econ_a) or 3
+    local DK = tonumber(opt.ro_deck) or 0
+    local DKC = (tonumber(opt.ro_deckc) or 0) > 0 and require("botsim.train.teach").new({t_all = 1, t_deck = opt.t_deck}) or nil
+    local DKC2 = DKC and (tonumber(opt.ro_deckc) or 0) >= 2
+    local function deck_step(w)
+        local m = DKC:deck_moves(w)[1]
+        return m and E.step(w, m)
+    end
+    local root_plan, root_reach = nil, 0
     local H2 = {}
     for a, n in tostring(opt.ro_h2 or ""):gmatch("(%d+):?(%d*)") do H2[tonumber(a)] = tonumber(n) or 1 end
     local TT = (tonumber(opt.ro_tarot) or 0) > 0 and require("botsim.train.teach").new({t_all = 1, t_deck = opt.t_deck}) or nil
@@ -128,7 +153,7 @@ function M.chooser(mc, rmc, opt)
         local u = TT:use_now(w)
         return u and E.step(w, u)
     end
-    local root_money = 0
+    local root_money, root_ante = 0, 0
 
     local function jkey(w)
         local key = w.n_jok
@@ -171,6 +196,7 @@ function M.chooser(mc, rmc, opt)
             local ph = w.phase
             if ph == "shop" or ph == "pack" then econ_run = econ_run + 1 else econ_run = 0 end
             if TT and ph == "play" and w.n_cons > 0 and use_tarot(w) then
+            elseif DKC2 and (ph == "pack" or (ph == "play" and w.n_cons > 0)) and deck_step(w) then
             elseif econ_run > opt.max_shop then
                 if not E.step(w, ph == "pack" and SKIP or LEAVE) then break end
             elseif ph == "play" and (opt.ro_fast or 0) == 1 then
@@ -217,6 +243,10 @@ function M.chooser(mc, rmc, opt)
                 end
                 w.money = math.min(w.money, cap + 5)
             elseif opt.ro_mon ~= 0 then v = v + opt.ro_mon * math.min(math.max(w.money, 0), 50) / 50 end
+            if ECON ~= 0 and root_ante <= ECON_A and (w.no_interest or 0) == 0 then
+                v = v + ECON * (w.interest_amount or 1) * math.min(math.floor(math.max(w.money, 0) / 5), (w.interest_cap or 25) / 5) / 5
+            end
+            if DK ~= 0 and root_plan then v = v + DK * (P.reach(w, root_plan) - root_reach) end
             if VM ~= 1 then w.money = math.floor(root_money + VM * (w.money - root_money) + 0.5) end
             if opt.ro_net ~= 0 then
                 rmc:search(w, 0, {noise = 0, reuse = false, adaptive = true})
@@ -258,7 +288,7 @@ function M.chooser(mc, rmc, opt)
     end
 
     return function(s, seed, moves)
-        root_money = s.money
+        root_money, root_ante = s.money, s.ante
         if ORDMEMO then omemo = {} end
         if TT then TT:update_plan(s) end
         local ef, ec = mc:root_edges()
@@ -343,6 +373,25 @@ function M.chooser(mc, rmc, opt)
                     if same_action(step, ta) then e = ef + i break end
                 end
                 if e or opt.rec == "" then cands[#cands + 1] = {a = ta, e = e or cands[1].e, v = 0, n = 0, h = {}} end
+            end
+        end
+        if DK ~= 0 or DKC then
+            local _, plan = P.eval(base)
+            root_plan = plan and plan > 0 and plan or nil
+            root_reach = root_plan and P.reach(base, root_plan) or 0
+        end
+        if DKC then DKC.plan, DKC.plan_ante = root_plan, base.ante end
+        if DKC and base.phase == "pack" then
+            for _, a in ipairs(DKC:deck_moves(base)) do
+                local dup, e = false, nil
+                for _, x in ipairs(cands) do
+                    if not x.seq and same_pick(x.a, a) then dup = true end
+                end
+                for k = 0, ec - 1 do
+                    mc:edge_action(ef + k, step, base)
+                    if same_pick(step, a) then e = ef + k break end
+                end
+                if not dup and (e or opt.rec == "") then cands[#cands + 1] = {a = a, e = e or cands[1].e, v = 0, n = 0, h = {}} end
             end
         end
         local stop_ante = opt.ro_h > 0 and s.ante + opt.ro_h + (H2[s.ante] or 0) or 0

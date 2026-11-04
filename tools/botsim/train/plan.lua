@@ -342,6 +342,23 @@ function M.best_order(w)
     return order, best, start
 end
 
+local FLUSHY = {[D.H_FLUSH] = true, [D.H_SFLUSH] = true, [D.H_FLUSH_HOUSE] = true, [D.H_FLUSH_FIVE] = true}
+
+function M.reach(w, h)
+    local by_rank, by_suit, N = composition(w)
+    if N == 0 or not h then return 0 end
+    if FLUSHY[h] then
+        local draw, miss = math.min(N, w.hand_size + 4), 1
+        for x = 1, 4 do miss = miss * (1 - tail(N, #by_suit[x], draw, 5)) end
+        return 1 - miss
+    end
+    local r = 0
+    for _, k in ipairs(candidates(w, by_rank, by_suit, N)) do
+        if k.h == h and k.reach > r then r = k.reach end
+    end
+    return r
+end
+
 function M.need(w)
     return E.get_blind_amount(w, w.ante + 1) * 2 * w.ante_scaling
 end
