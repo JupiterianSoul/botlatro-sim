@@ -203,24 +203,33 @@ local function power_of(c, cands)
     return rows
 end
 
-function M.eval(w)
-    local by_rank, by_suit, N = composition(w)
-    if N == 0 then return 0, 0, 0 end
-    local c = setup(w)
-    local rows = power_of(c, candidates(w, by_rank, by_suit, N))
-    M.last_rows = rows
+local function value_rows(rows)
     local mass, val, plan, plan_v = 0, 0, 0, -1
     for _, r in ipairs(rows) do
         val = val + r.v * r.reach * (1 - mass)
         mass = mass + r.reach * (1 - mass)
         if r.v * r.reach > plan_v then plan, plan_v = r.h, r.v * r.reach end
     end
+    return val, plan, plan_v
+end
+
+local function growth(w)
     local grow = 1
     for k = 1, w.n_jok do
         local g = M.SCALE[D.JOKERS[w.j_id[k]].key]
         if g then grow = grow * g end
     end
-    return val * grow, plan, plan_v
+    return grow
+end
+
+function M.eval(w)
+    local by_rank, by_suit, N = composition(w)
+    if N == 0 then return 0, 0, 0 end
+    local c = setup(w)
+    local rows = power_of(c, candidates(w, by_rank, by_suit, N))
+    M.last_rows = rows
+    local val, plan, plan_v = value_rows(rows)
+    return val * growth(w), plan, plan_v
 end
 
 local PLANET = {}
@@ -251,7 +260,14 @@ function M.any_flipped(w)
     return false
 end
 
-function M.best_order(w)
+local function pinned(w)
+    for k = 1, w.n_jok do
+        if w.j_pin[k] == 1 then return true end
+    end
+    return false
+end
+
+function M.best_order_ref(w)
     local n = w.n_jok
     if n < 2 then return nil end
     local order = {}
@@ -274,6 +290,48 @@ function M.best_order(w)
                         E.reorder(c, trial)
                         order[i], order[j] = order[j], order[i]
                         moved = true
+                    end
+                end
+            end
+        end
+        if not moved then break end
+    end
+    if best <= start then return nil end
+    return order, best, start
+end
+
+function M.best_order(w)
+    local n = w.n_jok
+    if n < 2 then return nil end
+    if pinned(w) then return M.best_order_ref(w) end
+    local by_rank, by_suit, N = composition(w)
+    if N == 0 then return nil end
+    local cands = candidates(w, by_rank, by_suit, N)
+    local c = setup(w)
+    local function value()
+        local rows = power_of(c, cands)
+        M.last_rows = rows
+        return value_rows(rows) * growth(c)
+    end
+    local order = {}
+    for i = 1, n do order[i] = i end
+    local best = value()
+    local start = best
+    local trial = {}
+    for _ = 1, 3 do
+        local moved = false
+        for i = 1, n - 1 do
+            for j = i + 1, n do
+                for k = 1, n do trial[k] = k end
+                trial[i], trial[j] = j, i
+                if E.reorder(c, trial) then
+                    local v = value()
+                    if v > best * 1.005 then
+                        best = v
+                        order[i], order[j] = order[j], order[i]
+                        moved = true
+                    else
+                        E.reorder(c, trial)
                     end
                 end
             end
