@@ -778,5 +778,25 @@ do
     check(T.skip_safe(sk, 2.5), "teach: skip allowed with a strong build")
     check(T.skip_safe(sk, -1), "teach: t_skip=-1 allows a skip with a joker")
 end
+do
+    local RO = require("botsim.train.rollout")
+    local path = os.tmpname()
+    local f = assert(io.open(path, "w"))
+    f:write("J 4 j_joker 0.10 40\nJ 4 j_jolly 0.05 30\nF 4 j_jolly 0.30 20\nO 4 j_jolly -0.20 10\nP 4 j_joker j_jolly 0.07 30\nJ 5 j_joker 0.50 40\n")
+    f:close()
+    local jt = RO.load_jtab(path)
+    os.remove(path)
+    check(jt.lo == 4 and jt.hi == 5, "jtab: antes read")
+    local s = play_state("JTAB1", {"j_joker"})
+    check(math.abs(RO.jvalue(jt, s, 4) - 0.10) < 1e-9, "jtab: one joker gets its value")
+    check(math.abs(RO.jvalue(jt, s, 3) - 0.10) < 1e-9 and math.abs(RO.jvalue(jt, s, 7) - 0.50) < 1e-9, "jtab: antes outside the table use the nearest one")
+    local s2 = play_state("JTAB2", {"j_joker", "j_jolly"})
+    s2.h_level[D.HAND_ID["Pair"]] = 3
+    check(D.HAND_NAMES[RO.top_hand(s2)] == "Pair", "jtab: top hand is the highest level")
+    check(math.abs(RO.jvalue(jt, s2, 4) - (0.10 + 0.30 + 0.07)) < 1e-9, "jtab: a hand joker on the top hand uses its fit value, pairs add")
+    s2.h_level[D.HAND_ID["Pair"]] = 1
+    s2.h_level[D.HAND_ID["Flush"]] = 4
+    check(math.abs(RO.jvalue(jt, s2, 4) - (0.10 - 0.20 + 0.07)) < 1e-9, "jtab: a hand joker off the top hand uses its off value")
+end
 print(string.format("nn tests: %d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

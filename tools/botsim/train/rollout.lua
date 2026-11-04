@@ -9,6 +9,84 @@ local ST = require("bot.sim.state")
 
 local M = {}
 
+local HAND_JOKER = {
+    j_jolly = "Pair", j_sly = "Pair", j_duo = "Pair", j_zany = "Three of a Kind", j_wily = "Three of a Kind", j_trio = "Three of a Kind",
+    j_mad = "Two Pair", j_clever = "Two Pair", j_trousers = "Two Pair", j_family = "Four of a Kind",
+    j_crazy = "Straight", j_devious = "Straight", j_order = "Straight", j_runner = "Straight", j_superposition = "Straight",
+    j_droll = "Flush", j_crafty = "Flush", j_tribe = "Flush", j_seance = "Straight Flush",
+}
+local CONTAINS = {
+    ["Pair"] = {"Pair", "Two Pair", "Three of a Kind", "Full House", "Four of a Kind", "Five of a Kind", "Flush House", "Flush Five"},
+    ["Two Pair"] = {"Two Pair", "Full House", "Flush House"},
+    ["Three of a Kind"] = {"Three of a Kind", "Full House", "Four of a Kind", "Five of a Kind", "Flush House", "Flush Five"},
+    ["Four of a Kind"] = {"Four of a Kind", "Five of a Kind", "Flush Five"},
+    ["Straight"] = {"Straight", "Straight Flush"},
+    ["Flush"] = {"Flush", "Straight Flush", "Flush House", "Flush Five"},
+    ["Straight Flush"] = {"Straight Flush"},
+}
+
+function M.load_jtab(path)
+    local f = assert(io.open(path))
+    local jt = {lo = 99, hi = 0}
+    for line in f:lines() do
+        local w = {}
+        for x in line:gmatch("%S+") do w[#w + 1] = x end
+        local kind, a, x, y = w[1], tonumber(w[2]), w[3], w[4]
+        local v = kind == "P" and w[5] or y
+        if kind and a then
+            jt[a] = jt[a] or {j = {}, fit = {}, off = {}, pair = {}}
+            jt.lo, jt.hi = math.min(jt.lo, a), math.max(jt.hi, a)
+            local t = jt[a]
+            if kind == "J" then t.j[D.JOKER_ID[x] or -1] = tonumber(v)
+            elseif kind == "F" then t.fit[D.JOKER_ID[x] or -1] = tonumber(v)
+            elseif kind == "O" then t.off[D.JOKER_ID[x] or -1] = tonumber(v)
+            elseif kind == "P" then
+                local i, k = D.JOKER_ID[x], D.JOKER_ID[y]
+                if i and k then t.pair[math.min(i, k) * 1000 + math.max(i, k)] = tonumber(v) end
+            end
+        end
+    end
+    f:close()
+    local fits = {}
+    for key, h in pairs(HAND_JOKER) do
+        local id = D.JOKER_ID[key]
+        if id then
+            fits[id] = {}
+            for _, n in ipairs(CONTAINS[h]) do fits[id][D.HAND_ID[n]] = true end
+        end
+    end
+    jt.fits = fits
+    return jt
+end
+
+function M.top_hand(w)
+    local top, tl = 1, -1
+    for h = 1, D.NUM_HANDS do
+        if w.h_level[h] > tl or (w.h_level[h] == tl and w.h_played[h] > w.h_played[top]) then top, tl = h, w.h_level[h] end
+    end
+    return top
+end
+
+function M.jvalue(jt, w, ante)
+    if jt.hi == 0 then return 0 end
+    local t = jt[math.max(jt.lo, math.min(jt.hi, ante))]
+    if not t then return 0 end
+    local top = M.top_hand(w)
+    local v = 0
+    for k = 1, w.n_jok do
+        local id = w.j_id[k]
+        local f = jt.fits[id]
+        if f and f[top] and t.fit[id] then v = v + t.fit[id]
+        elseif f and not f[top] and t.off[id] then v = v + t.off[id]
+        else v = v + (t.j[id] or 0) end
+        for q = k + 1, w.n_jok do
+            local a, b = id, w.j_id[q]
+            v = v + (t.pair[math.min(a, b) * 1000 + math.max(a, b)] or 0)
+        end
+    end
+    return v
+end
+
 local LEAVE, SKIP = {type = "leave"}, {type = "skip"}
 
 local function score(w)
@@ -139,6 +217,9 @@ function M.chooser(mc, rmc, opt)
     local ECON = tonumber(opt.ro_econ) or 0
     local ECON_A = tonumber(opt.ro_econ_a) or 3
     local DK = tonumber(opt.ro_deck) or 0
+    local JTW = tonumber(opt.ro_jt) or 0
+    local JT = JTW ~= 0 and M.load_jtab(opt.ro_jtab) or nil
+    local root_jv, jt_on = 0, false
     local DKC = (tonumber(opt.ro_deckc) or 0) > 0 and require("botsim.train.teach").new({t_all = 1, t_deck = opt.t_deck}) or nil
     local DKC2 = DKC and (tonumber(opt.ro_deckc) or 0) >= 2
     local function deck_step(w)
@@ -247,6 +328,7 @@ function M.chooser(mc, rmc, opt)
                 v = v + ECON * (w.interest_amount or 1) * math.min(math.floor(math.max(w.money, 0) / 5), (w.interest_cap or 25) / 5) / 5
             end
             if DK ~= 0 and root_plan then v = v + DK * (P.reach(w, root_plan) - root_reach) end
+            if jt_on then v = v + JTW * (M.jvalue(JT, w, root_ante) - root_jv) end
             if VM ~= 1 then w.money = math.floor(root_money + VM * (w.money - root_money) + 0.5) end
             if opt.ro_net ~= 0 then
                 rmc:search(w, 0, {noise = 0, reuse = false, adaptive = true})
@@ -289,6 +371,8 @@ function M.chooser(mc, rmc, opt)
 
     return function(s, seed, moves)
         root_money, root_ante = s.money, s.ante
+        jt_on = JT ~= nil and (s.phase == "shop" or s.phase == "pack")
+        if jt_on then root_jv = M.jvalue(JT, s, s.ante) end
         if ORDMEMO then omemo = {} end
         if TT then TT:update_plan(s) end
         local ef, ec = mc:root_edges()

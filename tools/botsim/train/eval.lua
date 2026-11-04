@@ -268,6 +268,18 @@ local function close_log(alog, s)
     f:close()
 end
 
+local function jlog_row(s)
+    local top, tl, mp, mc = 1, -1, 1, -1
+    for h = 1, D.NUM_HANDS do
+        if s.h_level[h] > tl or (s.h_level[h] == tl and s.h_played[h] > s.h_played[top]) then top, tl = h, s.h_level[h] end
+        if s.h_played[h] > mc then mp, mc = h, s.h_played[h] end
+    end
+    local j = {}
+    for k = 1, s.n_jok do j[k] = D.JOKERS[s.j_id[k]].key .. (s.j_ed[k] ~= 0 and ":" .. s.j_ed[k] or "") end
+    return string.format('{"a":%d,"t":"%s","tl":%d,"p":"%s","pc":%d,"m":%d,"j":[%s]}', s.ante, D.HAND_NAMES[top], tl, D.HAND_NAMES[mp], mc, s.money,
+        #j > 0 and '"' .. table.concat(j, '","') .. '"' or "")
+end
+
 local CASH = {type = "cash_out"}
 
 local function play(deck, stake, seed)
@@ -289,6 +301,7 @@ local function play(deck, stake, seed)
     local tch = opt.teach > 0 and TEACH.new(opt) or nil
     local ud = (tonumber(opt.use_deck) or 0) > 0 and require("botsim.train.teach").new({t_all = 1, t_deck = opt.t_deck}) or nil
     local uses, blog, blog_ante = 0, opt.blog > 0 and {} or nil, 0
+    local jl, jl_ante = (tonumber(opt.jlog) or 0) > 0 and {} or nil, 0
     local function do_step(w, act)
         local line = alog and action_line(act)
         if blog and (act.type == "use" or act.type == "buy_and_use" or (act.type == "pick" and w.pk_kind[act.card] == E.K_CONS)) then uses = uses + 1 end
@@ -346,6 +359,10 @@ local function play(deck, stake, seed)
         if blog and s.ante ~= blog_ante then
             blog_ante = s.ante
             blog[#blog + 1] = TEACH.build_row(s, uses)
+        end
+        if jl and s.ante ~= jl_ante then
+            jl_ante = s.ante
+            jl[#jl + 1] = jlog_row(s)
         end
         if opt.curve > 0 and s.ante ~= curve_ante then
             curve_ante = s.ante
@@ -500,6 +517,7 @@ local function play(deck, stake, seed)
         blog[#blog + 1] = TEACH.build_row(s, uses)
         s.eval_bl = table.concat(blog, ",")
     end
+    s.eval_jl = jl and "[" .. table.concat(jl, ",") .. "]" or nil
     s.eval_dig = dig
     close_log(alog, s)
     return won, ante, why, moves, s
@@ -511,7 +529,7 @@ local function finite(x)
 end
 
 local function death_fields(s)
-    return string.format(',"blind":%d,"chips":%.0f,"need":%.0f,"money":%d,"n_jok":%d,"disc_left":%d', s.blind, finite(s.chips), finite(s.blind_chips), s.money, s.n_jok, s.discards_left) .. (opt.curve > 0 and string.format(',"curve":"%s"', s.eval_curve) or "") .. (opt.digest > 0 and string.format(',"dig":"%.0f"', s.eval_dig) or "") .. (s.eval_trace and ',"trace":' .. s.eval_trace or "") .. (s.eval_vl and ',"vl":' .. s.eval_vl or "") .. (s.eval_tch and ',"tch":' .. s.eval_tch or "") .. (s.eval_veto and ',"veto":' .. s.eval_veto or "") .. (s.eval_bl and ',"bl":"' .. s.eval_bl .. '"' or "")
+    return string.format(',"blind":%d,"chips":%.0f,"need":%.0f,"money":%d,"n_jok":%d,"disc_left":%d', s.blind, finite(s.chips), finite(s.blind_chips), s.money, s.n_jok, s.discards_left) .. (opt.curve > 0 and string.format(',"curve":"%s"', s.eval_curve) or "") .. (opt.digest > 0 and string.format(',"dig":"%.0f"', s.eval_dig) or "") .. (s.eval_trace and ',"trace":' .. s.eval_trace or "") .. (s.eval_vl and ',"vl":' .. s.eval_vl or "") .. (s.eval_tch and ',"tch":' .. s.eval_tch or "") .. (s.eval_veto and ',"veto":' .. s.eval_veto or "") .. (s.eval_bl and ',"bl":"' .. s.eval_bl .. '"' or "") .. (s.eval_jl and ',"jl":' .. s.eval_jl or "")
 end
 
 local DECKS, STAKES = ES.parse(opt.decks, tostring(opt.stakes))
