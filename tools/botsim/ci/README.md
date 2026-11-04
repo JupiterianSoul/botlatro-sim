@@ -28,3 +28,12 @@ Real wins, paired, as a sign test over the games only one side won (pairs of BAS
 Clear rate per ante, both arms on their common seeds (comma separated directories):
 
     python3 -I tools/botsim/ci/clear.py /tmp/base/g/b3-red,/tmp/base/g/b3-blue /tmp/new/g/z-red,/tmp/new/g/z-blue
+
+The quicker way most nights since w8, by label glob, no regrouping needed:
+
+    tools/botsim/ci/fetch.sh RUN /tmp/new
+    python3 -I tools/botsim/ci/pool.py '/tmp/base/bench-d9-*/games_*.jsonl' '/tmp/new/bench-a9-*/games_*.jsonl'
+    python3 -I tools/botsim/ci/bystake.py '/tmp/base/bench-hl-lad-*/games_*.jsonl' '/tmp/new/bench-al-lad-*/games_*.jsonl'
+    tools/botsim/ci/wait.sh 540 RUN1 RUN2
+
+fetch.sh downloads every finished job of a run it does not have yet and prints how many are left. pool.py prints per deck and pooled: paired ante with z, real wins, games won by one side only, deaths by ante 2, seconds per game and identical games. bystake.py does the same per stake for a ladder. wait.sh returns as soon as one more job of the listed runs has finished, or after the given seconds.
