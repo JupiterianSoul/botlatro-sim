@@ -41,3 +41,5 @@ The quicker way most nights since w8, by label glob, no regrouping needed:
     tools/botsim/ci/wait.sh 540 RUN1 RUN2
 
 fetch.sh downloads every finished job of a run it does not have yet and prints how many are left. pool.py prints per deck and pooled: paired ante with z, real wins, games won by one side only, deaths by ante 2, seconds per game and identical games. bystake.py does the same per stake for a ladder. wait.sh returns as soon as one more job of the listed runs has finished, or after the given seconds.
+
+Joker tables (2026-11-05): `python3 -I tools/botsim/ci/jokers.py GLOB --tab FILE` builds the raw table from `jlog=1` games, `--rtab FILE` the table on the residual against the value net from `jlog=1 vlog=1` games. `python3 -I tools/botsim/ci/rtab_rarity.py assets/bot/sim/data_jokers.lua GLOB OUT` builds the rarity table (gtab_w11.txt came from jr, run 41953470132, bench-jv-* and bench-jw-*, 3000 games on 60001-60200). Use either with `ro_jt=1 ro_jth=1 ro_jtab=FILE`. n11-<deck> of run 41938581496 is a fresh w11 base on 41301-41400 (all 15 decks, real wins 22).
