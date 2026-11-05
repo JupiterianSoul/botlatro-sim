@@ -3,6 +3,7 @@ meta = {}
 for m in re.finditer(r'key = "(j_[a-z_0-9]+)".*?rarity = (\d+), cost = (\d+)', open(sys.argv[1]).read()):
     meta[m.group(1)] = min(int(m.group(2)), 3)
 SCAL = sorted("j_hologram j_trousers j_green_joker j_ride_the_bus j_runner j_square j_wee j_lucky_cat j_constellation j_obelisk j_campfire j_ceremonial j_flash j_red_card j_madness j_vampire j_castle j_glass j_throwback j_caino j_yorick j_hit_the_road j_fortune_teller j_supernova".split())
+XM = set("j_hologram j_madness j_throwback j_constellation j_campfire j_glass j_caino j_yorick j_hit_the_road j_vampire j_obelisk j_lucky_cat".split()) if len(sys.argv) > 4 and sys.argv[4] == "x" else set()
 rows = {}
 i = 0
 for f in sorted(glob.glob(sys.argv[2])):
@@ -11,14 +12,15 @@ for f in sorted(glob.glob(sys.argv[2])):
         sc = 10.0 if d["won"] else float(d["ante"])
         for r in d.get("vl", []):
             c = [0, 0, 0]
-            et = ns = poly = 0
+            et = ns = nx = poly = 0
             for j in r["jok"]:
                 if j[0] in meta: c[meta[j[0]] - 1] += 1
                 if len(j) > 3 and j[3]: et += 1
-                if j[0] in SCAL: ns += 1
+                if j[0] in XM: nx += 1
+                elif j[0] in SCAL: ns += 1
                 if (j[1] or 0) == 3: poly += 1
             lp = math.log(max(r["pv"], 1) / max(r["need"], 1))
-            rows.setdefault(r["ante"], []).append((sc, i % 2, r["deck"] if "deck" in r else d["deck"], [r["nv"]] + c + [ns, poly, et, r["money"], lp, r["hsize"]]))
+            rows.setdefault(r["ante"], []).append((sc, i % 2, r["deck"] if "deck" in r else d["deck"], [r["nv"]] + c + [ns, poly, et, r["money"], lp, r["hsize"]] + ([nx] if XM else [])))
 decks = sorted({x[2] for a in rows for x in rows[a]})
 def inv(A):
     n = len(A)
@@ -51,10 +53,13 @@ for a in range(2, 9):
     c, se = fit(R)
     h = [fit([x for x in R if x[1] == s])[0] for s in (0, 1)]
     k = 9.0 / c[1]
-    v, s = c[S], se[S]
-    t = v * (v * v) / (v * v + s * s) * k if h[0][S] * h[1][S] > 0 else 0.0
-    print("ante %d n %d scaling %+.3f (se %.3f; halves %+.3f %+.3f) leaf factor %.2f table %.4f" % (a, len(R), v, s, h[0][S], h[1][S], k, t))
+    t = {}
+    for g, S in (("scaling", 5), ("xmult", 11)):
+        if g == "xmult" and not XM: continue
+        v, s = c[S], se[S]
+        t[g] = v * (v * v) / (v * v + s * s) * k if h[0][S] * h[1][S] > 0 else 0.0
+        print("ante %d n %d %s %+.3f (se %.3f; halves %+.3f %+.3f) leaf factor %.2f table %.4f" % (a, len(R), g, v, s, h[0][S], h[1][S], k, t[g]))
     for key in SCAL:
-        out.append("J %d %s %.4f %d" % (a, key, t, len(R)))
+        out.append("J %d %s %.4f %d" % (a, key, t["xmult" if key in XM else "scaling"], len(R)))
 open(sys.argv[3], "w").write("\n".join(out) + "\n")
 print(len(out), "lines")
