@@ -841,6 +841,22 @@ do
     local s6 = play_state("JTAB5", {"j_joker", "j_jolly"})
     s6.h_level[D.HAND_ID["Pair"]] = 5
     check(RO.jvalue(jt5, s6, 4) - RO.jvalue(jt5, s5, 4) > 0.01, "jtab: more plan power adds to the power line")
+    local path7 = os.tmpname()
+    local f7 = assert(io.open(path7, "w"))
+    f7:write("C 4 glass 0.20 40\nC 4 redseal 0.10 40\nC 4 poly 0.05 40\nC 4 telescope 0.50 40\nC 5 glass 0.30 40\n")
+    f7:close()
+    local jt7 = RO.load_jtab(path7)
+    os.remove(path7)
+    local s7 = play_state("JTAB7", {"j_joker"})
+    local v0 = RO.jvalue(jt7, s7, 4)
+    check(math.abs(v0) < 1e-9, "jtab: a plain deck adds nothing from deck lines")
+    s7.c_enh[1], s7.c_enh[2], s7.c_seal[3], s7.c_ed[2] = D.E_GLASS, D.E_GLASS, D.SEAL_RED, 3
+    check(math.abs(RO.jvalue(jt7, s7, 4) - 0.55) < 1e-9, "jtab: deck lines add per enhanced, sealed and polychrome card")
+    check(math.abs(RO.jvalue(jt7, s7, 5) - 0.60) < 1e-9, "jtab: deck lines use the leaf ante")
+    s7.c_alive[1] = 0
+    check(math.abs(RO.jvalue(jt7, s7, 4) - 0.35) < 1e-9, "jtab: destroyed cards add nothing")
+    s7.used_v[D.VOUCHER_ID.v_telescope] = 1
+    check(math.abs(RO.jvalue(jt7, s7, 4) - 0.85) < 1e-9, "jtab: an owned voucher line adds its value")
 end
 
 do

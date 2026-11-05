@@ -44,6 +44,7 @@ function M.load_jtab(path, pos)
             elseif kind == "E" then t.ed[tonumber(x) or -1] = v
             elseif kind == "T" then t.et = tonumber(x)
             elseif kind == "B" then t.bp = tonumber(x)
+            elseif kind == "C" then t.deck = t.deck or {}; t.deck[x] = v
             elseif kind == "P" then
                 local i, k = D.JOKER_ID[x], D.JOKER_ID[y]
                 if i and k then t.pair[math.min(i, k) * 1000 + math.max(i, k)] = v end
@@ -91,6 +92,28 @@ function M.jvalue(jt, w, ante)
         end
     end
     if t.bp then v = v + t.bp * math.log(math.max(P.eval(w) or 0, 1)) end
+    if t.deck then v = v + M.deck_value(t.deck, w) end
+    return v
+end
+
+local DECK_ENH = {"bonus", "mult", nil, "glass", "steel", nil, "gold", "lucky"}
+local DECK_SEAL = {"oseal", "redseal", "oseal", "oseal"}
+local DECK_ED = {"foilholo", "foilholo", "poly"}
+
+function M.deck_value(t, w)
+    local v = 0
+    for c = 1, w.n_cards do
+        if w.c_alive[c] == 1 then
+            local e, sl, ed = DECK_ENH[w.c_enh[c] or 0], DECK_SEAL[w.c_seal[c] or 0], DECK_ED[w.c_ed[c] or 0]
+            if e then v = v + (t[e] or 0) end
+            if sl then v = v + (t[sl] or 0) end
+            if ed then v = v + (t[ed] or 0) end
+        end
+    end
+    for _, k in ipairs({"telescope", "observatory"}) do
+        local id = t[k] and D.VOUCHER_ID and D.VOUCHER_ID["v_" .. k]
+        if id and w.used_v[id] ~= 0 and w.used_v[id] ~= false then v = v + t[k] end
+    end
     return v
 end
 

@@ -6,7 +6,10 @@ PL = {}
 for m in re.finditer(r'(c_[a-z_]+) = (\d+)', re.search(r'c_mercury = 11.*?c_eris = 1', open(sys.argv[1].replace("data_jokers", "data"), encoding="utf-8").read(), re.S).group(0)):
     PL[m.group(1)] = int(m.group(2)) - 1
 SCAL = set("j_hologram j_trousers j_green_joker j_ride_the_bus j_runner j_square j_wee j_lucky_cat j_constellation j_obelisk j_campfire j_ceremonial j_flash j_red_card j_madness j_vampire j_castle j_glass j_throwback j_caino j_yorick j_hit_the_road j_fortune_teller j_supernova".split())
+DECK = len(sys.argv) > 4 and sys.argv[4] == "d"
 NAMES = [("power", 9), ("top", 11), ("rest", 12), ("hplan", 13), ("oplan", 14)]
+if DECK:
+    NAMES = [(g, 15 + q) for q, g in enumerate(["bonus", "mult", "glass", "steel", "gold", "lucky", "redseal", "oseal", "poly", "foilholo", "telescope", "observatory"])]
 rows = {}
 i = 0
 for g in sys.argv[2].split(","):
@@ -29,6 +32,10 @@ for g in sys.argv[2].split(","):
                 op = sum(1 for x in r["cons"] if x in PL) - hp
                 lp = math.log(max(r["pv"], 1) / max(r["need"], 1))
                 new = [tl - 1, sum(lv) - 12 - (tl - 1), hp, op]
+                if DECK:
+                    if "enh" not in r: continue
+                    e, sl, ed = r["enh"], r["seal"], r["ced"]
+                    new += [e[0], e[1], e[3], e[4], e[6], e[7], sl[1], sl[0] + sl[2] + sl[3], ed[2], ed[0] + ed[1], int("v_telescope" in r["v"]), int("v_observatory" in r["v"])]
                 rows.setdefault(r["ante"], []).append((sc, i % 2, d["deck"], [r["nv"]] + c + [ns, poly, et, r["money"], lp, r["hsize"]] + new))
 decks = sorted({x[2] for a in rows for x in rows[a]})
 def inv(A):
@@ -64,8 +71,9 @@ for a in range(2, 9):
     for g, S in NAMES:
         v, s = c[S], se[S]
         mean = sum(x[3][S - 1] for x in R) / len(R)
-        t = v * (v * v) / (v * v + s * s) * k if h[0][S] * h[1][S] > 0 else 0.0
+        t = v * (v * v) / (v * v + s * s) * k if h[0][S] * h[1][S] > 0 and s > 0 else 0.0
         print("ante %d n %d %-5s mean %.2f %+.3f (se %.3f; halves %+.3f %+.3f) table %.4f" % (a, len(R), g, mean, v, s, h[0][S], h[1][S], t))
-        if g == "power": out.append("B %d %.4f %d" % (a, t, len(R)))
+        if g == "power" and not DECK: out.append("B %d %.4f %d" % (a, t, len(R)))
+        if DECK: out.append("C %d %s %.4f %d" % (a, g, t, len(R)))
 open(sys.argv[3], "w").write("\n".join(out) + "\n")
 print(len(out), "lines")
