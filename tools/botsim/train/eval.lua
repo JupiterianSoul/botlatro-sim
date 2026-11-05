@@ -120,11 +120,25 @@ local function vlog_ante(vl, s)
     for k = 1, s.n_jok do
         j[k] = {D.JOKERS[s.j_id[k]].key, s.j_ed[k], s.j_x[k], s.j_eternal[k]}
     end
-    for k = 1, 12 do lv[k] = s.h_level[k] end
+    local hp, v, enh, seal, ced, live = {}, {}, {0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0}, 0
+    for k = 1, 12 do lv[k], hp[k] = s.h_level[k], s.h_played[k] end
+    for k = 1, #D.VOUCHERS do
+        if s.used_v[k] ~= 0 and s.used_v[k] ~= false then v[#v + 1] = D.VOUCHERS[k].key end
+    end
+    for c = 1, s.n_cards do
+        if s.c_alive[c] == 1 then
+            live = live + 1
+            local e, sl, ed = s.c_enh[c] or 0, s.c_seal[c] or 0, s.c_ed[c] or 0
+            if enh[e] then enh[e] = enh[e] + 1 end
+            if seal[sl] then seal[sl] = seal[sl] + 1 end
+            if ced[ed] then ced[ed] = ced[ed] + 1 end
+        end
+    end
     local w = FAIR and FAIR.world(FAIR.sanitize(s), "VL_" .. s.ante) or s
     rmc:search(w, 0, {noise = 0, reuse = false, adaptive = true})
     local pv = PLAN.eval(s)
-    vl[#vl + 1] = {ante = s.ante, money = s.money, jok = j, lv = lv, cons = c, n_deck = s.n_cards, limit = s.joker_limit, hsize = s.hand_size, pv = pv, need = PLAN.need(s), nv = rmc.n_val[rmc.root], ph = s.phase}
+    vl[#vl + 1] = {ante = s.ante, money = s.money, jok = j, lv = lv, cons = c, n_deck = s.n_cards, limit = s.joker_limit, hsize = s.hand_size, pv = pv, need = PLAN.need(s), nv = rmc.n_val[rmc.root], ph = s.phase,
+        hp = hp, v = v, enh = enh, seal = seal, ced = ced, live = live, tu = s.tarot_used, pu = s.planets_used}
     if opt.vlog > 1 then
         local m0, nvm = w.money, {}
         for i, m in ipairs({0, math.min(m0, 25), m0 + 10, m0 + 25}) do
