@@ -805,6 +805,19 @@ do
     local jn = RO.load_jtab(path2)
     os.remove(path2)
     check(math.abs(RO.jvalue(jp, s2, 4)) < 1e-9 and math.abs(RO.jvalue(jn, s2, 4) - (-0.10 - 0.20 - 0.07)) < 1e-9, "jtab: ro_jtp reads negative values as 0")
+    local path3 = os.tmpname()
+    local f3 = assert(io.open(path3, "w"))
+    f3:write("J 4 j_joker 0.10 40\nE 4 3 0.40 30\nE 4 4 -0.30 30\n")
+    f3:close()
+    local je = RO.load_jtab(path3)
+    local jep = RO.load_jtab(path3, true)
+    os.remove(path3)
+    local s3 = play_state("JTAB3", {"j_joker"})
+    check(math.abs(RO.jvalue(je, s3, 4) - 0.10) < 1e-9, "jtab: no edition adds nothing")
+    s3.j_ed[1] = D.ED_POLY
+    check(math.abs(RO.jvalue(je, s3, 4) - 0.50) < 1e-9, "jtab: an edition line adds to the joker")
+    s3.j_ed[1] = D.ED_NEG
+    check(math.abs(RO.jvalue(je, s3, 4) + 0.20) < 1e-9 and math.abs(RO.jvalue(jep, s3, 4) - 0.10) < 1e-9, "jtab: negative edition values, ro_jtp reads them as 0")
 end
 
 do

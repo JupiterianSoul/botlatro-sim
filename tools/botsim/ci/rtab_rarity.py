@@ -3,6 +3,7 @@ from collections import defaultdict
 meta = {}
 for m in re.finditer(r'key = "(j_[a-z_0-9]+)".*?rarity = (\d+), cost = (\d+)', open(sys.argv[1]).read()):
     meta[m.group(1)] = min(int(m.group(2)), 3)
+EDS = [int(x) for x in sys.argv[4].split(",")] if len(sys.argv) > 4 else []
 rows = defaultdict(list)
 i = 0
 for f in sorted(glob.glob(sys.argv[2])):
@@ -10,9 +11,10 @@ for f in sorted(glob.glob(sys.argv[2])):
         d = json.loads(line); i += 1
         sc = 10.0 if d["won"] else float(d["ante"])
         for r in d.get("vl", []):
-            c = [0, 0, 0]
+            c = [0, 0, 0] + [0] * len(EDS)
             for j in r["jok"]:
                 if j[0] in meta: c[meta[j[0]] - 1] += 1
+                if (j[1] or 0) in EDS: c[3 + EDS.index(j[1])] += 1
             rows[r["ante"]].append((sc, r["nv"], c, d["deck"], i % 2))
 def ols(X, y):
     k = len(X[0])
@@ -57,5 +59,10 @@ for a in range(2, 7):
         for key, rr in sorted(meta.items()):
             if rr == r + 1:
                 out.append("J %d %s %.4f %d" % (a, key, v, len(R)))
+    for q, e in enumerate(EDS):
+        v, s = c[5 + q], se[5 + q]
+        print("ante %d edition %d %+.3f (se %.3f; halves %+.3f %+.3f)" % (a, e, v, s, h[0][5 + q], h[1][5 + q]))
+        v = v * (v * v) / (v * v + s * s) * k if h[0][5 + q] * h[1][5 + q] > 0 else 0.0
+        out.append("E %d %d %.4f %d" % (a, e, v, len(R)))
 open(sys.argv[3], "w").write("\n".join(out) + "\n")
 print(len(out), "lines")

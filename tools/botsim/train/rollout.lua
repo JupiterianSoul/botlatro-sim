@@ -35,12 +35,13 @@ function M.load_jtab(path, pos)
         local v = tonumber(kind == "P" and w[5] or y)
         if pos and v and v < 0 then v = 0 end
         if kind and a then
-            jt[a] = jt[a] or {j = {}, fit = {}, off = {}, pair = {}}
+            jt[a] = jt[a] or {j = {}, fit = {}, off = {}, pair = {}, ed = {}}
             jt.lo, jt.hi = math.min(jt.lo, a), math.max(jt.hi, a)
             local t = jt[a]
             if kind == "J" then t.j[D.JOKER_ID[x] or -1] = v
             elseif kind == "F" then t.fit[D.JOKER_ID[x] or -1] = v
             elseif kind == "O" then t.off[D.JOKER_ID[x] or -1] = v
+            elseif kind == "E" then t.ed[tonumber(x) or -1] = v
             elseif kind == "P" then
                 local i, k = D.JOKER_ID[x], D.JOKER_ID[y]
                 if i and k then t.pair[math.min(i, k) * 1000 + math.max(i, k)] = v end
@@ -80,6 +81,7 @@ function M.jvalue(jt, w, ante)
         if f and f[top] and t.fit[id] then v = v + t.fit[id]
         elseif f and not f[top] and t.off[id] then v = v + t.off[id]
         else v = v + (t.j[id] or 0) end
+        v = v + (t.ed[w.j_ed[k]] or 0)
         for q = k + 1, w.n_jok do
             local a, b = id, w.j_id[q]
             v = v + (t.pair[math.min(a, b) * 1000 + math.max(a, b)] or 0)
