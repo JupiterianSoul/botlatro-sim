@@ -1,0 +1,80 @@
+runs 1500, entering ante 4: 1320, through ante 6: 210 (0.159)
+
+joker held entering ante 4 (at least 30 runs): runs, through ante 6 with it, matched rate without it, difference, z
+j_hologram                34  0.559  0.141  +0.418  z +7.12
+j_trousers                67  0.433  0.141  +0.291  z +6.91
+j_blackboard              68  0.382  0.153  +0.229  z +5.30
+j_sly                    106  0.264  0.147  +0.118  z +3.46
+j_green_joker            157  0.236  0.154  +0.081  z +2.84
+j_four_fingers            36  0.306  0.142  +0.164  z +2.83
+j_golden                  71  0.268  0.150  +0.118  z +2.81
+j_fortune_teller          50  0.280  0.152  +0.128  z +2.54
+j_square                  41  0.293  0.159  +0.134  z +2.36
+j_riff_raff               79  0.241  0.152  +0.088  z +2.21
+j_ramen                   77  0.247  0.156  +0.090  z +2.20
+j_stuntman                67  0.239  0.153  +0.086  z +1.96
+j_lusty_joker             55  0.255  0.160  +0.095  z +1.93
+j_brainstorm              41  0.268  0.159  +0.109  z +1.93
+j_throwback               61  0.246  0.166  +0.080  z +1.68
+j_hallucination           38  0.237  0.158  +0.079  z +1.35
+j_juggler                 50  0.220  0.153  +0.067  z +1.32
+j_odd_todd               110  0.191  0.149  +0.042  z +1.25
+j_duo                     46  0.217  0.155  +0.062  z +1.18
+j_selzer                  52  0.212  0.154  +0.057  z +1.15
+j_red_card               128  0.188  0.160  +0.027  z +0.84
+j_banner                  66  0.182  0.156  +0.026  z +0.58
+j_egg                     56  0.179  0.154  +0.025  z +0.52
+j_blue_joker             141  0.170  0.157  +0.014  z +0.45
+j_fibonacci               64  0.172  0.158  +0.014  z +0.31
+j_greedy_joker            33  0.182  0.168  +0.014  z +0.22
+j_splash                 111  0.162  0.158  +0.004  z +0.13
+j_ride_the_bus            55  0.164  0.166  -0.002  z -0.04
+j_baseball                38  0.158  0.160  -0.003  z -0.04
+j_smeared                 41  0.146  0.154  -0.008  z -0.14
+j_delayed_grat            34  0.147  0.160  -0.013  z -0.20
+j_burglar                 46  0.152  0.163  -0.011  z -0.21
+j_hanging_chad           115  0.148  0.155  -0.007  z -0.22
+j_supernova               66  0.152  0.163  -0.011  z -0.25
+j_raised_fist            182  0.154  0.161  -0.008  z -0.28
+j_credit_card             31  0.129  0.147  -0.018  z -0.29
+j_crazy                   53  0.132  0.167  -0.035  z -0.68
+j_shoot_the_moon         110  0.136  0.160  -0.024  z -0.68
+j_space                   42  0.119  0.161  -0.041  z -0.74
+j_wily                    46  0.109  0.154  -0.045  z -0.85
+j_wrathful_joker          43  0.093  0.151  -0.058  z -1.07
+j_ice_cream              119  0.118  0.156  -0.038  z -1.16
+j_half                   170  0.129  0.165  -0.035  z -1.25
+j_clever                  64  0.094  0.149  -0.055  z -1.25
+j_jolly                  136  0.125  0.166  -0.041  z -1.31
+j_even_steven             86  0.105  0.160  -0.055  z -1.41
+j_scholar                 48  0.083  0.168  -0.085  z -1.58
+j_joker                   67  0.075  0.160  -0.086  z -1.93
+j_walkie_talkie           50  0.060  0.166  -0.106  z -2.04
+j_gluttenous_joker        34  0.029  0.157  -0.127  z -2.06
+j_scary_face              85  0.071  0.149  -0.079  z -2.06
+j_misprint               147  0.102  0.165  -0.063  z -2.07
+j_photograph              46  0.043  0.163  -0.119  z -2.21
+j_wee                     35  0.029  0.170  -0.141  z -2.25
+j_abstract               203  0.108  0.172  -0.064  z -2.43
+j_popcorn                 96  0.073  0.167  -0.094  z -2.48
+j_gros_michel             82  0.049  0.169  -0.120  z -2.92
+j_mad                     76  0.039  0.165  -0.125  z -2.97
+j_swashbuckler           106  0.047  0.176  -0.128  z -3.50
+j_smiley                 100  0.020  0.168  -0.148  z -4.00
+j_mystic_summit          151  0.053  0.176  -0.123  z -4.01
+
+pairs held together entering ante 4 (at least 30 runs): runs, through ante 6, matched rate without the pair, z, best single holder rate
+j_odd_todd         j_red_card            32  0.344  0.160  z +2.87  single 0.191
+j_blue_joker       j_egg                 30  0.233  0.162  z +1.07  single 0.179
+j_abstract         j_red_card            35  0.114  0.161  z -0.75  single 0.188
+j_abstract         j_raised_fist         34  0.029  0.164  z -2.14  single 0.154
+j_mystic_summit    j_smiley              33  0.000  0.168  z -2.60  single 0.053
+
+hand jokers against the top hand (highest level, ties by plays) at each ante entered: held, matching, share
+ante 2    336    168  0.500
+ante 3    598    333  0.557
+ante 4    777    405  0.521
+ante 5    736    366  0.497
+ante 6    425    246  0.579
+ante 7    141     90  0.638
+ante 8     66     41  0.621
