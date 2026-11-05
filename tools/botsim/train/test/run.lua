@@ -818,6 +818,16 @@ do
     check(math.abs(RO.jvalue(je, s3, 4) - 0.50) < 1e-9, "jtab: an edition line adds to the joker")
     s3.j_ed[1] = D.ED_NEG
     check(math.abs(RO.jvalue(je, s3, 4) + 0.20) < 1e-9 and math.abs(RO.jvalue(jep, s3, 4) - 0.10) < 1e-9, "jtab: negative edition values, ro_jtp reads them as 0")
+    local path4 = os.tmpname()
+    local f4 = assert(io.open(path4, "w"))
+    f4:write("J 2 j_joker 0.10 40\nT 2 -0.25\nJ 3 j_joker 0.10 40\n")
+    f4:close()
+    local jt4 = RO.load_jtab(path4)
+    os.remove(path4)
+    local s4 = play_state("JTAB4", {"j_joker", "j_joker"})
+    s4.j_eternal[1] = 1
+    check(math.abs(RO.jvalue(jt4, s4, 2) - (0.20 - 0.25)) < 1e-9, "jtab: an eternal line adds to each eternal joker")
+    check(math.abs(RO.jvalue(jt4, s4, 3) - 0.20) < 1e-9, "jtab: no eternal line at that ante adds nothing")
 end
 
 do
