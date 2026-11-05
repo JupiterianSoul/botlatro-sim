@@ -828,6 +828,19 @@ do
     s4.j_eternal[1] = 1
     check(math.abs(RO.jvalue(jt4, s4, 2) - (0.20 - 0.25)) < 1e-9, "jtab: an eternal line adds to each eternal joker")
     check(math.abs(RO.jvalue(jt4, s4, 3) - 0.20) < 1e-9, "jtab: no eternal line at that ante adds nothing")
+    local path5 = os.tmpname()
+    local f5 = assert(io.open(path5, "w"))
+    f5:write("J 4 j_joker 0.10 40\nB 4 0.30\nJ 5 j_joker 0.10 40\n")
+    f5:close()
+    local jt5 = RO.load_jtab(path5)
+    os.remove(path5)
+    local s5 = play_state("JTAB5", {"j_joker"})
+    local pv = require("botsim.train.plan").eval(s5)
+    check(pv > 1 and math.abs(RO.jvalue(jt5, s5, 4) - (0.10 + 0.30 * math.log(pv))) < 1e-9, "jtab: a power line adds its value times the log of the plan value")
+    check(math.abs(RO.jvalue(jt5, s5, 5) - 0.10) < 1e-9, "jtab: no power line at that ante adds nothing")
+    local s6 = play_state("JTAB5", {"j_joker", "j_jolly"})
+    s6.h_level[D.HAND_ID["Pair"]] = 5
+    check(RO.jvalue(jt5, s6, 4) - RO.jvalue(jt5, s5, 4) > 0.01, "jtab: more plan power adds to the power line")
 end
 
 do
