@@ -9,7 +9,7 @@ SCAL = set("j_hologram j_trousers j_green_joker j_ride_the_bus j_runner j_square
 DECK = len(sys.argv) > 4 and sys.argv[4] == "d"
 NAMES = [("power", 9), ("top", 11), ("rest", 12), ("hplan", 13), ("oplan", 14)]
 if DECK:
-    NAMES = [(g, 15 + q) for q, g in enumerate(["bonus", "mult", "glass", "steel", "gold", "lucky", "redseal", "oseal", "poly", "foilholo", "telescope", "observatory"])]
+    NAMES = [(g, 15 + q) for q, g in enumerate(["bonus", "mult", "glass", "steel", "gold", "lucky", "redseal", "oseal", "poly", "foilholo", "telescope", "observatory", "obsplan"])]
 rows = {}
 i = 0
 for g in sys.argv[2].split(","):
@@ -35,7 +35,7 @@ for g in sys.argv[2].split(","):
                 if DECK:
                     if "enh" not in r: continue
                     e, sl, ed = r["enh"], r["seal"], r["ced"]
-                    new += [e[0], e[1], e[3], e[4], e[6], e[7], sl[1], sl[0] + sl[2] + sl[3], ed[2], ed[0] + ed[1], int("v_telescope" in r["v"]), int("v_observatory" in r["v"])]
+                    new += [e[0], e[1], e[3], e[4], e[6], e[7], sl[1], sl[0] + sl[2] + sl[3], ed[2], ed[0] + ed[1], int("v_telescope" in r["v"]), int("v_observatory" in r["v"]), hp * int("v_observatory" in r["v"])]
                 rows.setdefault(r["ante"], []).append((sc, i % 2, d["deck"], [r["nv"]] + c + [ns, poly, et, r["money"], lp, r["hsize"]] + new))
 decks = sorted({x[2] for a in rows for x in rows[a]})
 def inv(A):
