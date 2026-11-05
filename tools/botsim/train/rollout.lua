@@ -420,8 +420,9 @@ function M.chooser(mc, rmc, opt)
     return function(s, seed, moves)
         root_money, root_ante = s.money, s.ante
         jt_on = JT ~= nil and (s.phase == "shop" or s.phase == "pack") and s.ante >= JTA
-        if jt_on then root_jv, root_s, root_jva = M.jvalue(JT, s, s.ante), s, {} end
-        if PW ~= 0 then root_lp = M.log_power(s) or 0 end
+        local rs = (jt_on or PW ~= 0) and F.sanitize(s) or s
+        if jt_on then root_jv, root_s, root_jva = M.jvalue(JT, rs, s.ante), rs, {} end
+        if PW ~= 0 then root_lp = M.log_power(rs) or 0 end
         if ORDMEMO then omemo = {} end
         if TT then TT:update_plan(s) end
         local ef, ec = mc:root_edges()
