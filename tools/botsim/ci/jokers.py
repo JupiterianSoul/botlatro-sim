@@ -34,8 +34,85 @@ def load(globs):
                     continue
                 final = d["ante"] + (1 if d["won"] else 0)
                 rows = {r["a"]: r for r in d["jl"]}
-                runs.append({"deck": d["deck"], "final": final, "real": d["won"] == 1 and d["need"] == 0, "rows": rows})
+                score = 10.0 if d["won"] else float(d["ante"])
+                vl = {r["ante"]: r for r in d.get("vl", [])}
+                runs.append({"deck": d["deck"], "final": final, "score": score, "real": d["won"] == 1 and d["need"] == 0, "rows": rows, "vl": vl})
     return runs
+
+
+def write_rtab(runs, path, mn, lo=2, hi=8):
+    out, info = [], []
+    for ante in range(lo, hi + 1):
+        entry = [r for r in runs if ante in r["rows"] and ante in r["vl"]]
+        if len(entry) < 50:
+            continue
+        xs = [r["vl"][ante]["nv"] for r in entry]
+        ys = [r["score"] for r in entry]
+        mx, my = sum(xs) / len(xs), sum(ys) / len(ys)
+        sxx = sum((x - mx) ** 2 for x in xs)
+        b = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / sxx if sxx > 0 else 0.0
+        c = my - b * mx
+        sres = math.sqrt(sum((y - c - b * x) ** 2 for x, y in zip(xs, ys)) / len(xs))
+        sraw = math.sqrt(sum((y - my) ** 2 for y in ys) / len(ys))
+        k = 9.0 / b if b > 1.0 else 0.0
+        info.append("ante %d runs %d score = %.3f + %.3f nv, sd %.3f raw %.3f, leaf units per score %.3f" % (ante, len(entry), c, b, sres, sraw, k))
+        if k == 0.0:
+            continue
+        for r in entry:
+            r["res"] = r["score"] - c - b * r["vl"][ante]["nv"]
+        keys = lambda r, a=ante: {k.split(":")[0] for k in r["rows"][a]["j"]}
+        top = lambda r, a=ante: r["rows"][a]["t"]
+
+        def value(holds):
+            by = defaultdict(lambda: [0, 0.0, 0.0])
+            for r in entry:
+                if not holds(r):
+                    x = by[(r["deck"], njok(r, ante))]
+                    x[0] += 1
+                    x[1] += r["res"]
+                    x[2] += r["res"] ** 2
+            ds = []
+            for r in entry:
+                if holds(r):
+                    x = by[(r["deck"], njok(r, ante))]
+                    if x[0] < 3:
+                        continue
+                    m = x[1] / x[0]
+                    ds.append((r["res"] - m, max(x[2] / x[0] - m * m, 0.0) / x[0]))
+            n = len(ds)
+            if n < 2:
+                return n, 0.0, 1e9
+            d = sum(a for a, _ in ds) / n
+            v = sum((a - d) ** 2 for a, _ in ds) / (n - 1) / n + sum(e for _, e in ds) / n / n
+            return n, d, v
+
+        count = defaultdict(int)
+        for r in entry:
+            for j in keys(r):
+                count[j] += 1
+        raw = {}
+        for j, cnt in sorted(count.items()):
+            if cnt < mn:
+                continue
+            raw[("J", j)] = value(lambda r, j=j: j in keys(r))
+            h = HAND_JOKER.get(j)
+            if h:
+                raw[("F", j)] = value(lambda r, j=j: j in keys(r) and top(r) in CONTAINS[h])
+                raw[("O", j)] = value(lambda r, j=j: j in keys(r) and top(r) not in CONTAINS[h])
+        js = [x for kk, x in raw.items() if kk[0] == "J" and x[0] >= mn]
+        if len(js) < 3:
+            continue
+        md = sum(x[1] for x in js) / len(js)
+        tau2 = max(sum((x[1] - md) ** 2 for x in js) / (len(js) - 1) - sum(x[2] for x in js) / len(js), 0.0)
+        info.append("ante %d jokers %d spread of true effects %.3f (score units), mean noise %.3f" % (ante, len(js), math.sqrt(tau2), math.sqrt(sum(x[2] for x in js) / len(js))))
+        if tau2 <= 0:
+            continue
+        for (kind, j), (n, d, v) in sorted(raw.items()):
+            if n < (mn if kind == "J" else mn // 2):
+                continue
+            out.append("%s %d %s %.4f %d" % (kind, ante, j, d * tau2 / (tau2 + v) * k, n))
+    open(path, "w").write("\n".join(out) + "\n")
+    return len(out), info
 
 
 def matched(entry, holds, ok):
@@ -128,7 +205,7 @@ def main(argv):
     if len(argv) < 2:
         print("jokers.py GLOB... [--ante 4] [--min 30] [--out FILE] [--tab FILE]  (joker held entering the ante against runs without it, matched by deck: share that get through the next two antes)")
         return 2
-    ante, mn, out, tab, globs = 4, 30, None, None, []
+    ante, mn, out, tab, rtab, globs = 4, 30, None, None, None, []
     i = 1
     while i < len(argv):
         if argv[i] == "--ante":
@@ -139,12 +216,18 @@ def main(argv):
             out, i = argv[i + 1], i + 2
         elif argv[i] == "--tab":
             tab, i = argv[i + 1], i + 2
+        elif argv[i] == "--rtab":
+            rtab, i = argv[i + 1], i + 2
         else:
             globs.append(argv[i])
             i += 1
     runs = load(globs)
     if tab:
         print("table lines", write_tab(runs, tab, mn), "in", tab)
+    if rtab:
+        n, info = write_rtab(runs, rtab, mn)
+        print("\n".join(info))
+        print("residual table lines", n, "in", rtab)
     entry = [r for r in runs if ante in r["rows"]]
     goal = ante + 3
     ok = lambda r: 1 if r["final"] >= goal else 0

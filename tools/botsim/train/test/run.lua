@@ -797,6 +797,63 @@ do
     s2.h_level[D.HAND_ID["Pair"]] = 1
     s2.h_level[D.HAND_ID["Flush"]] = 4
     check(math.abs(RO.jvalue(jt, s2, 4) - (0.10 - 0.20 + 0.07)) < 1e-9, "jtab: a hand joker off the top hand uses its off value")
+    local path2 = os.tmpname()
+    local f2 = assert(io.open(path2, "w"))
+    f2:write("J 4 j_joker -0.10 40\nJ 4 j_jolly 0.05 30\nO 4 j_jolly -0.20 10\nP 4 j_joker j_jolly -0.07 30\n")
+    f2:close()
+    local jp = RO.load_jtab(path2, true)
+    local jn = RO.load_jtab(path2)
+    os.remove(path2)
+    check(math.abs(RO.jvalue(jp, s2, 4)) < 1e-9 and math.abs(RO.jvalue(jn, s2, 4) - (-0.10 - 0.20 - 0.07)) < 1e-9, "jtab: ro_jtp reads negative values as 0")
+end
+
+do
+    local RO = require("botsim.train.rollout")
+    local s = play_state("LPOW1", {"j_joker"})
+    local lp = RO.log_power(s)
+    check(lp ~= nil and lp == lp and lp < 50 and lp > -50, "log_power: finite on a play state")
+    local s2 = play_state("LPOW1", {"j_joker", "j_jolly"})
+    s2.h_level[D.HAND_ID["Pair"]] = 5
+    check(RO.log_power(s2) > lp, "log_power: more jokers and a levelled hand give more power")
+end
+do
+    local RO = require("botsim.train.rollout")
+    local PLY = require("bot.seer.play")
+    local path = os.tmpname()
+    local f = assert(io.open(path, "w"))
+    f:write("J 1 j_joker 0.50 40\nJ 1 j_jolly -0.90 40\n")
+    f:close()
+    local jt = RO.load_jtab(path)
+    os.remove(path)
+    local s
+    for n = 1, 30 do
+        local t = play_state("JTS" .. n)
+        t.blind_chips = 1
+        for _ = 1, 20 do
+            if t.phase == "shop" then break end
+            if t.phase == "play" then E.step(t, PLY.fast_action(t)) else MC.advance_forced(t) end
+        end
+        local has = false
+        for k = 1, t.n_sj do if t.sj_kind[k] == 1 then has = true end end
+        if t.phase == "shop" and has then s = t break end
+    end
+    check(s ~= nil, "jts: a shop with a joker reached")
+    if s then
+        s.money = 100
+        s.n_jok = 0
+        for _, k in ipairs({"j_greedy_joker", "j_jolly", "j_lusty_joker", "j_joker", "j_wrathful_joker"}) do E.add_joker(s, k) end
+        s.money = 100
+        local jpos
+        for j = 1, s.n_jok do if D.JOKERS[s.j_id[j]].key == "j_jolly" then jpos = j end end
+        local plain = RO.joker_extras(s, {})
+        local with = RO.joker_extras(s, {}, jt)
+        local psell = plain[1] and plain[1].a.card
+        local sells = {}
+        for _, x in ipairs(with) do sells[x.a.card] = true end
+        check(#plain > 0 and s.n_jok == s.joker_limit, "jts: full slots give swap candidates")
+        check(sells[jpos] == true, "jts: the table's weakest joker is offered as the sell")
+        check((psell ~= jpos and #with == 2 * #plain) or (psell == jpos and #with == #plain), "jts: table sells are added beside the plan sells, not instead")
+    end
 end
 print(string.format("nn tests: %d passed, %d failed", passed, failed))
 os.exit(failed == 0 and 0 or 1)

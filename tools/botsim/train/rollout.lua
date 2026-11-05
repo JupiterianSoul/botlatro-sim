@@ -25,24 +25,25 @@ local CONTAINS = {
     ["Straight Flush"] = {"Straight Flush"},
 }
 
-function M.load_jtab(path)
+function M.load_jtab(path, pos)
     local f = assert(io.open(path))
     local jt = {lo = 99, hi = 0}
     for line in f:lines() do
         local w = {}
         for x in line:gmatch("%S+") do w[#w + 1] = x end
         local kind, a, x, y = w[1], tonumber(w[2]), w[3], w[4]
-        local v = kind == "P" and w[5] or y
+        local v = tonumber(kind == "P" and w[5] or y)
+        if pos and v and v < 0 then v = 0 end
         if kind and a then
             jt[a] = jt[a] or {j = {}, fit = {}, off = {}, pair = {}}
             jt.lo, jt.hi = math.min(jt.lo, a), math.max(jt.hi, a)
             local t = jt[a]
-            if kind == "J" then t.j[D.JOKER_ID[x] or -1] = tonumber(v)
-            elseif kind == "F" then t.fit[D.JOKER_ID[x] or -1] = tonumber(v)
-            elseif kind == "O" then t.off[D.JOKER_ID[x] or -1] = tonumber(v)
+            if kind == "J" then t.j[D.JOKER_ID[x] or -1] = v
+            elseif kind == "F" then t.fit[D.JOKER_ID[x] or -1] = v
+            elseif kind == "O" then t.off[D.JOKER_ID[x] or -1] = v
             elseif kind == "P" then
                 local i, k = D.JOKER_ID[x], D.JOKER_ID[y]
-                if i and k then t.pair[math.min(i, k) * 1000 + math.max(i, k)] = tonumber(v) end
+                if i and k then t.pair[math.min(i, k) * 1000 + math.max(i, k)] = v end
             end
         end
     end
@@ -85,6 +86,13 @@ function M.jvalue(jt, w, ante)
         end
     end
     return v
+end
+
+function M.log_power(w)
+    local pv = P.eval(w)
+    local need = P.need(w)
+    if not pv or pv <= 0 or not need or need <= 0 then return nil end
+    return math.log(pv / need)
 end
 
 local LEAVE, SKIP = {type = "leave"}, {type = "skip"}
@@ -162,7 +170,7 @@ local function same_pick(x, y)
     return true
 end
 
-local function joker_extras(base, cands)
+local function joker_extras(base, cands, jt)
     if base.phase ~= "shop" then return {} end
     local out = {}
     local function have(a)
@@ -185,6 +193,20 @@ local function joker_extras(base, cands)
         end
         if not sell then return out end
     end
+    local sell2
+    if sell and jt then
+        local bv
+        for j = 1, base.n_jok do
+            if base.j_eternal[j] == 0 then
+                local w = ST.clone(base)
+                if E.sell(w, "jokers", j) then
+                    local v = M.jvalue(jt, w, base.ante)
+                    if not bv or v > bv then bv, sell2 = v, j end
+                end
+            end
+        end
+        if sell2 == sell then sell2 = nil end
+    end
     for k = 1, base.n_sj do
         if base.sj_kind[k] == 1 then
             local buy = {type = "buy", card = k}
@@ -192,6 +214,11 @@ local function joker_extras(base, cands)
             if sell then
                 local sa = {type = "sell", area = "jokers", card = sell}
                 if E.step(w, sa) and E.step(w, buy) then out[#out + 1] = {a = sa, seq = {sa, buy}} end
+                if sell2 then
+                    local w2 = ST.clone(base)
+                    local sb = {type = "sell", area = "jokers", card = sell2}
+                    if E.step(w2, sb) and E.step(w2, buy) then out[#out + 1] = {a = sb, seq = {sb, buy}} end
+                end
             elseif not have(buy) and E.step(w, buy) then
                 out[#out + 1] = {a = buy}
             end
@@ -199,6 +226,8 @@ local function joker_extras(base, cands)
     end
     return out
 end
+
+M.joker_extras = joker_extras
 
 function M.chooser(mc, rmc, opt)
     local RES = (opt.ro_res or "") ~= "" and load_res(opt.ro_res) or nil
@@ -218,8 +247,15 @@ function M.chooser(mc, rmc, opt)
     local ECON_A = tonumber(opt.ro_econ_a) or 3
     local DK = tonumber(opt.ro_deck) or 0
     local JTW = tonumber(opt.ro_jt) or 0
-    local JT = JTW ~= 0 and M.load_jtab(opt.ro_jtab) or nil
+    local JT = JTW ~= 0 and M.load_jtab(opt.ro_jtab, (tonumber(opt.ro_jtp) or 0) > 0) or nil
+    local JTA = tonumber(opt.ro_jt_a) or 0
     local root_jv, jt_on = 0, false
+    local JTS = (tonumber(opt.ro_jts) or 0) > 0
+    local JTH = (tonumber(opt.ro_jth) or 0) > 0
+    local PW = tonumber(opt.ro_pw) or 0
+    local PW_A = tonumber(opt.ro_pw_a) or 0
+    local root_lp = 0
+    local root_s, root_jva = nil, {}
     local DKC = (tonumber(opt.ro_deckc) or 0) > 0 and require("botsim.train.teach").new({t_all = 1, t_deck = opt.t_deck}) or nil
     local DKC2 = DKC and (tonumber(opt.ro_deckc) or 0) >= 2
     local function deck_step(w)
@@ -328,7 +364,19 @@ function M.chooser(mc, rmc, opt)
                 v = v + ECON * (w.interest_amount or 1) * math.min(math.floor(math.max(w.money, 0) / 5), (w.interest_cap or 25) / 5) / 5
             end
             if DK ~= 0 and root_plan then v = v + DK * (P.reach(w, root_plan) - root_reach) end
-            if jt_on then v = v + JTW * (M.jvalue(JT, w, root_ante) - root_jv) end
+            if PW ~= 0 and w.ante >= PW_A then
+                local lp = M.log_power(w)
+                if lp then v = v + PW * (lp - root_lp) end
+            end
+            if jt_on and JTH then
+                local a = w.ante
+                local r = root_jva[a]
+                if not r then
+                    r = M.jvalue(JT, root_s, a)
+                    root_jva[a] = r
+                end
+                v = v + JTW * (M.jvalue(JT, w, a) - r)
+            elseif jt_on then v = v + JTW * (M.jvalue(JT, w, root_ante) - root_jv) end
             if VM ~= 1 then w.money = math.floor(root_money + VM * (w.money - root_money) + 0.5) end
             if opt.ro_net ~= 0 then
                 rmc:search(w, 0, {noise = 0, reuse = false, adaptive = true})
@@ -371,8 +419,9 @@ function M.chooser(mc, rmc, opt)
 
     return function(s, seed, moves)
         root_money, root_ante = s.money, s.ante
-        jt_on = JT ~= nil and (s.phase == "shop" or s.phase == "pack")
-        if jt_on then root_jv = M.jvalue(JT, s, s.ante) end
+        jt_on = JT ~= nil and (s.phase == "shop" or s.phase == "pack") and s.ante >= JTA
+        if jt_on then root_jv, root_s, root_jva = M.jvalue(JT, s, s.ante), s, {} end
+        if PW ~= 0 then root_lp = M.log_power(s) or 0 end
         if ORDMEMO then omemo = {} end
         if TT then TT:update_plan(s) end
         local ef, ec = mc:root_edges()
@@ -416,7 +465,7 @@ function M.chooser(mc, rmc, opt)
             end
         end
         if (tonumber(opt.ro_swap) or 0) > 0 then
-            for _, x in ipairs(joker_extras(base, cands)) do
+            for _, x in ipairs(joker_extras(base, cands, JTS and JT or nil)) do
                 local e
                 for i = 0, ec - 1 do
                     mc:edge_action(ef + i, step, base)
