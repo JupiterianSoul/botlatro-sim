@@ -146,7 +146,7 @@ run() {
         echo "- Boxes: $($HZ list 2>/dev/null | head -1)"
         echo "- Logs: $LOGS"
     } >>"$REPORT"
-    git add "$REPORT" && "${GIT[@]}" commit -qm "Night report $DAY" && git push -q origin main >>"$LOGS/night.log" 2>&1
+    git push -q origin main >>"$LOGS/night.log" 2>&1
     say "night finished, main at $(git rev-parse --short HEAD)"
 }
 

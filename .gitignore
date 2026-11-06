@@ -10,3 +10,9 @@ __pycache__/
 .venv/
 *.tmp
 tools/botsim/c/libbotsim.so
+HANDOVER.md
+tools/botsim/NOTES.md
+tools/botsim/cloud/SPEND.md
+tools/botsim/cloud/spend.json
+tools/botsim/night/*.md
+tools/botsim/night/trace_list.txt
