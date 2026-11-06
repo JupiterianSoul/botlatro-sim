@@ -16,3 +16,4 @@ tools/botsim/cloud/SPEND.md
 tools/botsim/cloud/spend.json
 tools/botsim/night/*.md
 tools/botsim/night/trace_list.txt
+tools/botsim/night/rd*.sh
