@@ -4,7 +4,7 @@
   "jobs": [
    {
     "label": "wait",
-    "cmd": "for i in $(seq 1 320); do s=$(gh run view 42270952544 -R JupiterianSoul/botlatro-sim --json status -q .status); [ \"$s\" = completed ] && break; sleep 60; done; echo run 42270952544 $s; true",
+    "cmd": "for i in $(seq 1 320); do s=$(gh run view 42278897020 -R JupiterianSoul/botlatro-sim --json status -q .status); [ \"$s\" = completed ] && break; sleep 60; done; echo run 42278897020 $s; true",
     "timeout": 345
    }
   ]
@@ -14,7 +14,7 @@
   "jobs": [
    {
     "label": "wait",
-    "cmd": "for i in $(seq 1 320); do s=$(gh run view 42270952544 -R JupiterianSoul/botlatro-sim --json status -q .status); [ \"$s\" = completed ] && break; sleep 60; done; echo run 42270952544 $s; true",
+    "cmd": "for i in $(seq 1 320); do s=$(gh run view 42278897020 -R JupiterianSoul/botlatro-sim --json status -q .status); [ \"$s\" = completed ] && break; sleep 60; done; echo run 42278897020 $s; true",
     "timeout": 345
    }
   ]
@@ -24,7 +24,7 @@
   "jobs": [
    {
     "label": "wait",
-    "cmd": "for i in $(seq 1 320); do s=$(gh run view 42270952544 -R JupiterianSoul/botlatro-sim --json status -q .status); [ \"$s\" = completed ] && break; sleep 60; done; echo run 42270952544 $s; [ \"$s\" = completed ]",
+    "cmd": "for i in $(seq 1 320); do s=$(gh run view 42278897020 -R JupiterianSoul/botlatro-sim --json status -q .status); [ \"$s\" = completed ] && break; sleep 60; done; echo run 42278897020 $s; [ \"$s\" = completed ]",
     "timeout": 345
    }
   ]
@@ -34,19 +34,19 @@
   "jobs": [
    {
     "label": "n14c",
-    "cmd": "gh run download 42270952544 -R JupiterianSoul/botlatro-sim -p 'dat14-dat-*' -D gen/42270952544; gh run download 42210111337 -R JupiterianSoul/botlatro-sim -n n13-n13c -D ft || exit 1; PYTHONPATH=tools/botsim/train python3 tools/botsim/train/trim.py $(find gen -name 'x*.bspr'); for d in gen/*; do PYTHONPATH=tools/botsim/train python3 tools/botsim/train/relabel.py $d; done; find gen -name 'x*.bspr' -size +0c | wc -l; python3 tools/botsim/train/train.py --data $(find gen -name 'x*.bspr' -size +0c | sort) --init ft/net.bnnw --policy-min-sims 1 --window 0 --value-ante 1 --value-weight 1 --value-win 0 --anchor 1 --chosen 1 --gf 333 --steps 20000 --time-limit 17000 --ckpt $OUT/ckpt.pt --out $OUT/net.bnnw > $OUT/train.txt 2>&1; grep -E 'resumed|time limit|checkpoint|^records' $OUT/train.txt; tail -2 $OUT/train.txt; test -s $OUT/net.bnnw && test -s $OUT/ckpt.pt",
+    "cmd": "gh run download 42278897020 -R JupiterianSoul/botlatro-sim -p 'dat14-dat-*' -D gen/42278897020; gh run download 42210111337 -R JupiterianSoul/botlatro-sim -n n13-n13c -D ft || exit 1; PYTHONPATH=tools/botsim/train python3 tools/botsim/train/trim.py $(find gen -name 'x*.bspr'); for d in gen/*; do PYTHONPATH=tools/botsim/train python3 tools/botsim/train/relabel.py $d; done; find gen -name 'x*.bspr' -size +0c | wc -l; python3 tools/botsim/train/train.py --data $(find gen -name 'x*.bspr' -size +0c | sort) --init ft/net.bnnw --policy-min-sims 1 --window 0 --value-ante 1 --value-weight 1 --value-win 0 --anchor 1 --chosen 1 --gf 333 --steps 20000 --time-limit 17000 --ckpt $OUT/ckpt.pt --out $OUT/net.bnnw > $OUT/train.txt 2>&1; grep -E 'resumed|time limit|checkpoint|^records' $OUT/train.txt; tail -2 $OUT/train.txt; test -s $OUT/net.bnnw && test -s $OUT/ckpt.pt",
     "torch": true,
     "timeout": 350
    },
    {
     "label": "n14m",
-    "cmd": "gh run download 42207582470 -R JupiterianSoul/botlatro-sim -p 'bench-dat-*' -D gen/42207582470; gh run download 42270952544 -R JupiterianSoul/botlatro-sim -p 'dat14-dat-*' -D gen/42270952544; gh run download 42210111337 -R JupiterianSoul/botlatro-sim -n n13-n13c -D ft || exit 1; PYTHONPATH=tools/botsim/train python3 tools/botsim/train/trim.py $(find gen -name 'x*.bspr'); for d in gen/*; do PYTHONPATH=tools/botsim/train python3 tools/botsim/train/relabel.py $d; done; find gen -name 'x*.bspr' -size +0c | wc -l; python3 tools/botsim/train/train.py --data $(find gen -name 'x*.bspr' -size +0c | sort) --init ft/net.bnnw --policy-min-sims 1 --window 0 --value-ante 1 --value-weight 1 --value-win 0 --anchor 1 --chosen 1 --gf 333 --steps 30000 --time-limit 17000 --ckpt $OUT/ckpt.pt --out $OUT/net.bnnw > $OUT/train.txt 2>&1; grep -E 'resumed|time limit|checkpoint|^records' $OUT/train.txt; tail -2 $OUT/train.txt; test -s $OUT/net.bnnw && test -s $OUT/ckpt.pt",
+    "cmd": "gh run download 42207582470 -R JupiterianSoul/botlatro-sim -p 'bench-dat-*' -D gen/42207582470; gh run download 42278897020 -R JupiterianSoul/botlatro-sim -p 'dat14-dat-*' -D gen/42278897020; gh run download 42210111337 -R JupiterianSoul/botlatro-sim -n n13-n13c -D ft || exit 1; PYTHONPATH=tools/botsim/train python3 tools/botsim/train/trim.py $(find gen -name 'x*.bspr'); for d in gen/*; do PYTHONPATH=tools/botsim/train python3 tools/botsim/train/relabel.py $d; done; find gen -name 'x*.bspr' -size +0c | wc -l; python3 tools/botsim/train/train.py --data $(find gen -name 'x*.bspr' -size +0c | sort) --init ft/net.bnnw --policy-min-sims 1 --window 0 --value-ante 1 --value-weight 1 --value-win 0 --anchor 1 --chosen 1 --gf 333 --steps 30000 --time-limit 17000 --ckpt $OUT/ckpt.pt --out $OUT/net.bnnw > $OUT/train.txt 2>&1; grep -E 'resumed|time limit|checkpoint|^records' $OUT/train.txt; tail -2 $OUT/train.txt; test -s $OUT/net.bnnw && test -s $OUT/ckpt.pt",
     "torch": true,
     "timeout": 350
    },
    {
     "label": "n14r",
-    "cmd": "gh run download 42207582470 -R JupiterianSoul/botlatro-sim -p 'bench-dat-*' -D gen/42207582470; gh run download 42270952544 -R JupiterianSoul/botlatro-sim -p 'dat14-dat-*' -D gen/42270952544; gh run download 41234932764 -R JupiterianSoul/botlatro-sim -n r5val-net -D ft || exit 1; PYTHONPATH=tools/botsim/train python3 tools/botsim/train/trim.py $(find gen -name 'x*.bspr'); for d in gen/*; do PYTHONPATH=tools/botsim/train python3 tools/botsim/train/relabel.py $d; done; find gen -name 'x*.bspr' -size +0c | wc -l; python3 tools/botsim/train/train.py --data $(find gen -name 'x*.bspr' -size +0c | sort) --init ft/net.bnnw --policy-min-sims 1 --window 0 --value-ante 1 --value-weight 1 --value-win 0 --anchor 1 --chosen 1 --gf 333 --steps 30000 --time-limit 17000 --ckpt $OUT/ckpt.pt --out $OUT/net.bnnw > $OUT/train.txt 2>&1; grep -E 'resumed|time limit|checkpoint|^records' $OUT/train.txt; tail -2 $OUT/train.txt; test -s $OUT/net.bnnw && test -s $OUT/ckpt.pt",
+    "cmd": "gh run download 42207582470 -R JupiterianSoul/botlatro-sim -p 'bench-dat-*' -D gen/42207582470; gh run download 42278897020 -R JupiterianSoul/botlatro-sim -p 'dat14-dat-*' -D gen/42278897020; gh run download 41234932764 -R JupiterianSoul/botlatro-sim -n r5val-net -D ft || exit 1; PYTHONPATH=tools/botsim/train python3 tools/botsim/train/trim.py $(find gen -name 'x*.bspr'); for d in gen/*; do PYTHONPATH=tools/botsim/train python3 tools/botsim/train/relabel.py $d; done; find gen -name 'x*.bspr' -size +0c | wc -l; python3 tools/botsim/train/train.py --data $(find gen -name 'x*.bspr' -size +0c | sort) --init ft/net.bnnw --policy-min-sims 1 --window 0 --value-ante 1 --value-weight 1 --value-win 0 --anchor 1 --chosen 1 --gf 333 --steps 30000 --time-limit 17000 --ckpt $OUT/ckpt.pt --out $OUT/net.bnnw > $OUT/train.txt 2>&1; grep -E 'resumed|time limit|checkpoint|^records' $OUT/train.txt; tail -2 $OUT/train.txt; test -s $OUT/net.bnnw && test -s $OUT/ckpt.pt",
     "torch": true,
     "timeout": 350
    }
