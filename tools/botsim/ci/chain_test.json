@@ -1,0 +1,34 @@
+[
+ {
+  "tag": "cht-p1",
+  "jobs": [
+   {
+    "label": "p",
+    "cmd": "gh run download 41608166057 -R JupiterianSoul/botlatro-sim -p 'bench-dat-*' -D gen/41608166057; gh run download 41234932764 -R JupiterianSoul/botlatro-sim -n r5val-net -D ft; PYTHONPATH=tools/botsim/train python3 tools/botsim/train/trim.py $(find gen -name 'x*.bspr'); for d in gen/*; do PYTHONPATH=tools/botsim/train python3 tools/botsim/train/relabel.py $d; done; find gen -name 'x*.bspr' -size +0c | wc -l; python3 tools/botsim/train/train.py --data $(find gen -name 'x*.bspr' -size +0c | sort) --init ft/net.bnnw --policy-min-sims 1 --window 0 --value-ante 1 --value-weight 1 --value-win 0 --anchor 1 --chosen 1 --gf 342 --steps 900 --time-limit 60 --ckpt $OUT/ckpt.pt --out $OUT/net.bnnw > $OUT/train.txt 2>&1; grep -E 'resumed|time limit|checkpoint|^records' $OUT/train.txt; tail -2 $OUT/train.txt; test -s $OUT/net.bnnw && test -s $OUT/ckpt.pt",
+    "torch": true,
+    "timeout": 350
+   }
+  ]
+ },
+ {
+  "tag": "cht-p2",
+  "jobs": [
+   {
+    "label": "p",
+    "cmd": "gh run download 41608166057 -R JupiterianSoul/botlatro-sim -p 'bench-dat-*' -D gen/41608166057; gh run download 41234932764 -R JupiterianSoul/botlatro-sim -n r5val-net -D ft; PYTHONPATH=tools/botsim/train python3 tools/botsim/train/trim.py $(find gen -name 'x*.bspr'); for d in gen/*; do PYTHONPATH=tools/botsim/train python3 tools/botsim/train/relabel.py $d; done; find gen -name 'x*.bspr' -size +0c | wc -l; gh run download $PREV -R JupiterianSoul/botlatro-sim -n cht-p1-p -D prev || exit 1; ls -la prev/ckpt.pt || exit 1; python3 tools/botsim/train/train.py --data $(find gen -name 'x*.bspr' -size +0c | sort) --init ft/net.bnnw --policy-min-sims 1 --window 0 --value-ante 1 --value-weight 1 --value-win 0 --anchor 1 --chosen 1 --gf 342 --steps 900 --time-limit 60 --ckpt $OUT/ckpt.pt --resume prev/ckpt.pt --out $OUT/net.bnnw > $OUT/train.txt 2>&1; grep -E 'resumed|time limit|checkpoint|^records' $OUT/train.txt; tail -2 $OUT/train.txt; test -s $OUT/net.bnnw && test -s $OUT/ckpt.pt",
+    "torch": true,
+    "timeout": 350
+   }
+  ]
+ },
+ {
+  "tag": "cht-m",
+  "jobs": [
+   {
+    "label": "z1-red",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd \"$PREV\" 'z1=cht-p2-p@s41601@dred@ojlog=1+vlog=1+fe_ext=1' z1-red > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   }
+  ]
+ }
+]

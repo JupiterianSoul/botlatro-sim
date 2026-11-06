@@ -18,6 +18,15 @@ on:
       dir:
         description: autopilot store dir
         default: autopilot
+      then:
+        description: chain file (JSON list of {tag, jobs}) whose next entry runs when this run succeeds, or empty
+        default: ''
+      step:
+        description: index of this run in the chain file
+        default: '0'
+      prev:
+        description: run id of the previous run in the chain
+        default: ''
 
 env:
   LUAJIT_COMMIT: 2a8e017ef1ece6a95b983ffca073d30609dce7c4
@@ -86,6 +95,7 @@ jobs:
         env:
           CMD: ${{ matrix.job.cmd }}
           GH_TOKEN: ${{ github.token }}
+          PREV: ${{ inputs.prev }}
         run: |
           mkdir -p out
           export OUT="$PWD/out" CORES="$(nproc)"
@@ -113,6 +123,31 @@ jobs:
         run: |
           for i in 1 2 3 4 5; do
             gh workflow run botsim-autopilot.yml --ref "$CHAIN" -f command=tick -f dir="$DIR" && exit 0
+            sleep $((i * 20))
+          done
+          exit 1
+
+  then:
+    needs: run
+    if: always() && github.event_name == 'workflow_dispatch' && inputs.then != '' && needs.run.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Next run of the chain
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          THEN: ${{ inputs.then }}
+          STEP: ${{ inputs.step }}
+        run: |
+          n=$((STEP + 1))
+          python3 -c "import json, sys; c = json.load(open(sys.argv[1])); n = int(sys.argv[2]); n < len(c) and open('next.json', 'w').write(json.dumps(c[n]['jobs'])); n < len(c) and open('tag.txt', 'w').write(c[n]['tag'])" "$THEN" "$n"
+          [ -s next.json ] || { echo chain done at step $STEP; exit 0; }
+          for i in 1 2 3 4 5; do
+            gh workflow run botsim-work.yml --ref "$GITHUB_REF_NAME" -f tag="$(cat tag.txt)" -f jobs="$(cat next.json)" -f then="$THEN" -f step="$n" -f prev="$GITHUB_RUN_ID" -f chain= -f dir= && exit 0
             sleep $((i * 20))
           done
           exit 1

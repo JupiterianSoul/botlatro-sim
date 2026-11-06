@@ -1,0 +1,377 @@
+[
+ {
+  "tag": "m13w",
+  "jobs": [
+   {
+    "label": "wait",
+    "cmd": "for i in $(seq 1 330); do ok=1; rm -rf w; for a in n13a n13c n13p; do gh run download 42210111337 -R JupiterianSoul/botlatro-sim -n n13-$a -D w/$a >/dev/null 2>&1 || ok=0; done; gh run download 42219692173 -R JupiterianSoul/botlatro-sim -n n13-n13q -D w/n13q >/dev/null 2>&1 || ok=0; [ $ok = 1 ] && break; s=$(gh run view 42210111337 -R JupiterianSoul/botlatro-sim --json status -q .status)$(gh run view 42219692173 -R JupiterianSoul/botlatro-sim --json status -q .status); [ \"$s\" = completedcompleted ] && break; sleep 60; done; ls -la w/*/net.bnnw; ls w/*/net.bnnw | grep -c net",
+    "timeout": 345
+   }
+  ]
+ },
+ {
+  "tag": "m13",
+  "jobs": [
+   {
+    "label": "ma-red",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'ma=n13-n13a@s41601@c@ojlog=1+vlog=1' ma-red > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mc-red",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'mc=n13-n13c@s41601@c@ojlog=1+vlog=1' mc-red > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mp-red",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'mp=n13-n13p@s41601@c@ojlog=1+vlog=1+fe_ext=1' mp-red > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mq-red",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42219692173 'mq=n13-n13q@s41601@c@ojlog=1+vlog=1' mq-red > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "ma-blue",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'ma=n13-n13a@s41601@c@ojlog=1+vlog=1' ma-blue > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mc-blue",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'mc=n13-n13c@s41601@c@ojlog=1+vlog=1' mc-blue > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mp-blue",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'mp=n13-n13p@s41601@c@ojlog=1+vlog=1+fe_ext=1' mp-blue > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mq-blue",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42219692173 'mq=n13-n13q@s41601@c@ojlog=1+vlog=1' mq-blue > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "ma-yellow",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'ma=n13-n13a@s41601@c@ojlog=1+vlog=1' ma-yellow > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mc-yellow",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'mc=n13-n13c@s41601@c@ojlog=1+vlog=1' mc-yellow > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mp-yellow",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'mp=n13-n13p@s41601@c@ojlog=1+vlog=1+fe_ext=1' mp-yellow > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mq-yellow",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42219692173 'mq=n13-n13q@s41601@c@ojlog=1+vlog=1' mq-yellow > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "ma-green",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'ma=n13-n13a@s41601@c@ojlog=1+vlog=1' ma-green > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mc-green",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'mc=n13-n13c@s41601@c@ojlog=1+vlog=1' mc-green > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mp-green",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'mp=n13-n13p@s41601@c@ojlog=1+vlog=1+fe_ext=1' mp-green > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mq-green",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42219692173 'mq=n13-n13q@s41601@c@ojlog=1+vlog=1' mq-green > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "ma-black",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'ma=n13-n13a@s41601@c@ojlog=1+vlog=1' ma-black > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mc-black",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'mc=n13-n13c@s41601@c@ojlog=1+vlog=1' mc-black > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mp-black",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'mp=n13-n13p@s41601@c@ojlog=1+vlog=1+fe_ext=1' mp-black > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mq-black",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42219692173 'mq=n13-n13q@s41601@c@ojlog=1+vlog=1' mq-black > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "ma-magic",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'ma=n13-n13a@s41601@c@ojlog=1+vlog=1' ma-magic > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mc-magic",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'mc=n13-n13c@s41601@c@ojlog=1+vlog=1' mc-magic > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mp-magic",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'mp=n13-n13p@s41601@c@ojlog=1+vlog=1+fe_ext=1' mp-magic > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mq-magic",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42219692173 'mq=n13-n13q@s41601@c@ojlog=1+vlog=1' mq-magic > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "ma-nebula",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'ma=n13-n13a@s41601@c@ojlog=1+vlog=1' ma-nebula > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mc-nebula",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'mc=n13-n13c@s41601@c@ojlog=1+vlog=1' mc-nebula > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mp-nebula",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'mp=n13-n13p@s41601@c@ojlog=1+vlog=1+fe_ext=1' mp-nebula > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mq-nebula",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42219692173 'mq=n13-n13q@s41601@c@ojlog=1+vlog=1' mq-nebula > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "ma-ghost",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'ma=n13-n13a@s41601@c@ojlog=1+vlog=1' ma-ghost > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mc-ghost",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'mc=n13-n13c@s41601@c@ojlog=1+vlog=1' mc-ghost > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mp-ghost",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'mp=n13-n13p@s41601@c@ojlog=1+vlog=1+fe_ext=1' mp-ghost > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mq-ghost",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42219692173 'mq=n13-n13q@s41601@c@ojlog=1+vlog=1' mq-ghost > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "ma-abandoned",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'ma=n13-n13a@s41601@c@ojlog=1+vlog=1' ma-abandoned > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mc-abandoned",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'mc=n13-n13c@s41601@c@ojlog=1+vlog=1' mc-abandoned > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mp-abandoned",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'mp=n13-n13p@s41601@c@ojlog=1+vlog=1+fe_ext=1' mp-abandoned > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mq-abandoned",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42219692173 'mq=n13-n13q@s41601@c@ojlog=1+vlog=1' mq-abandoned > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "ma-checkered",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'ma=n13-n13a@s41601@c@ojlog=1+vlog=1' ma-checkered > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mc-checkered",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'mc=n13-n13c@s41601@c@ojlog=1+vlog=1' mc-checkered > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mp-checkered",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'mp=n13-n13p@s41601@c@ojlog=1+vlog=1+fe_ext=1' mp-checkered > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mq-checkered",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42219692173 'mq=n13-n13q@s41601@c@ojlog=1+vlog=1' mq-checkered > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "ma-zodiac",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'ma=n13-n13a@s41601@c@ojlog=1+vlog=1' ma-zodiac > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mc-zodiac",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'mc=n13-n13c@s41601@c@ojlog=1+vlog=1' mc-zodiac > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mp-zodiac",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'mp=n13-n13p@s41601@c@ojlog=1+vlog=1+fe_ext=1' mp-zodiac > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mq-zodiac",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42219692173 'mq=n13-n13q@s41601@c@ojlog=1+vlog=1' mq-zodiac > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "ma-painted",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'ma=n13-n13a@s41601@c@ojlog=1+vlog=1' ma-painted > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mc-painted",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'mc=n13-n13c@s41601@c@ojlog=1+vlog=1' mc-painted > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mp-painted",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'mp=n13-n13p@s41601@c@ojlog=1+vlog=1+fe_ext=1' mp-painted > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mq-painted",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42219692173 'mq=n13-n13q@s41601@c@ojlog=1+vlog=1' mq-painted > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "ma-anaglyph",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'ma=n13-n13a@s41601@c@ojlog=1+vlog=1' ma-anaglyph > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mc-anaglyph",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'mc=n13-n13c@s41601@c@ojlog=1+vlog=1' mc-anaglyph > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mp-anaglyph",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'mp=n13-n13p@s41601@c@ojlog=1+vlog=1+fe_ext=1' mp-anaglyph > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mq-anaglyph",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42219692173 'mq=n13-n13q@s41601@c@ojlog=1+vlog=1' mq-anaglyph > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "ma-plasma",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'ma=n13-n13a@s41601@c@ojlog=1+vlog=1' ma-plasma > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mc-plasma",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'mc=n13-n13c@s41601@c@ojlog=1+vlog=1' mc-plasma > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mp-plasma",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'mp=n13-n13p@s41601@c@ojlog=1+vlog=1+fe_ext=1' mp-plasma > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mq-plasma",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42219692173 'mq=n13-n13q@s41601@c@ojlog=1+vlog=1' mq-plasma > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "ma-erratic",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'ma=n13-n13a@s41601@c@ojlog=1+vlog=1' ma-erratic > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mc-erratic",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'mc=n13-n13c@s41601@c@ojlog=1+vlog=1' mc-erratic > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mp-erratic",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'mp=n13-n13p@s41601@c@ojlog=1+vlog=1+fe_ext=1' mp-erratic > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mq-erratic",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42219692173 'mq=n13-n13q@s41601@c@ojlog=1+vlog=1' mq-erratic > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mash",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'ma=n13-n13a@s41601@c@ojlog=1+vlog=1' mash > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mcsh",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'mc=n13-n13c@s41601@c@ojlog=1+vlog=1' mcsh > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mpsh",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'mp=n13-n13p@s41601@c@ojlog=1+vlog=1+fe_ext=1' mpsh > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mqsh",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42219692173 'mq=n13-n13q@s41601@c@ojlog=1+vlog=1' mqsh > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mak-none",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'ma=n13-n13a@s41601@c@ojlog=1+vlog=1' mak-none > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mck-none",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'mc=n13-n13c@s41601@c@ojlog=1+vlog=1' mck-none > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mpk-none",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'mp=n13-n13p@s41601@c@ojlog=1+vlog=1+fe_ext=1' mpk-none > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mqk-none",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42219692173 'mq=n13-n13q@s41601@c@ojlog=1+vlog=1' mqk-none > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mak-world",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'ma=n13-n13a@s41601@c@ojlog=1+vlog=1' mak-world > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mck-world",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'mc=n13-n13c@s41601@c@ojlog=1+vlog=1' mck-world > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mpk-world",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42210111337 'mp=n13-n13p@s41601@c@ojlog=1+vlog=1+fe_ext=1' mpk-world > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "mqk-world",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42219692173 'mq=n13-n13q@s41601@c@ojlog=1+vlog=1' mqk-world > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   }
+  ]
+ }
+]
