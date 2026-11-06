@@ -283,7 +283,7 @@ def collate(recs, dims, dtype=torch.float32):
     nsims = np.zeros(B, np.float32)
     for b, r in enumerate(recs):
         nc, nj, ni, na = r["c"].shape[0], r["j"].shape[0], r["i"].shape[0], r["atype"].shape[0]
-        g[b] = r["g"]
+        g[b] = r["g"][:dims["GF"]]
         c[b, :nc] = r["c"]
         cm[b, :nc] = 1
         j[b, :nj] = r["j"]
