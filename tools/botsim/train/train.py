@@ -170,6 +170,9 @@ def main():
     ap.add_argument("--anchor", type=int, default=0)
     ap.add_argument("--only", default="")
     ap.add_argument("--gf", type=int, default=0)
+    ap.add_argument("--resume", default="")
+    ap.add_argument("--ckpt", default="")
+    ap.add_argument("--time-limit", type=float, default=0.0)
     a = ap.parse_args()
     if a.threads:
         torch.set_num_threads(a.threads)
@@ -227,12 +230,23 @@ def main():
     warm = max(0, min(a.warmup, a.steps - 1))
     sched = torch.optim.lr_scheduler.LambdaLR(opt, lambda k: (k + 1) / warm if k < warm else
                                               0.5 * (1 + math.cos(math.pi * (k - warm) / max(1, a.steps - warm))))
-    v0 = validate(model, val, dims, a.batch, a.policy_min_sims, ref, full, bool(a.value_ante), a.value_win) if a.init else None
+    start = 0
+    if a.resume:
+        ck = torch.load(a.resume, map_location="cpu", weights_only=False)
+        model.load_state_dict(ck["model"])
+        opt.load_state_dict(ck["opt"])
+        sched.load_state_dict(ck["sched"])
+        start = ck["step"]
+        random.seed(a.seed * 1000003 + start)
+        torch.manual_seed(a.seed * 1000003 + start)
+        print(f"resumed at step {start}")
+    v0 = validate(model, val, dims, a.batch, a.policy_min_sims, ref, full, bool(a.value_ante), a.value_win) if a.init and not start else None
     if v0:
         print("val0 " + json.dumps(v0, separators=(",", ":")))
     t0 = time.time()
     acc = [0.0, 0.0, 0.0, 0]
-    for step in range(1, a.steps + 1):
+    done, last = start, None
+    for step in range(start + 1, a.steps + 1):
         nm = min(len(mix), int(round(a.batch * a.mix))) if mix else 0
         rows = random.sample(recs, min(a.batch - nm, len(recs))) + (random.sample(mix, nm) if nm else [])
         batch = R.collate(rows, dims)
@@ -253,11 +267,18 @@ def main():
         if step % a.log_every == 0 or step == a.steps:
             n = acc[3]
             print(f"step {step} policy {acc[0] / n:.4f} value {acc[1] / n:.4f} ante {acc[2] / n:.4f} "
-                  f"{step * a.batch / (time.time() - t0):.0f} samples/s")
+                  f"{(step - start) * a.batch / (time.time() - t0):.0f} samples/s")
             last = {"policy": round(acc[0] / n, 4), "value": round(acc[1] / n, 4), "ante": round(acc[2] / n, 4)}
             acc = [0.0, 0.0, 0.0, 0]
+        done = step
+        if a.time_limit and time.time() - t0 > a.time_limit:
+            print(f"time limit at step {step}")
+            break
+    if a.ckpt:
+        torch.save({"model": model.state_dict(), "opt": opt.state_dict(), "sched": sched.state_dict(), "step": done, "cfg": model.cfg}, a.ckpt)
+        print(f"checkpoint {a.ckpt} at step {done}")
     v1 = validate(model, val, dims, a.batch, a.policy_min_sims, ref, full, bool(a.value_ante), a.value_win)
-    summary = {"records": len(recs), "runs": len(runs), "wins": wins, "steps": a.steps, "epochs": round(a.steps * a.batch / len(recs), 3),
+    summary = {"records": len(recs), "runs": len(runs), "wins": wins, "steps": done, "epochs": round(done * a.batch / len(recs), 3),
                "train": last, "val": v1, "val0": v0}
     print("summary " + json.dumps(summary, separators=(",", ":")))
     model.save(a.out)
