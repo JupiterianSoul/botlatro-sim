@@ -7,9 +7,9 @@ REPO = " -R JupiterianSoul/botlatro-sim"
 R5VAL = "41234932764"
 
 
-def piece(tag, label, data, args, steps, limit, prev_tag):
-    get = "".join("gh run download " + r + REPO + " -p 'bench-dat-*' -D gen/" + r + "; " for r in data)
-    get += "gh run download " + R5VAL + REPO + " -n r5val-net -D ft; "
+def piece(tag, label, data, args, steps, limit, prev_tag, init):
+    get = "".join("gh run download " + r + REPO + " -p '" + pat + "' -D gen/" + r + "; " for r, pat in data)
+    get += "gh run download " + init[0] + REPO + " -n " + init[1] + " -D ft || exit 1; "
     prep = ("PYTHONPATH=tools/botsim/train python3 tools/botsim/train/trim.py $(find gen -name 'x*.bspr'); "
             "for d in gen/*; do PYTHONPATH=tools/botsim/train python3 tools/botsim/train/relabel.py $d; done; "
             "find gen -name 'x*.bspr' -size +0c | wc -l; ")
@@ -25,24 +25,39 @@ def piece(tag, label, data, args, steps, limit, prev_tag):
     return {"label": label, "cmd": get + prep + res + train, "torch": True, "timeout": 350}
 
 
+def waiter(run, last):
+    cmd = ("for i in $(seq 1 320); do s=$(gh run view " + run + REPO + " --json status -q .status); "
+           "[ \"$s\" = completed ] && break; sleep 60; done; echo run " + run + " $s; ")
+    cmd += "[ \"$s\" = completed ]" if last else "true"
+    return {"label": "wait", "cmd": cmd, "timeout": 345}
+
+
 def main(argv):
     ap = argparse.ArgumentParser(description="chain file: training pieces under the job limit, each resuming the last checkpoint, then the measurement jobs of njobs.py with RUN=$PREV")
     ap.add_argument("out")
     ap.add_argument("--tag", required=True)
-    ap.add_argument("--data", required=True, help="data run ids, comma separated")
+    ap.add_argument("--data", required=True, help="data run ids, comma separated, each RUN or RUN:ARTIFACT_PATTERN (default bench-dat-*)")
+    ap.add_argument("--init", default=R5VAL + ":r5val-net", help="RUN:ARTIFACT of the start net")
+    ap.add_argument("--init-net", action="append", default=[], help="LABEL=RUN:ARTIFACT start net of one net")
+    ap.add_argument("--wait", default="", help="run id to wait for before training")
+    ap.add_argument("--waits", type=int, default=2, help="waiter jobs in a row, about 5 hours each")
     ap.add_argument("--net", action="append", required=True, help="LABEL=TRAIN ARGS")
     ap.add_argument("--steps", type=int, required=True)
     ap.add_argument("--pieces", type=int, default=1)
     ap.add_argument("--limit", type=int, default=17000)
     ap.add_argument("--measure", default="", help="njobs.py spec list file, one LABEL=NET@... per line, ARTIFACT given as the net label")
     a = ap.parse_args(argv[1:])
-    data = [r for r in a.data.split(",") if r]
+    data = [(r.split(":", 1) + ["bench-dat-*"])[:2] for r in a.data.split(",") if r]
     nets = [n.split("=", 1) for n in a.net]
+    inits = dict(n.split("=", 1) for n in a.init_net)
     chain = []
+    if a.wait:
+        for k in range(a.waits):
+            chain.append({"tag": "%s-w%d" % (a.tag, k + 1), "jobs": [waiter(a.wait, k == a.waits - 1)]})
     for k in range(a.pieces):
         tag = "%s-p%d" % (a.tag, k + 1)
         prev = "%s-p%d" % (a.tag, k) if k else ""
-        chain.append({"tag": tag, "jobs": [piece(tag, lab, data, args, a.steps, a.limit, prev) for lab, args in nets]})
+        chain.append({"tag": tag, "jobs": [piece(tag, lab, data, args, a.steps, a.limit, prev, inits.get(lab, a.init).split(":", 1)) for lab, args in nets]})
     if a.measure:
         last = chain[-1]["tag"]
         specs = []
