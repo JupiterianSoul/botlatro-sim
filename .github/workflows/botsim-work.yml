@@ -27,6 +27,9 @@ on:
       prev:
         description: run id of the previous run in the chain
         default: ''
+      par:
+        description: max parallel jobs of this run
+        default: '19'
 
 env:
   LUAJIT_COMMIT: 2a8e017ef1ece6a95b983ffca073d30609dce7c4
@@ -44,7 +47,7 @@ jobs:
       contents: read
     strategy:
       fail-fast: false
-      max-parallel: 19
+      max-parallel: ${{ fromJson(inputs.par || '19') }}
       matrix:
         job: ${{ fromJson(inputs.jobs) }}
     name: ${{ matrix.job.label }}
