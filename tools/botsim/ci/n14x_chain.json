@@ -324,6 +324,256 @@
     "label": "xrk-world",
     "cmd": "python3 tools/botsim/ci/njobs.py --cmd \"$PREV\" 'xr=n14-p1-n14r@s41601@c@ojlog=1+vlog=1' xrk-world > /tmp/job.sh && bash /tmp/job.sh",
     "timeout": 345
+   },
+   {
+    "label": "dat-0",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 0  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-1",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 1  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-2",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 2  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-3",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 3  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-4",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 4  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-5",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 5  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-6",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 6  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-7",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 7  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-8",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 8  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-9",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 9  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-10",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 10  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-11",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 11  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-12",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 12  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-13",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 13  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-14",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 14  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-15",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 15  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-16",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 16  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-17",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 17  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-18",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 18  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-19",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 19  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-20",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 20  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-21",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 21  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-22",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 22  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-23",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 23  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-24",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 24  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-25",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 25  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-26",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 26  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-27",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 27  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-28",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 28  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-29",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 29  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-30",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 30  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-31",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 31  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-32",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 32  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-33",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 33  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-34",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 34  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-35",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 35  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-36",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 36  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-37",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 37  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-38",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 38  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-39",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 39  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-40",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 40  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-41",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 41  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-42",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 42  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-43",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 43  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-44",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 44  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-45",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 45  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-46",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 46  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-47",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 47  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-48",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 48  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "dat-49",
+    "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 49  > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
    }
   ]
  }
