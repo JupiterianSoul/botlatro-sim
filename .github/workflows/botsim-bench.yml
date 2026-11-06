@@ -37,7 +37,7 @@ jobs:
     timeout-minutes: 340
     strategy:
       fail-fast: false
-      max-parallel: 20
+      max-parallel: 19
       matrix:
         job: ${{ fromJson(needs.plan.outputs.jobs) }}
     name: ${{ matrix.job.label }}
