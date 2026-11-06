@@ -1,56 +1,57 @@
-# Results: w13
+# Results: w14
 
-w13 is the current Bot-latro player. It plays fair: it never reads the seed, sees only what a human sees on screen, and gets one try per seed. Every number below counts real wins only, meaning the run beat the ante 8 boss.
+w14 is the current Bot-latro player. It plays fair: it never reads the seed, sees only what a human sees on screen, and gets one try per seed. Every number below counts real wins only, meaning the run beat the ante 8 boss.
 
 ## Gold Stake, all 15 decks
 
-6000 games, 400 per deck, seeds BENCH41401 to BENCH41800.
+3000 games, 200 per deck, seeds BENCH41601 to BENCH41800.
 
-**161 wins, 2.68% (95% interval 2.27% to 3.09%).** Every deck has at least two wins.
+**158 wins, 5.27% (95% interval 4.47% to 6.07%).** w13 won 83 of the same 3000 seeds (2.77%). Every deck has at least one win.
 
 | Deck | Games | Wins | Win rate | Reached ante 5 | Reached ante 8 | Mean ante |
 |---|---|---|---|---|---|---|
-| Blue | 400 | 22 | 5.5% | 84% | 16% | 5.69 |
-| Anaglyph | 400 | 18 | 4.5% | 74% | 12% | 5.26 |
-| Yellow | 400 | 16 | 4.0% | 78% | 10% | 5.35 |
-| Erratic | 400 | 16 | 4.0% | 76% | 9% | 5.26 |
-| Ghost | 400 | 14 | 3.5% | 78% | 9% | 5.27 |
-| Red | 400 | 13 | 3.2% | 73% | 8% | 5.15 |
-| Checkered | 400 | 10 | 2.5% | 83% | 10% | 5.58 |
-| Magic | 400 | 9 | 2.2% | 73% | 8% | 5.05 |
-| Nebula | 400 | 8 | 2.0% | 69% | 8% | 4.97 |
-| Abandoned | 400 | 8 | 2.0% | 79% | 11% | 5.30 |
-| Zodiac | 400 | 8 | 2.0% | 69% | 6% | 4.92 |
-| Plasma | 400 | 6 | 1.5% | 78% | 6% | 5.25 |
-| Green | 400 | 6 | 1.5% | 75% | 8% | 5.13 |
-| Painted | 400 | 5 | 1.2% | 78% | 6% | 5.15 |
-| Black | 400 | 2 | 0.5% | 47% | 2% | 3.90 |
+| Yellow | 200 | 20 | 10.0% | 79% | 16% | 5.61 |
+| Anaglyph | 200 | 19 | 9.5% | 76% | 20% | 5.54 |
+| Blue | 200 | 15 | 7.5% | 80% | 18% | 5.72 |
+| Zodiac | 200 | 15 | 7.5% | 70% | 14% | 5.13 |
+| Ghost | 200 | 14 | 7.0% | 82% | 16% | 5.54 |
+| Checkered | 200 | 11 | 5.5% | 87% | 13% | 5.72 |
+| Green | 200 | 11 | 5.5% | 80% | 12% | 5.47 |
+| Magic | 200 | 9 | 4.5% | 78% | 14% | 5.41 |
+| Plasma | 200 | 8 | 4.0% | 78% | 6% | 5.38 |
+| Abandoned | 200 | 8 | 4.0% | 78% | 12% | 5.35 |
+| Nebula | 200 | 8 | 4.0% | 68% | 12% | 5.03 |
+| Painted | 200 | 7 | 3.5% | 78% | 10% | 5.33 |
+| Erratic | 200 | 6 | 3.0% | 74% | 13% | 5.33 |
+| Red | 200 | 6 | 3.0% | 74% | 10% | 5.22 |
+| Black | 200 | 1 | 0.5% | 47% | 4% | 4.07 |
 
-Mean ante counts a win as 9. With 400 games a deck, the gap between neighbouring rows is mostly noise. Black is the exception: it is clearly the hardest, with half its runs dead before ante 5.
+Mean ante counts a win as 9. With 200 games a deck, the gap between neighbouring rows is mostly noise. Black is the exception: it is clearly the hardest, with half its runs dead before ante 5.
 
 ## Every stake, Red deck
 
-200 games per stake, seeds BENCH34001 to BENCH34200.
+200 games per stake, seeds BENCH34001 to BENCH34200. w13 on the same seeds in brackets.
 
 | Stake | Wins | Win rate | Reached ante 8 |
 |---|---|---|---|
-| 1 White | 149 | 74.5% | 88% |
-| 2 Red | 147 | 73.5% | 88% |
-| 3 Green | 71 | 35.5% | 58% |
-| 4 Black | 56 | 28.0% | 53% |
-| 5 Blue | 50 | 25.0% | 44% |
-| 6 Purple | 18 | 9.0% | 20% |
-| 7 Orange | 6 | 3.0% | 12% |
-| 8 Gold | 13 of 400 | 3.2% | 8% |
+| 1 White | 157 (149) | 78.5% | 89% |
+| 2 Red | 151 (147) | 75.5% | 90% |
+| 3 Green | 97 (71) | 48.5% | 70% |
+| 4 Black | 81 (56) | 40.5% | 64% |
+| 5 Blue | 70 (50) | 35.0% | 57% |
+| 6 Purple | 33 (18) | 16.5% | 28% |
+| 7 Orange | 15 (6) | 7.5% | 20% |
+| 8 Gold | 6 of 200 (7) | 3.0% | 10% |
 
 ## How it plays
 
 - **Hands:** a solver picks every play and discard. It looks ahead over the draws still to come in the round.
 - **Shops, packs and blind skips:** a rollout search makes these choices. For each candidate move it plays the run forward in its head, five candidates at a time and up to 128 rollouts, two antes deep from ante 3 on. A small neural net judges the position where each rollout stops.
 - **Joker order:** jokers are re-sorted before every blind and inside every rollout.
+- **The net:** w14's net was trained on 5949 of w13's own games (812389 decisions). At each shop, pack and blind choice it learned the move the search picked and where the run ended.
 - **Scaling jokers:** the net underrated jokers whose own mult, xMult or chips grow during a run (Hologram, Spare Trousers, Constellation, Campfire and others). w12 and w13 add a measured value per ante for each one held. That value was fitted on separate games, on seeds outside every test range.
 
-The exact command line is in `tools/botsim/ci/w13_decks.txt` and `w13_ladder.txt`.
+The exact command line is in `tools/botsim/ci/w14_decks.txt` and `w14_ladder.txt`.
 
 ## How each version was accepted
 
@@ -77,6 +78,7 @@ Each version is the previous one plus a single change. A change is kept only whe
 | w11 | joker order inside rollouts, cached | +0.062 antes, z 2.59 |
 | w12 | scaling joker values | 77 vs 59 wins over two Gold samples |
 | w13 | scaling values refit on 6000 w12 games | ladder 497 vs 469 wins, z 2.6 on games one side won |
+| w14 | net retrained on 5949 of w13's own games | Gold 158 vs 83 wins over 3000 games, +0.20 antes, z 5.0 and 4.6 on two samples; ladder 604 vs 497 wins |
 
 ## What it still gets wrong
 
@@ -88,8 +90,8 @@ Several rule-based fixes were built and measured, and none of them won more game
 - valuing hand levels, enhanced cards and vouchers
 - a build power check
 
-The net already prices those about right. What is left is spread across every decision, so the next step is training a better net.
+The net already prices those about right. What is left is spread across every decision, which is why w14 came from training the net on the player's own games instead. The next versions repeat that: play with the new net, train on those games, keep the net only if it wins more.
 
 ## Reproducing
 
-The sim needs the game's card tables, which are not in this repo; see the README. The release for this version has the net weights (`r5val.bnnw`) and all 7400 game records used above, one JSON line per game. In those records a real win is `won == 1` and `need == 0`. `tools/botsim/train/games.py` counts them.
+The sim needs the game's card tables, which are not in this repo; see the README. w14's net is `tools/botsim/n13c.bnnw` on the `nets` branch, which the w14 job files fetch. w13's release has its net (`r5val.bnnw`) and the w13 game records. In the game records a real win is `won == 1` and `need == 0`. `tools/botsim/train/games.py` counts them.
