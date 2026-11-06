@@ -169,6 +169,7 @@ def main():
     ap.add_argument("--mask-unjudged", type=int, default=1)
     ap.add_argument("--anchor", type=int, default=0)
     ap.add_argument("--only", default="")
+    ap.add_argument("--gf", type=int, default=0)
     a = ap.parse_args()
     if a.threads:
         torch.set_num_threads(a.threads)
@@ -188,6 +189,9 @@ def main():
         if not a.data:
             recs, runs, val, mix = mix, mruns, mval, []
             a.mix = 0.0
+    if a.gf and dims and dims["GF"] > a.gf:
+        dims = dict(dims, GF=a.gf)
+        print(f"global inputs cut to {a.gf}")
     if not recs and val:
         recs, val = val, []
     if not recs:
