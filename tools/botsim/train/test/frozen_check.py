@@ -19,6 +19,8 @@ for path in sys.argv[4:]:
     recs.extend(rs)
 recs = random.Random(1).sample(recs, min(4096, len(recs)))
 m0, m1 = Net.from_file(p0), Net.from_file(p1)
+if m1.cfg["GF"] < dims["GF"]:
+    dims = dict(dims, GF=m1.cfg["GF"])
 if m0.cfg["GF"] < dims["GF"]:
     m0 = widen(m0, dims["GF"])
 m0.eval()
@@ -39,4 +41,7 @@ print("records %d policy logit max diff %.3g value mean diff %.4f ante mean diff
 if mode == "frozen":
     assert dp < 1e-4, "policy moved"
     assert da / n > 0 or dv / n > 0, "value did not move"
+if mode == "policy":
+    assert da / n < 1e-6 and dv / n < 1e-6, "value moved"
+    assert dp > 0, "policy did not move"
 print("frozen check ok")
