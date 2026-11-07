@@ -73,6 +73,31 @@ def widen(model, gf):
     return new
 
 
+def grow(model, h):
+    old = model.cfg["H"]
+    cfg = dict(model.cfg)
+    cfg["H"] = h
+    new = Net(cfg)
+    sd, nd = model.state_dict(), new.state_dict()
+    with torch.no_grad():
+        nd["t0.weight"][:old] = sd["t0.weight"]
+        nd["t0.bias"].zero_()
+        nd["t0.bias"][:old] = sd["t0.bias"]
+        nd["t1.weight"][:, old:] = 0
+        nd["t1.weight"][:old, :old] = sd["t1.weight"]
+        nd["t1.bias"].zero_()
+        nd["t1.bias"][:old] = sd["t1.bias"]
+        for k in nd:
+            if k.endswith(".weight") and (k.startswith("v0.") or k.startswith("pol.")):
+                nd[k].zero_()
+                nd[k][:, :old] = sd[k]
+            elif not k.startswith(("t0.", "t1.")):
+                nd[k].copy_(sd[k])
+    new.load_state_dict(nd)
+    print(f"grew H {old} -> {h}")
+    return new
+
+
 def losses(model, b, ante_w, policy_min_sims=0, out=None, val_w=1.0, adv_w=0.0, depth_w=0.0, val_ante=False, val_win=0.0, ref=None, ref_full=False):
     z, ante, logits = model(b)
     if out is not None:
@@ -173,6 +198,7 @@ def main():
     ap.add_argument("--resume", default="")
     ap.add_argument("--ckpt", default="")
     ap.add_argument("--time-limit", type=float, default=0.0)
+    ap.add_argument("--grow", type=int, default=0)
     a = ap.parse_args()
     if a.threads:
         torch.set_num_threads(a.threads)
@@ -212,6 +238,12 @@ def main():
     model = Net.from_file(a.init) if a.init else Net(parse_cfg(a.cfg, dims))
     if a.init and model.cfg["GF"] < dims["GF"]:
         model = widen(model, dims["GF"])
+    if a.grow and model.cfg["H"] < a.grow:
+        small = model
+        model = grow(model, a.grow)
+        if val:
+            g0, g1 = (validate(m, val, dims, a.batch, a.policy_min_sims, None, False, bool(a.value_ante), a.value_win) for m in (small, model))
+            print("grow check " + json.dumps({k: [g0[k], g1[k]] for k in ("policy", "value", "ante")}, separators=(",", ":")))
     ref = None
     if R.ANCHOR:
         ref = copy.deepcopy(model).eval()
