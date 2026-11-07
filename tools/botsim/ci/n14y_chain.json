@@ -445,6 +445,96 @@
     "timeout": 345
    },
    {
+    "label": "xl-red",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42328371233 'xl=n14l-p-n14l@s41601@c@ojlog=1+vlog=1' xl-red > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "xl-blue",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42328371233 'xl=n14l-p-n14l@s41601@c@ojlog=1+vlog=1' xl-blue > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "xl-yellow",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42328371233 'xl=n14l-p-n14l@s41601@c@ojlog=1+vlog=1' xl-yellow > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "xl-green",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42328371233 'xl=n14l-p-n14l@s41601@c@ojlog=1+vlog=1' xl-green > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "xl-black",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42328371233 'xl=n14l-p-n14l@s41601@c@ojlog=1+vlog=1' xl-black > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "xl-magic",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42328371233 'xl=n14l-p-n14l@s41601@c@ojlog=1+vlog=1' xl-magic > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "xl-nebula",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42328371233 'xl=n14l-p-n14l@s41601@c@ojlog=1+vlog=1' xl-nebula > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "xl-ghost",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42328371233 'xl=n14l-p-n14l@s41601@c@ojlog=1+vlog=1' xl-ghost > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "xl-abandoned",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42328371233 'xl=n14l-p-n14l@s41601@c@ojlog=1+vlog=1' xl-abandoned > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "xl-checkered",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42328371233 'xl=n14l-p-n14l@s41601@c@ojlog=1+vlog=1' xl-checkered > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "xl-zodiac",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42328371233 'xl=n14l-p-n14l@s41601@c@ojlog=1+vlog=1' xl-zodiac > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "xl-painted",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42328371233 'xl=n14l-p-n14l@s41601@c@ojlog=1+vlog=1' xl-painted > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "xl-anaglyph",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42328371233 'xl=n14l-p-n14l@s41601@c@ojlog=1+vlog=1' xl-anaglyph > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "xl-plasma",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42328371233 'xl=n14l-p-n14l@s41601@c@ojlog=1+vlog=1' xl-plasma > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "xl-erratic",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42328371233 'xl=n14l-p-n14l@s41601@c@ojlog=1+vlog=1' xl-erratic > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "xlsh",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42328371233 'xl=n14l-p-n14l@s41601@c@ojlog=1+vlog=1' xlsh > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "xlk-none",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42328371233 'xl=n14l-p-n14l@s41601@c@ojlog=1+vlog=1' xlk-none > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
+    "label": "xlk-world",
+    "cmd": "python3 tools/botsim/ci/njobs.py --cmd 42328371233 'xl=n14l-p-n14l@s41601@c@ojlog=1+vlog=1' xlk-world > /tmp/job.sh && bash /tmp/job.sh",
+    "timeout": 345
+   },
+   {
     "label": "dat-0",
     "cmd": "python3 tools/botsim/ci/djobs.py --cmd 42210111337 n13-n13c 62301 50 2 0  > /tmp/job.sh && bash /tmp/job.sh",
     "timeout": 345
